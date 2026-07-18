@@ -5,7 +5,7 @@
 **Auteur :** Hamouda ALIAS
 **Date :** 24 Décembre 2025 (mise à jour : 19 Juillet 2026)
 **Discipline :** Architectures d'IA, Systèmes Neuromorphiques, Systèmes Dynamiques
-**Version :** v3.1 — PoC complet, 13 phases validées.
+**Version :** v3.1-kernel — Architecture modulaire, 13 phases validées.
 
 ---
 
@@ -193,6 +193,52 @@ Le calcul par token dans TSO est proportionnel à la sparsité $\alpha \ll 1$ du
 En attendant la maturité du matériel neuromorphique, TSO est implémenté sur GPU standard sous le nom de **TSO-Sim**.
 *   **TSO-Sim (GPU) :** Utilisation de PyTorch et `snnTorch`. Le temps est discrétisé. La sparsité est implémentée via des matrices *Block-Sparse 2:4* pour exploiter les Tensor Cores. Le "Skip Calcul" est simulé par masquage booléen des clusters inactifs.
 *   **TSO-Neuro (Hardware futur) :** Portage prévu sur puces asynchrones (ex: Intel Loihi 2) pour concrétiser une réduction majeure de l'énergie dynamique.
+
+#### 8.1 Architecture Logicielle (Dépôt)
+
+Le code source est organisé en une bibliothèque modulaire séparant le noyau mathématique (Kernel) de l'interface langage :
+
+```
+tso/
+├── tso_kernel/         # Noyau mathématique pur (NumPy)
+│   ├── neurons.py      # Dynamique LIF, clusters
+│   ├── plasticity.py   # R-STDP, traces d'éligibilité
+│   ├── friction.py     # Calcul de Φ (3 variantes)
+│   ├── operators.py    # Double Mapping, Moteur Inverse
+│   └── core.py         # TSOCore — orchestre le tout
+├── tso_nlp/            # Interface langage (PyTorch, HF)
+│   ├── embedder.py     # MiniLM embedder + projection
+│   ├── som.py          # Self-Organizing Map
+│   └── decoder.py      # Graphe de transitions, Moteur Inverse
+├── experiments/        # Scripts de validation reproductibles
+│   ├── phase0_geometry.py   # Lemme 1 (Double Mapping)
+│   └── phase13_shakespeare.py # Lecture conceptuelle
+├── tests/              # Tests unitaires du Kernel
+│   └── test_friction.py     # 7 tests, Φ et opérateurs
+├── src/                # Scripts legacy (Phases 0-14)
+└── paper.md
+```
+
+Le Kernel (`tso_kernel/`) ne dépend que de NumPy et peut être porté en C++/CUDA indépendamment. L'interface NLP (`tso_nlp/`) dépend de PyTorch et HuggingFace. Cette séparation permet aux reviewers de vérifier le cœur théorique sans charger de modèle de langage.
+
+#### 8.2 Reproductibilité
+
+Chaque résultat annoncé dans cet article est reproductible par une commande unique :
+
+```bash
+pip install -r requirements.txt
+
+# Lemme 1 : Double Mapping (3/3 vérifications)
+python experiments/phase0_geometry.py
+
+# Phase 13 : Shakespeare conceptuel (GPU recommandé)
+python experiments/phase13_shakespeare.py
+
+# Tests unitaires du Kernel (7 tests)
+python tests/test_friction.py
+```
+
+Le dépôt public est disponible à l'adresse : \url{https://github.com/[auteur]/tso}.
 
 ### 9. EXPÉRIENCES PROPOSÉES ET RÉSULTATS PRÉLIMINAIRES
 
