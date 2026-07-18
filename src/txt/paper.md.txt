@@ -136,10 +136,15 @@ La dimension passe de $d$ à $Nd$ (croissance linéaire avec le nombre de concep
 
 ### 5. ARCHITECTURE TSO ET DYNAMIQUE D'APPRENTISSAGE
 
-L'architecture repose sur une topographie stricte en clusters sémantiques. Pour modéliser l'apprentissage, TSO intègre deux modes :
+L'architecture repose sur une topographie stricte en clusters sémantiques. Pour modéliser l'apprentissage, TSO intègre deux modes, tous deux régis par la mesure de friction $\Phi$ :
 
-1.  **Mode 1 : Stabilisation Active (Friction forte).** Le système rencontre une contradiction. La cascade de spikes déclenche l'Actor et le Critic pour trouver l'opérateur réduisant $\Phi$.
-2.  **Mode 2 : Consolidation Passive (Friction faible).** Le système reçoit un flux cohérent. L'activité reste sous le seuil critique. Les traces d'éligibilité s'accumulent, renforçant les chemins synaptiques sans intervention globale.
+1.  **Mode 1 : Stabilisation Active (Friction forte).** Le système rencontre une contradiction directe. La cascade de spikes déclenche l'Actor et le Critic pour trouver l'opérateur géométrique (Double Mapping) réduisant $\Phi$.
+2.  **Mode 2 : Consolidation Passive (Friction faible).** Le système reçoit un flux d'informations cohérent. Les traces d'éligibilité s'accumulent, renforçant les chemins synaptiques (R-STDP).
+
+**Résolution de l'Effondrement de Représentation (Friction-Gated Consolidation) :**
+Un défi majeur des réseaux récurrents à apprentissage Hebbien non contraint est l'effondrement de la représentation : si le cluster A active le contexte C, qui active à son tour le cluster B (exclusif de A), la co-activation indirecte finit par fusionner A et B, détruisant la sémantique avant même que le Mode 1 n'intervienne.
+
+Pour résoudre cela, TSO implémente une **Porte de Friction (Friction Gate)** lors de la consolidation passive. Avant de valider une trace d'éligibilité (LTP), le système évalue la friction latente entre les concepts (via la similarité cosinus de leurs cibles sémantiques). Si une exclusion mutuelle est détectée ($\text{sim} < 0$), la consolidation est bloquée et une légère dépression synaptique (LTD) est appliquée pour briser la cascade récurrente. Ce mécanisme garantit que l'homéostasie est un contrôle continu, empêchant l'effondrement des attracteurs sans nécessiter d'inhibition latérale globale.
 
 **Résolution du paradoxe Actor-Critic sans Backpropagation :**
 Dans TSO, le Critic n'est pas un réseau neuronal profond entraîné par TD-Learning. C'est une **fonction analytique de simulation "forward"** qui évalue la physique du système. L'Actor (le réseau SNN) ne calcule pas les seuils ; son rôle est d'apprendre, via la R-STDP, la **carte de routage prioritaire**. Lors d'une contradiction multiple, l'Actor sélectionne l'arête à traiter et l'opérateur à appliquer. Le Critic simule alors $S_{simul} = P_a(S_t)$ et calcule $\Delta\Phi_{global}$. Si $\Delta\Phi > 0$, l'action est validée. Le neuromodulateur $M(t)$ renforce alors les synapses ayant mené au choix de cette priorité. Aucun gradient global ne traverse le réseau.
