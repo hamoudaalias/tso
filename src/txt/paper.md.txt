@@ -89,6 +89,18 @@ W_{ij} + \alpha \cdot e_{ij} & \text{otherwise}
 
 where $e_{ij}$ is the eligibility trace. This mechanism ensures homeostasis is a continuous control, preventing attractor collapse without global lateral inhibition.
 
+#### Robustness Upgrades (Phase 8+)
+
+Three cybernetic mechanisms protect the Native Critic against noise in natural language:
+
+1. **Soft Double Mapping (Residual Shared Space).** The expansion operator no longer imposes strict orthogonality ($\langle z'_1, z'_2 \rangle = 0$). A coefficient $\alpha$ preserves a residual shared subspace, avoiding "semantic lobotomy" when separating concepts that share common traits (e.g. Chat and Chien being mammals). The main exclusion friction is still dissipated, but shared features remain addressable.
+
+2. **Adaptive Threshold (Pupillary Adaptation).** The trigger threshold $\theta_c$ is no longer static. It is dynamically coupled to the standard deviation of recent network activity:
+   $$\theta_c(t) = \theta_c^{\text{base}} + 0.5 \cdot \sigma(\text{activity}_{t-10:t})$$
+   During high semantic noise, the threshold rises to prevent false contradiction detection (topological autoimmune disease).
+
+3. **Topographic Inertia (Grace Period).** The expansion operator is locked while the variance of the slow eligibility trace exceeds a noise floor. This guarantees that Mode 2 has solidly established semantic foundations ($\min(\langle z_c, z_{ctx} \rangle) \geq \gamma$) before Mode 1 performs surgical intervention, preventing premature expansion loops.
+
 #### Actor-Critic Without Backpropagation
 
 The Critic is not a deep network trained via TD-learning. It is an **analytic forward simulation function** that evaluates the system's physics. The Actor (SNN) learns, via R-STDP, the priority routing map. During multiple contradictions, the Actor selects the edge to process and the operator to apply. The Critic simulates $S_{simul} = P_a(S_t)$ and computes $\Delta\Phi_{global}$. If $\Delta\Phi > 0$, the action is validated. The neuromodulator $M(t)$ reinforces synapses that led to the winning priority choice. No global gradient traverses the network.

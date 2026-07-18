@@ -15,22 +15,9 @@ class TopographicOperator:
     @staticmethod
     def double_mapping(vectors, concepts, context, d):
         """
-        Project conflicting concepts into disjoint subspaces.
-
-        Each concept gets its own d-dimensional block within a k*d space.
-        The context is replicated across all blocks. This guarantees
-        that the dot product between exclusive concepts is zero
-        while context similarities are preserved.
-
-        Args:
-            vectors: dict mapping label -> 1D array (length d)
-            concepts: list of concept labels to orthogonalize
-            context: label of the context element
-            d: intrinsic dimension
-
-        Returns:
-            new_vectors: dict mapping label -> expanded array (length k*d)
-            nd: new dimension
+        Strict Double Mapping (Lemma 1).
+        Projects conflicting concepts into fully disjoint subspaces.
+        Dot product between exclusive concepts is exactly zero.
         """
         k = len(concepts)
         nd = k * d
@@ -45,6 +32,35 @@ class TopographicOperator:
         ctx_zp = np.zeros(nd, dtype=np.float32)
         for i in range(k):
             ctx_zp[i*d:(i+1)*d] = vectors[context]
+        new_vecs[context] = ctx_zp
+
+        return new_vecs, nd
+
+    @staticmethod
+    def soft_double_mapping(vectors, concepts, context, d, alpha=0.1):
+        """
+        Soft Double Mapping with residual shared space (Lemma 1 v2).
+
+        Instead of strict orthogonality, a residual coefficient alpha
+        preserves shared features between exclusive concepts. This avoids
+        "semantic lobotomy" where concepts with common traits (e.g.
+        Chat and Chien both being mammals) lose all similarity.
+        """
+        k = len(concepts)
+        nd = k * d
+        new_vecs = {}
+
+        for idx, c in enumerate(concepts):
+            zp = np.zeros(nd, dtype=np.float32)
+            zp[idx*d:(idx+1)*d] = vectors[c]
+            for other_idx in range(k):
+                if other_idx != idx:
+                    zp[other_idx*d:(other_idx+1)*d] = vectors[c] * alpha
+            new_vecs[c] = zp
+
+        ctx_zp = np.zeros(nd, dtype=np.float32)
+        for idx in range(k):
+            ctx_zp[idx*d:(idx+1)*d] = vectors[context]
         new_vecs[context] = ctx_zp
 
         return new_vecs, nd
