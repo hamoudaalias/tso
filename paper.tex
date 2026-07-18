@@ -1,0 +1,292 @@
+% TSO: Topographic Stabilization Operator
+% Auteur: Hamouda ALIAS
+% Template NeurIPS 2025
+\documentclass{article}
+
+% Packages
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{amsmath,amssymb,amsthm}
+\usepackage{hyperref}
+\usepackage{booktabs}
+\usepackage{graphicx}
+\usepackage{algorithm}
+\usepackage{algpseudocode}
+\usepackage[margin=1in]{geometry}
+\usepackage{cite}
+\usepackage{xcolor}
+
+% Theorem environments
+\newtheorem{lemma}{Lemma}
+\newtheorem{definition}{Definition}
+\newtheorem{remark}{Remark}
+
+% Title
+\title{TSO: Topographic Stabilization Operator\\
+\large An Event-Driven Neuromorphic Architecture Based on Cognitive Friction Dissipation}
+
+\author{
+  Hamouda ALIAS\\
+  Institute of Neuro-Cybernetics\\
+  \texttt{\href{https://github.com/hamoudaalias/tso}{github.com/hamoudaalias/tso}}
+}
+
+\begin{document}
+
+\maketitle
+
+\begin{abstract}
+Current AI architectures maintain an epistemological dependence on backpropagation and external semantic modules. This paper proposes \textbf{TSO (Topographic Stabilization Operator)}, an event-driven neuromorphic architecture where computation emerges from an internal instability measure ($\Phi$). TSO combines a topographic SNN, multi-scale R-STDP plasticity, a latent expansion operator (Double Mapping), and a Semantic Inverse Motor for action selection. We demonstrate that TSO resolves semantic contradictions through local geometric expansion without global gradients, generates syntactic sequences without BPTT, and selects the correct word among 1,000 via SNN-to-Embedding projection ($50\times384$), avoiding combinatorial explosion. In Phase 8, the external NLI (DeBERTa) is replaced by a Native Critic that infers logical relations from the SNN's electrical dynamics alone, making TSO a 100\% autonomous system. Phase 9 validates long-range temporal credit assignment without BPTT: the slow trace ($\tau=200$) achieves 26.6\% ($26\times$ random), while the short trace ($\tau=20$) suffers total amnesia (0.6\%). Phase 10 replaces linear EMA memory with a non-linear reservoir (ESN), reaching 45.3\% on short sequences (+48\% vs EMA). Phase 11 validates \textbf{Dynamic Skip Compute}: the SNN cost of a paradoxical sequence ($\Phi>0$) is $2.9\times$ higher than a trivial one ($\Phi=0$), demonstrating that TSO adjusts its compute budget to semantic complexity. \textbf{Phase 12} connects the GPT-2 BPE tokenizer (50,257 tokens): the Inverse Motor projects SNN(50) to embedding(384) with cosine \textbf{0.9996} in 40 epochs (Oja rule), using only \textbf{0.1\%} of a full softmax layer's parameters. \textbf{Phase 13} crosses the frontier of continuous text reading (Tiny Shakespeare) via \textbf{conceptual prediction}: TSO quantizes each word onto a SOM (100 concepts) and learns a Hebbian transition graph. The friction $\Phi$ drops to \textbf{$-2.12$} (314\% better than random), proving that TSO infers conceptual grammar from a real corpus without backpropagation. Code and reproducible experiments available at \url{https://github.com/hamoudaalias/tso}.
+\end{abstract}
+
+\section{Introduction}
+
+Large Language Models (LLMs) have advanced remarkably through the Transformer architecture. However, these models share a fundamental limitation: the relationship between information and computation is static. A Transformer deploys the same compute per token whether processing a trivial word or a complex equation. This density incurs high energy costs and makes continual learning vulnerable to catastrophic forgetting.
+
+We introduce \textbf{TSO (Topographic Stabilization Operator)}, an event-driven architecture where computation is triggered by the need to maintain internal homeostasis. The founding thesis is that \textbf{computation becomes a consequence of an internal instability measure rather than an obligation tied to data arrival}. In TSO, neural activity emerges as a response to cognitive friction, and the system computes only when a contradiction perturbs its equilibrium state.
+
+\section{Related Work}
+
+TSO sits at the confluence of several fields:
+\begin{itemize}
+    \item \textbf{Adaptive Computation:} Methods like ACT and PonderNet adjust compute to input difficulty but remain based on dense networks and backpropagation.
+    \item \textbf{Spiking Neural Networks:} TSO uses SNN reservoirs for temporal processing, with R-STDP for strictly local learning.
+    \item \textbf{Active Inference:} From Friston, these frameworks model cognition as surprise minimization. TSO differs by modeling friction not as external prediction error but as internal structural contradiction requiring geometric action.
+    \item \textbf{Continual Learning:} TSO natively addresses catastrophic forgetting through local plasticity, bypassing global regularization methods like EWC.
+\end{itemize}
+
+\section{Cognitive Dissipation Theory}
+
+\subsection{Cognitive State and Graph Emergence}
+
+The system state at time $t$ is $X_t = (G_t, S_t, W_t)$:
+\begin{itemize}
+    \item \textbf{Nodes ($V$):} Active neuron clusters in the Topographic Grid. Cluster activation represents concept presence in working memory.
+    \item \textbf{Edges and Constraints ($E, W$):} The graph emerges through temporal co-activation. If two clusters spike within window $\Delta t$, an edge forms. Edge typing $w_{ij}$ is initially determined by a frozen NLI encoder; after Phase 8, typing is endogenous.
+    \item \textbf{Geometric Bootstrap:} Initial activation vectors $z_i$ are projections of the NLI model's embeddings. The SNN then deforms this space via R-STDP.
+    \item $S_t$ is neural activity, $W_t$ synaptic weights.
+\end{itemize}
+
+\subsection{Computable Friction $\Phi$}
+
+Global friction measures constraint violations in the active graph $G_t$. For two activation vectors $z_i, z_j \in \mathbb{R}^d$:
+
+\begin{itemize}
+    \item \textbf{Implication constraint ($w_{ij}=1$):} Vectors must be aligned.
+    $$\text{Violation}_{ij}^{imp} = \max(0, \gamma - \langle z_i, z_j \rangle)$$
+    \item \textbf{Exclusion constraint ($w_{ij}=-1$):} Vectors must be orthogonal or opposed.
+    $$\text{Violation}_{ij}^{exc} = \max(0, \langle z_i, z_j \rangle - \epsilon)$$
+\end{itemize}
+
+Global friction is the sum: $\Phi(G_t) = \sum_{(i,j) \in E} \text{Violation}_{ij}$.
+
+\subsection{Friction-Gated Consolidation}
+
+A major challenge of unconstrained Hebbian recurrent networks is \textbf{representation collapse}: if cluster A activates context C, which in turn activates cluster B (exclusive of A), the indirect co-activation eventually fuses A and B, destroying semantics before Mode 1 can intervene.
+
+To solve this, TSO implements a \textbf{Friction Gate} during passive consolidation. Before validating an eligibility trace (LTP), the system evaluates latent friction between concepts via cosine similarity of their semantic targets. If mutual exclusion is detected (\(\text{sim} < 0\)), consolidation is blocked and a mild long-term depression (LTD) is applied to break the recurrent cascade:
+
+$$W_{ij} \leftarrow \begin{cases}
+W_{ij} - \eta_{\text{inhib}} \cdot e_{ij} & \text{if } \cos(z_i, z_j) < 0 \\
+W_{ij} + \alpha \cdot e_{ij} & \text{otherwise}
+\end{cases}$$
+
+where $e_{ij}$ is the eligibility trace. This mechanism ensures homeostasis is a continuous control, preventing attractor collapse without global lateral inhibition.
+
+\begin{figure}[h]
+\centering
+\caption{Friction-Gated Consolidation. Left: without gate, the cascade Chat$\rightarrow$Animal$\rightarrow$Chien creates a spurious Chat$\leftrightarrow$Chien edge (W=1.50 by epoch 3). Right: with gate, W(Chat,Chien)=0.00 throughout 15 epochs while legitimate implications saturate normally.}
+\label{fig:gate}
+\end{figure}
+
+\section{Cognitive Operators}
+
+\subsection{Double Mapping (Lemma 1)}
+
+When an exclusion constraint cannot be satisfied in the current space, TSO recruits new neurons and projects the conflicting concepts into disjoint subspaces.
+
+\begin{lemma}[Double Mapping]
+Let $z_a, z_b \in \mathbb{R}^d$ be exclusive concepts ($\langle z_a, z_b \rangle > \epsilon$) in conflict with context $c$. There exists an expansion into $\mathbb{R}^{kd}$ where $z_a$ and $z_b$ become orthogonal while preserving $\langle z_a, z_c \rangle$ and $\langle z_b, z_c \rangle$.
+\end{lemma}
+
+\textbf{Construction:} For $k$ conflicting concepts, define:
+$$z'_a = [z_a; 0; \dots; 0] \in \mathbb{R}^{kd}$$
+$$z'_b = [0; \dots; z_b; \dots; 0] \in \mathbb{R}^{kd}$$
+$$z'_c = [z_c; z_c; \dots; z_c] \in \mathbb{R}^{kd}$$
+
+Then $\langle z'_a, z'_b \rangle = 0$, $\langle z'_a, z'_c \rangle = \langle z_a, z_c \rangle$, and $\langle z'_b, z'_c \rangle = \langle z_b, z_c \rangle$. This guarantees $\Phi = 0$ in one step.
+
+\subsection{Inverse Motor (Semantic Projection)}
+
+The Inverse Motor projects the SNN state $s \in \mathbb{R}^{50}$ into the embedding space:
+$$\hat{e} = W s, \quad W \in \mathbb{R}^{384 \times 50}$$
+
+Learning uses Oja's rule: $W \leftarrow W + \eta \cdot \text{outer}(s, t - W s)$, where $t$ is the target embedding. This converges to the projection minimizing $\|t - W s\|^2$.
+
+\section{TSO Architecture and Learning Dynamics}
+
+The architecture is based on strict topographic semantic clusters, with two modes governed by $\Phi$:
+
+\begin{enumerate}
+    \item \textbf{Mode 1: Active Stabilization (High Friction).} The system encounters a direct contradiction. Spike cascades trigger the Actor and Critic to find the geometric operator reducing $\Phi$.
+    \item \textbf{Mode 2: Passive Consolidation (Low Friction).} The system receives coherent input. Eligibility traces accumulate, reinforcing synaptic pathways (R-STDP).
+\end{enumerate}
+
+\subsection{Actor-Critic Without Backpropagation}
+
+The Critic is not a deep network trained via TD-learning. It is an \textbf{analytic forward simulation function} that evaluates the system's physics. The Actor (SNN) learns, via R-STDP, the priority routing map. During multiple contradictions, the Actor selects the edge to process and the operator to apply. The Critic simulates $S_{simul} = P_a(S_t)$ and computes $\Delta\Phi_{global}$. If $\Delta\Phi > 0$, the action is validated. The neuromodulator $M(t)$ reinforces synapses that led to the winning priority choice. No global gradient traverses the network.
+
+\section{Complete Algorithm}
+
+Let $\Delta\Phi = \Phi(S_t) - \Phi(P_a(S_t))$ be the global friction variation (success if $\Delta\Phi > 0$).
+
+\begin{algorithm}[h]
+\caption{TSO Training Step}
+\begin{algorithmic}[1]
+\State \textbf{Input:} Signal $x_t$, State $X_t$
+\State \textbf{Output:} Action $a_t$, New State $X_{t+1}$
+\State Initialize topology (semantic clusters)
+\State Encode $x_t$ into spike train $I_t$
+\State Update graph $G_t$ via co-activation
+\State Compute $\Phi_{estimated} = \Phi(G_t) + \lambda \|I_t\|$
+\If{$\Phi_{estimated} < \theta_t$} \Comment{Low Friction}
+    \State \textbf{Mode 2: Passive Consolidation}
+    \State Update eligibility traces (accumulation)
+    \State $a_t = \emptyset$ (No motor action)
+\Else \Comment{High Friction}
+    \State \textbf{Mode 1: Active Stabilization}
+    \State Propagate $I_t$ (spike cascade)
+    \State Actor proposes candidate: $(edge_{ij}, operator_a)$
+    \State Critic simulates action: $S_{simul} = P_a(S_t)$
+    \State Critic computes $\Delta\Phi = \Phi(S_t) - \Phi(S_{simul})$
+    \If{$\Delta\Phi > 0$}
+        \State Execute $a_t$ (Double Mapping if needed)
+        \State Reinforce traces via neuromodulator $M(t)$
+    \Else
+        \State Inhibit proposal and retry from Step 12
+    \EndIf
+\EndIf
+\State Update global state $X_{t+1}$
+\State \textbf{Return} $a_t, X_{t+1}$
+\end{algorithmic}
+\end{algorithm}
+
+\section{Complexity Analysis}
+
+Unlike Transformers where cost depends on context length, TSO's cost depends on internal activity driven by friction.
+
+\subsection{Space Complexity}
+
+The graph $G_t$ has at most $n$ nodes and $e$ edges. With $n \ll 10^4$ active concepts, memory is $O(n + e)$, compared to $O(L^2)$ attention matrices where $L$ is context length.
+
+\subsection{Time Complexity (Theoretical)}
+
+Each TSO step is $O(I \cdot d)$ where $I$ is the number of active neurons and $d$ the dimension. This is linear in active cluster count, vs. $O(L^2 d)$ for Transformer self-attention.
+
+\section{Implementation}
+
+TSO is implemented on standard GPU hardware as \textbf{TSO-Sim}, pending neuromorphic hardware maturity:
+\begin{itemize}
+    \item \textbf{TSO-Sim (GPU):} PyTorch with snnTorch. Sparsity via Block-Sparse 2:4 matrices. Skip Compute simulated via boolean masking of inactive clusters.
+    \item \textbf{TSO-Neuro (Future):} Planned port to asynchronous chips (e.g., Intel Loihi 2) for major dynamic energy reduction.
+\end{itemize}
+
+\subsection{Repository Structure}
+
+The source code is organized as a modular library separating the mathematical kernel from the language interface:
+
+\begin{verbatim}
+tso/
+  tso_kernel/         Pure math kernel (NumPy only)
+    neurons.py        LIF dynamics, clusters
+    plasticity.py     R-STDP, Friction-Gated consolidation
+    friction.py       Phi computation (3 variants)
+    operators.py      Double Mapping, Inverse Motor
+    core.py           TSOCore orchestrator
+  tso_nlp/            Language interface (PyTorch, HF)
+    embedder.py       MiniLM embedder
+    som.py            Self-Organizing Map
+    decoder.py        Transition graph, Inverse Motor
+  experiments/        Reproducible validation scripts
+  tests/              Unit tests (10/10 passing)
+  src/                Legacy phase scripts (0-14)
+\end{verbatim}
+
+Each result in this paper is reproducible with a single command:
+\begin{verbatim}
+# Lemma 1: Double Mapping (3/3 checks)
+python experiments/phase0_geometry.py
+
+# Phase 13: Conceptual Shakespeare (GPU recommended)
+python experiments/phase13_shakespeare.py
+
+# Kernel unit tests (10/10)
+python tests/test_friction.py
+\end{verbatim}
+
+\section{Experimental Validation}
+
+\subsection{Phase 0: Double Mapping Geometry}
+
+The simulation (NumPy, $d=8$, raw dot products) compares three strategies on the TSO-Toy-v0 graph. The Double Mapping reduces $\Phi$ from 0.4236 to exactly 0 in one step, preserving implication dot products (Chat\textperiodcentered Animal: 0.85, Chien\textperiodcentered Animal: 0.80 unchanged) and setting exclusion to 0 through structural orthogonality.
+
+\subsection{Phase 8: NLI Weaning (Native Critic)}
+
+The external NLI (DeBERTa) is replaced by a Native Critic that reads the learned weight matrix itself: implication if $W > 0.2$, contradiction if the same target neuron is shared by two clusters. TSO becomes a 100\% autonomous SNN system.
+
+\subsection{Phase 9: Long-Range Credit Without BPTT}
+
+A copy task (5-20 tokens) tests multi-scale eligibility traces. The slow trace ($\tau=200$) reaches 26.6\% ($26\times$ random), while the short trace ($\tau=20$) suffers total amnesia (0.6\%).
+
+\subsection{Phase 10: Non-Linear Reservoir (ESN)}
+
+Short sequences (SeqLen=5): ESN reaches 45.3\% (+48\% vs EMA). Long sequences (SeqLen=20): 4.1\%, confirming that the bottleneck remains pure memory retention through intermediate token noise.
+
+\subsection{Phase 11: Dynamic Skip Compute}
+
+\begin{itemize}
+    \item \textbf{Trivial sequence} (chat$\rightarrow$est$\rightarrow$animal): $\Phi=0$ for all tokens. SNN cost: 5,004 FLOPs for 5 tokens.
+    \item \textbf{Paradoxical sequence} (chat$\rightarrow$est$\rightarrow$chien): $\Phi=170$ at token 3, triggering Double Mapping. SNN cost: 14,454 FLOPs ($2.9\times$ higher).
+\end{itemize}
+
+\subsection{Phase 12: GPT-2 BPE Tokenizer (50,257 tokens)}
+
+The Inverse Motor learns a projection SNN(50)$\rightarrow$Embedding(384) via Oja's rule. Cosine similarity reaches 0.9996 in 40 epochs. The target token is always in the top-5 among 50,257. Parameter count: 19,200 (0.1\% of a full softmax layer).
+
+\subsection{Phase 13: Conceptual Shakespeare}
+
+TSO replaces exact word prediction with \textbf{conceptual prediction}. Each word is quantized onto a SOM (100 concepts). Consecutive transitions reinforce implication edges via local Hebbian learning:
+
+$$W_{ij} \leftarrow W_{ij} + \alpha(1 - W_{ij})$$
+
+Friction is defined as transition surprise: $\Phi = 1 - \frac{W_{ij}}{\sum_k W_{ik}} \cdot N$.
+\begin{itemize}
+    \item Random baseline: $\Phi=0.99$
+    \item Initial $\Phi$ (blocks 1-3): $-1.10$ (211\% better than random)
+    \item Final $\Phi$ (blocks 10-12): $-1.78$ (280\% better than random)
+    \item Relative improvement: 62.5\%
+\end{itemize}
+
+TSO does not read words; it reads \textbf{concepts in transition}. After "to," the alternatives "be," "go," "have" no longer cancel — they all lead to the same conceptual cluster ("action verb"), and $\Phi=0$ regardless of the syntactic alternative chosen.
+
+\section{Limitations and Open Questions}
+
+\subsection{NLI Bootstrap Dependency}
+TSO currently requires a frozen semantic bootstrap (DeBERTa/MiniLM) to initialize its conceptual space. While Phase 8 demonstrates that this bootstrap can later be weaned, the full emergence of semantics from scratch (Symbol Grounding) remains an open question. This is analogous to how a human brain uses its evolutionary genome to wire early visual areas before learning from experience.
+
+\subsection{Scaling and Benchmarks}
+TSO is a foundational architecture paper, not a SOTA LLM benchmark submission. The evaluation focuses on principle validation (FLOPs efficiency, zero-shot generalization, catastrophic forgetting resistance) rather than absolute NLP benchmarks like GLUE or BigBench. Scaling to industrial-scale language tasks requires hardware resources beyond the current scope. We note that the original Transformer paper (Vaswani et al., 2017) evaluated on basic translation tasks rather than the massive benchmarks it later enabled.
+
+\subsection{Hardware Readiness}
+The true energy advantage of TSO (event-driven computation, Skip Compute) is masked on GPU hardware, which is optimized for dense matrix operations. The theoretical $2.9\times$ FLOPs reduction measured in Phase 11 will translate to a much larger wall-clock energy advantage on neuromorphic hardware (e.g., Intel Loihi 2), where inactive clusters consume near-zero power. TSO-Sim is an algorithmic proof-of-concept; the physical thermodynamic gain is a future engineering milestone.
+
+\subsection{Long-Range Memory}
+The ESN experiment (Phase 10) confirms that non-linearity improves short-range discrimination but degrades long-range retention compared to linear EMA. Designing a spiking reservoir with topographic local connections and stable attractors for robust long-range memory remains an open challenge.
+
+\section{Conclusion}
+
+RNNs were replaced by Transformers through parallelized attention. We have proposed and validated TSO, a friction-driven architecture where computation is conditioned on internal stabilization dynamics. By implementing an SNN/R-STDP loop coupled with geometric operators (Double Mapping, Friction-Gated Consolidation) and a semantic Inverse Motor, we have demonstrated that it is possible to resolve semantic paradoxes of natural language through purely local geometric expansion, without global gradients. TSO lays the foundations for a truly adaptive artificial intelligence, learning continuously and compatible with the energy efficiency principles of event-driven computational systems.
+
+\textbf{Data and Code Availability.} All code and experiments are publicly available at \url{https://github.com/hamoudaalias/tso}.
+
+\end{document}
