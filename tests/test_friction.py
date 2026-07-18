@@ -9,6 +9,7 @@ import numpy as np
 from tso_kernel.friction import FrictionCalculator
 from tso_kernel.operators import TopographicOperator
 from tso_kernel.neurons import LIFCluster
+from tso_kernel.plasticity import RSTDPPlasticity
 
 
 def test_friction_zero():
@@ -101,6 +102,52 @@ def test_lif_step():
     assert cluster.rate <= 1.0
 
 
+def test_gated_plasticity_blocks_exclusives():
+    """Friction-Gated consolidation must block LTP between exclusive clusters."""
+    p = RSTDPPlasticity(3, alpha_p=0.1, inhib_factor=0.05)
+    z_chat = np.array([1.0, 0.0])
+    z_chien = np.array([-1.0, 0.0])
+    z_animal = np.array([0.0, 1.0])
+    p.register_target(0, z_chat)
+    p.register_target(1, z_chien)
+    p.register_target(2, z_animal)
+
+    for _ in range(10):
+        p.consolidate(0, 2)  # chat → animal (should strengthen)
+        p.consolidate(1, 2)  # chien → animal (should strengthen)
+        p.consolidate(0, 1)  # chat → chien (should be blocked)
+
+    w_cd = p.W[0, 1]
+    assert w_cd < 0.1, f"Gate failed: W(C→D)={w_cd:.4f}"
+
+
+def test_gated_plasticity_allows_implications():
+    """Friction-Gated consolidation must allow LTP between non-exclusive clusters."""
+    p = RSTDPPlasticity(3, alpha_p=0.1, inhib_factor=0.05)
+    z_chat = np.array([1.0, 0.0])
+    z_animal = np.array([0.0, 1.0])
+    p.register_target(0, z_chat)
+    p.register_target(2, z_animal)
+
+    for _ in range(5):
+        p.consolidate(0, 2)
+
+    w_ca = p.W[0, 2]
+    assert w_ca > 0.1, f"Gate incorrectly blocked implication: W(C→A)={w_ca:.4f}"
+
+
+def test_ungated_plasticity_via_no_targets():
+    """Without registered targets (no gate), cascade is NOT blocked."""
+    p = RSTDPPlasticity(3, alpha_p=0.1, inhib_factor=0.05)
+    for _ in range(8):
+        p.consolidate(0, 2)
+        p.consolidate(1, 2)
+        p.consolidate(0, 1)
+
+    w_cd = p.W[0, 1]
+    assert w_cd > 0.2, f"Targets not registered so no gate, but W(C→D)={w_cd:.4f}"
+
+
 if __name__ == "__main__":
     test_friction_zero()
     test_friction_positive()
@@ -109,4 +156,7 @@ if __name__ == "__main__":
     test_double_mapping_preserves_context()
     test_conceptual_phi()
     test_lif_step()
+    test_gated_plasticity_blocks_exclusives()
+    test_gated_plasticity_allows_implications()
+    test_ungated_plasticity_via_no_targets()
     print("  ✓ Tous les tests passent.")
