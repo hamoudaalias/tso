@@ -1,0 +1,5 @@
+model,accuracy
+TSO_Frugal,44.00
+TSO_Flat,40.50
+BERT,80.40
+Random,33.33

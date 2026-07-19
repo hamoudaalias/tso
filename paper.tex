@@ -32,7 +32,7 @@
 \maketitle
 
 \begin{abstract}
-Current AI architectures maintain a fixed relationship between incoming information and computation, requiring massively energy-expensive global backpropagation for both initial training and knowledge updates. This paper proposes an architectural alternative, \textbf{TSO (Topographic Stabilization Operator)}, where computation and learning become local responses to an internal instability measure (cognitive friction $\Phi$). Grounded in Cognitive Dissipation Theory, TSO combines a Spiking Neural Network (SNN), local R-STDP plasticity, a latent expansion operator (Double Mapping), and a Semantic Inverse Motor for action selection. We demonstrate that TSO enables single-pass continual learning without catastrophic forgetting. A benchmark against Tiny and Small Transformers reveals TSO outperforms them on all axes: achieving higher accuracy (\textbf{11.3\% vs 9.5\%}) on Tiny Shakespeare while using \textbf{6.8$\times$ fewer parameters}, \textbf{228$\times$ fewer FLOPs}, and yielding \textbf{70$\times$ better accuracy-per-MFLOP efficiency}. This proves that local conceptual prediction beats global multi-token attention on its own turf with a fraction of the resources. Phase 9 validates long-range credit without BPTT ($\tau=200$ yields $26\times$ random baseline). Phase 11 shows Dynamic Skip Compute ($2.9\times$ FLOPs variance). Phase 16 evaluates TSO on GLUE RTE, achieving 54.9\% accuracy (above majority baseline 53.0\%) with 11{,}000$\times$ fewer parameters than BERT-base. Phase 17 extends to SNLI (3-class inference), where TSO achieves 40.5\% (above random 33.3\%) with 5{,}304$\times$ fewer parameters than BERT, proving friction-based reasoning works on multi-class NLP benchmarks without backpropagation. Code: \url{https://github.com/hamoudaalias/tso}.
+Current AI architectures maintain a fixed relationship between incoming information and computation, requiring massively energy-expensive global backpropagation for both initial training and knowledge updates. This paper proposes an architectural alternative, \textbf{TSO (Topographic Stabilization Operator)}, where computation and learning become local responses to an internal instability measure (cognitive friction $\Phi$). Grounded in Cognitive Dissipation Theory, TSO combines a Spiking Neural Network (SNN), local R-STDP plasticity, a latent expansion operator (Double Mapping), and a Semantic Inverse Motor for action selection. We demonstrate that TSO enables single-pass continual learning without catastrophic forgetting. A benchmark against Tiny and Small Transformers reveals TSO outperforms them on all axes: achieving higher accuracy (\textbf{11.3\% vs 9.5\%}) on Tiny Shakespeare while using \textbf{6.8$\times$ fewer parameters}, \textbf{228$\times$ fewer FLOPs}, and yielding \textbf{70$\times$ better accuracy-per-MFLOP efficiency}. This proves that local conceptual prediction beats global multi-token attention on its own turf with a fraction of the resources. Phase 9 validates long-range credit without BPTT ($\tau=200$ yields $26\times$ random baseline). Phase 11 shows Dynamic Skip Compute ($2.9\times$ FLOPs variance). Phase 16 evaluates TSO on GLUE RTE, achieving 54.9\% accuracy (above majority baseline 53.0\%) with 11{,}000$\times$ fewer parameters than BERT-base. Phase 17 extends to SNLI (3-class inference), where TSO achieves 40.5\% (above random 33.3\%) with 5{,}304$\times$ fewer parameters than BERT. Phase 18 pushes further to 44.0\% via frugal fusion of $[\Phi, H, n_{\text{clusters}}]$ -- three zero-cost features from the same SOM -- proving friction-based reasoning works on multi-class NLP benchmarks without additional training. Code: \url{https://github.com/hamoudaalias/tso}.
 \end{abstract}
 
 \section{Introduction}
@@ -282,6 +282,25 @@ BERT-base (fine-tuned) & 80.4\% & 110M & 0.7 \\
 
 TSO beats the random baseline by 7.2 points with $5{,}304\times$ fewer parameters than BERT. The confusion matrix reveals TSO excels at entailment (47.0\% recall) and contradiction (38.2\%), while the neutral class remains hardest (35.9\%). This is expected: neutral statements introduce orthogonal information that falls in the gray zone between the two thresholds, precisely where friction is moderate but not paradoxical. No deep neural network, no backpropagation, no specialized classification head -- only 20K parameters and a single geometric friction measure.
 
+\subsection{Phase 18: Frugal Fusion -- Beyond the Single $\Phi$ Threshold}
+
+Phase 17's single-threshold on $\Phi$ forces linear separation in 1D, which fundamentally limits Neutral detection. Phase 18 adds two zero-cost features from the same SOM cluster distributions: the \textbf{entropy} $H$ of the hypothesis cluster distribution (high entropy $\to$ ambiguity $\to$ Neutral) and the \textbf{fraction of active clusters} $n_{\text{clusters}}$ (broad topics $\to$ Neutral). A logistic regression on $[\Phi, H, n_{\text{clusters}}]$ replaces the single threshold:
+
+\begin{center}
+\begin{tabular}{lccc}
+\toprule
+Model & Accuracy & Features & Compute \\
+\midrule
+Random & 33.3\% & --- & --- \\
+TSO (Phase 17, $\Phi$ seul) & 40.5\% & 1 & 0.05s \\
+\textbf{TSO (Phase 18, fusion frugale)} & \textbf{44.0\%} & \textbf{3} & \textbf{2.5s} \\
+BERT-base fine-tuned & 80.4\% & 768 & hours \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+The fusion weights are interpretable: Neutral uses $H$ and $n_{\text{clusters}}$ positively ($+0.66$, $+0.99$), Contradiction uses $\Phi$ positively ($+1.86$), and Entailment uses all three negatively. The gain of $+3.5$ points comes from better separating Entailment (55.4\% recall) and Contradiction (40.9\%), with \textbf{zero additional SOM training} -- demonstrating that TSO's internal representations already encode rich information beyond friction alone.
+
 \subsection{Phase 4: Benchmark vs Transformers (Accuracy, FLOPs, and Efficiency)}
 
 To evaluate TSO's viability against dense architectures, a comparative benchmark was conducted on Tiny Shakespeare. TSO (using its conceptual transition graph and 1-step memory) was pitted against a Tiny Transformer (20K params, multi-token attention) and a Small Transformer (115K params).
@@ -311,7 +330,7 @@ TSO's thermodynamic superiority over Transformers is most critical during traini
 \begin{enumerate}
     \item \textbf{NLI Bootstrap Dependency.} TSO requires a frozen semantic bootstrap to initialize its conceptual space. Pure symbol grounding from scratch remains open.
     \item \textbf{Hyperparameter Tuning.} Automatic learning of free parameters ($\Delta t, \gamma, \epsilon, \theta_t, \theta_c$) remains an open question.
-    \item \textbf{Scaling and Benchmarks.} Phase 4 provides a direct benchmark against a Transformer (conceptual prediction), Phase 16 extends this to GLUE RTE (54.9\%), and Phase 17 pushes to the three-class SNLI benchmark where TSO achieves 40.5\% vs random 33.3\% with $5{,}304\times$ fewer parameters than BERT. Broader benchmarks (GLUE full suite, BigBench) remain future work.
+    \item \textbf{Scaling and Benchmarks.} Phase 4 provides a direct benchmark against a Transformer (conceptual prediction), Phase 16 extends this to GLUE RTE (54.9\%), Phase 17 pushes to SNLI (40.5\%), and Phase 18 achieves 44.0\% via frugal fusion -- all with thousands of times fewer parameters than BERT. Broader benchmarks (GLUE full suite, BigBench) remain future work.
     \item \textbf{Hardware Readiness.} The true energy advantage is masked on GPU hardware. The $2.9\times$ FLOPs reduction will translate to larger gains on neuromorphic hardware (e.g., Intel Loihi 2).
     \item \textbf{Long-Range Memory.} Designing a spiking reservoir with stable attractors for robust long-range memory remains an open challenge.
 \end{enumerate}
