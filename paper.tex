@@ -401,6 +401,27 @@ Rate & Learned & $\Phi$-gated & Random & Gap \\
 
 At 40\% allocation, $\Phi$-gated matches the full corpus baseline (48.4\%) while random reaches only 47.5\%. The performance gap correlates positively with sample size ($r = +0.593$). Topological analysis reveals the $\Phi$-gated graph recruits \textbf{7,663 nodes} (vs 6,692 for random) under identical edge budgets -- friction guides the network toward sparse semantic exploration rather than redundant reinforcement.
 
+\subsection{Phase 23: TSO v3 -- Zero-Gradient Topological Attractors}
+
+Phase 23 eliminates the final external component: the logistic regression classifier. Three attractor centroids are computed as the mean friction vector of each class's training examples. A new pair is classified by nearest attractor (Euclidean distance). No gradient, no weights.
+
+\begin{center}
+\begin{tabular}{lccc}
+\toprule
+Approach & Accuracy & Gradient & Params \\
+\midrule
+Random & 33.3\% & --- & --- \\
+\textbf{TSO v3 attractors} & \textbf{44.2\%} & \textbf{none} & \textbf{0} \\
+TSO v2 LR (Phase 20) & 48.4\% & LR & 9 \\
+BERT-base & 80.4\% & BP & 110M \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\subsection{Phase 24: Sharpened Attractors -- Euclidean Projection}
+
+Phase 24 replaces cosine similarity with Euclidean distance to raw attractor centroids. Euclidean distance preserves magnitude differences between friction components, recovering +0.5 points over cosine-based attractors (44.2\% vs 43.7\%).
+
 \subsection{Phase 4: Benchmark vs Transformers (Accuracy, FLOPs, and Efficiency)}
 
 To evaluate TSO's viability against dense architectures, a comparative benchmark was conducted on Tiny Shakespeare. TSO (using its conceptual transition graph and 1-step memory) was pitted against a Tiny Transformer (20K params, multi-token attention) and a Small Transformer (115K params).

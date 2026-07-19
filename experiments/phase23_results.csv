@@ -1,0 +1,4 @@
+model,accuracy,gradient
+TSO_v3_Attractors,43.70,none
+TSO_v2_LR,48.40,logistic
+Random,33.30,none

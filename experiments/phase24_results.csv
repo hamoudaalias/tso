@@ -1,0 +1,5 @@
+model,accuracy,method
+TSO_v3_Sharp,44.25,contrast+power
+TSO_v3_Raw,43.70,cosine
+TSO_v2_LR,48.40,logistic
+Random,33.30,none

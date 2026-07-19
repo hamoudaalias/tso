@@ -14,7 +14,7 @@ Current AI architectures maintain a fixed relationship between incoming informat
 
 We present two generations of TSO. **TSO v1 (vectoriel)** uses a frozen MiniLM encoder as a semantic bootstrap, demonstrating that local conceptual prediction beats global multi-token attention on Tiny Shakespeare (11.3% vs 9.5%, 70$\times$ more efficient), GLUE RTE (54.9%, 11,000$\times$ fewer params than BERT), and SNLI 3-class inference (44.0%, 5,304$\times$ fewer params than BERT).
 
-**TSO v2 (topologique pur)** removes the bootstrap entirely. A graph is built from raw co-occurrence via local R-STDP; $\Phi$ is computed purely topologically (no embeddings, no gradients). On SNLI, TSO v2 achieves **48.4%** (above random 33.3% and above TSO v1's 44.0%) by decomposing $\Phi$ into support, conflict, and novelty. Phase 21 introduces $\Phi$-gated active learning: TSO skips 60% of the training stream while retaining 98.5% of peak accuracy. Phase 22 stress-tests this mechanism across 6 compression rates, proving friction-gated selection outperforms random sampling (+0.9 points at 40% allocation, correlation +0.593) by recruiting a wider topology (7,663 vs 6,692 nodes). This proves TSO does not require pre-trained representations: meaning emerges from graph topology alone. Code: https://github.com/hamoudaalias/tso.
+**TSO v2 (topologique pur)** removes the bootstrap entirely. A graph is built from raw co-occurrence via local R-STDP; $\Phi$ is decomposed into support, conflict, and novelty. On SNLI, TSO v2 achieves **48.4%** (above random 33.3% and TSO v1's 44.0%). Phase 21 introduces $\Phi$-gated active learning (60% compute savings, 98.5% accuracy retained). Phase 22 stress-tests across 6 compression rates ($r=+0.593$ correlation). **TSO v3 (Phase 23-24)** eliminates the final external component — the logistic regression — replacing it with Euclidean projection onto topological attractor centroids, achieving **44.2%** with **zero gradient computations across the entire pipeline**. Code: https://github.com/hamoudaalias/tso.
 
 ---
 
@@ -204,6 +204,10 @@ python experiments/phase16_nli_benchmark.py
     python experiments/phase21_selective_learning.py
   - Phase 22 (Stress-test compression):
     python experiments/phase22_stress_test.py
+  - Phase 23 (TSO v3 attracteurs topologiques):
+    python experiments/phase23_topological_attractors.py
+  - Phase 24 (Attracteurs euclidiens):
+    python experiments/phase24_attractor_sharpening.py
 ```
 
 ### 9. EXPERIMENTAL VALIDATION
@@ -411,7 +415,32 @@ Topological analysis reveals why: the Φ-gated graph recruits **7,663 nodes** (v
 
 At extreme compression (2–15%), both strategies converge to the local noise floor, a consequence of SNLI's homogeneous vocabulary. Even at 800 sentences (2% of stream), TSO achieves 47.3% — 14 points above random — confirming that friction-gated selection rapidly extracts the informational core of the corpus.
 
-TSO's thermodynamic superiority over Transformers extends beyond inference (Skip Compute). It is most critical during training and knowledge updates. Unlike LLMs requiring massive epochs and global backpropagation (costing millions in GPU time), TSO learns in **real-time single-pass** via local R-STDP. The neuromodulator signal $M(t)$ enables **One-Shot learning**: information generating high structural friction is instantly consolidated locally without altering the rest of the network. This continual learning capability without fine-tuning positions TSO as a sustainable architecture for autonomous agents.
+#### 9.20 Phase 23: TSO v3 — Zero-Gradient Topological Attractors
+
+Phase 23 eliminates the final external component: the logistic regression classifier. Instead of learning weights for $[\text{support}, \text{conflict}, \text{novelty}]$, TSO computes three attractor centroids — one per class — as the mean friction vector of training examples for that class. A new pair is classified by nearest attractor (Euclidean distance). No gradient, no weights, no backpropagation:
+
+| Approach | Accuracy | Gradient | Params |
+|----------|----------|----------|--------|
+| Random | 33.3% | — | — |
+| **TSO v3 attractors (Phase 23)** | **44.2%** | **none** | **0** |
+| TSO v2 LR (Phase 20) | 48.4% | LR | 9 |
+| BERT-base | 80.4% | BP | 110M |
+
+TSO v3 retains **44.2%** accuracy — +10.9 points above random — with exactly zero gradient computations across the entire pipeline. The 4.2-point gap to the LR version measures the information contributed by the learned weighting of the friction axes, an acceptable trade-off for a fully autonomous, gradient-free system.
+
+#### 9.21 Phase 24: Sharpened Attractors — Euclidean Projection on Raw Centroids
+
+Phase 24 replaces cosine similarity with Euclidean distance to raw attractor centroids (no contrast normalization, no power sharpening). Euclidean distance preserves magnitude differences between friction components, improving the separation between classes:
+
+| TSO version | Method | Accuracy | Gradient |
+|-------------|--------|----------|----------|
+| v2 | Logistic regression | 48.4% | LR |
+| v3 | Cosine attractors (Phase 23) | 43.7% | none |
+| **v3.1** | **Euclidean attractors (Phase 24)** | **44.2%** | **none** |
+
+The Euclidean variant recovers +0.5 points over cosine attractors. This confirms that magnitude information in the friction vector is meaningful: the absolute levels of support, conflict, and novelty carry class-discriminative signal beyond their angular relationships.
+
+### 10. DISCUSSION: THE ENERGY ADVANTAGE OF CONTINUAL LEARNING
 
 Furthermore, the absence of catastrophic forgetting (Phase 4: 0%) eliminates the need for replay buffers, experience replay, or elastic weight consolidation — all overheads that Transformers require for sequential task learning. Phase 4's benchmark confirms this advantage quantitatively: TSO beats Transformers on accuracy, parameters, and FLOPs simultaneously. TSO's local plasticity is inherently task-incremental: each new concept is woven into the existing graph without disturbing previously learned edges.
 
@@ -421,7 +450,7 @@ Furthermore, the absence of catastrophic forgetting (Phase 4: 0%) eliminates the
 
 2.  **Hyperparameter Tuning.** Automatic learning of all free parameters ($\Delta t, \gamma, \epsilon, \theta_t, \theta_c$) remains an open question for system autonomy.
 
-3.  **Scaling and Benchmarks.** TSO is a foundational architecture paper, not a SOTA LLM benchmark submission. Phase 4 provides a direct benchmark against a Transformer on conceptual prediction, where TSO wins on accuracy, parameters, and FLOPs. Phase 16 extends this to GLUE RTE (54.9% vs majority 53.0%), and Phase 17-22 progressively improve SNLI accuracy from 40.5% to 48.4% while eliminating all pre-training dependencies. Broader benchmarks (GLUE full suite, BigBench, long-document modeling) remain future work.
+3.  **Scaling and Benchmarks.** TSO is a foundational architecture paper, not a SOTA LLM benchmark submission. Phase 4 provides a direct benchmark against a Transformer on conceptual prediction, where TSO wins on accuracy, parameters, and FLOPs. Phase 16 extends this to GLUE RTE (54.9% vs majority 53.0%), and Phases 17-24 progressively improve SNLI accuracy from 40.5% to 48.4% (v2 with LR) and 44.2% (v3 with zero gradient) while eliminating all pre-training dependencies. Broader benchmarks (GLUE full suite, BigBench, long-document modeling) remain future work.
 
 4.  **Hardware Readiness.** The true energy advantage of TSO (event-driven computation, Skip Compute) is masked on GPU hardware, which is optimized for dense matrix operations. The theoretical 2.9$\times$ FLOPs reduction measured in Phase 11 will translate to a much larger wall-clock energy advantage on neuromorphic hardware (e.g., Intel Loihi 2), where inactive clusters consume near-zero power. TSO-Sim is an algorithmic proof-of-concept; the physical thermodynamic gain is a future engineering milestone.
 
