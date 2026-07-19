@@ -1,0 +1,6 @@
+model,accuracy,embedding
+TSO_Trifriction,48.35,none
+TSO_Topological_v2,41.50,none
+TSO_Vector_v1,44.00,MiniLM
+BERT,80.40,WordPiece
+Random,33.30,none
