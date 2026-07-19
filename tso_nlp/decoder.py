@@ -11,7 +11,7 @@ class InverseMotor:
     """
     Projects SNN state into word embedding space (Phase 7, 12).
 
-    Uses Oja's rule for local, Hebbian learning:
+    Uses local Delta rule (Predictive Coding):
         W += eta * outer(state, target - W @ state)
     """
     def __init__(self, state_dim, embed_dim, eta=0.05):

@@ -1,0 +1,4 @@
+model,accuracy,params,efficiency
+TSO,40.45,20736,1950.71
+BERT,80.40,110000000,0.73
+Random,33.33,0,0

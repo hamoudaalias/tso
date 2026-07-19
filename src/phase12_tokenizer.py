@@ -2,7 +2,7 @@
 TSO Phase 12 — Branchement d'un vrai Tokenizer BPE (GPT-2).
 TSO apprend à écrire le bon token parmi 50 257 sous-mots BPE via le Moteur Inverse.
 Apprentissage par Hebbien direct (cible connue), comme la Phase 7.
-Normalisation Oja pour stabiliser la convergence.
+Règle Delta locale pour stabiliser la convergence.
 """
 import math, random
 import numpy as np
@@ -44,8 +44,8 @@ class BPESemanticInverseDecoder:
 
     def hebbian_step(self, snn_state, target_embedding, eta=ETA_INV):
         out = self.embed(snn_state)
-        # Oja's rule: W += eta * (outer(s, t) - outer(s, out))  (stabilizes)
-        # The -outer(s, out) term prevents unbounded growth
+        # Delta rule: W += eta * outer(s, t - out)  (Predictive Coding)
+        # Minimizes ||t - W s||^2 without global backprop
         s = snn_state[:, None]
         self.W_proj += eta * (s * target_embedding[None, :] - s * out[None, :])
 
@@ -74,7 +74,7 @@ def run_phase12():
     snn_state = np.random.randn(SNN_DIM)
     snn_state = snn_state / (np.linalg.norm(snn_state) + 1e-8)
 
-    print(f"\n  Apprentissage Hebbien (règle d'Oja) : SNN(50) → embedding(384) → '{target_string}'")
+    print(f"\n  Apprentissage Hebbien (règle Delta) : SNN(50) → embedding(384) → '{target_string}'")
     print(f"  parmi {vocab_size} tokens BPE.\n")
 
     for epoch in range(40):

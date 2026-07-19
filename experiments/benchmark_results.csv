@@ -1,0 +1,4 @@
+model,accuracy_pct,params,flops_per_step,flops_total,extra
+TSO TransitionGraph,11.27,10000,100,943275,0.2543947696685791
+"Tiny (1L,2H,d=32)",9.53,20292,56000,56000000,5
+"Small (2L,4H,d=64)",9.03,115044,374720,374720000,5
