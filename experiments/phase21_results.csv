@@ -1,0 +1,4 @@
+strategy,sentences_learned,accuracy
+full,50000,48.35
+phi_gated,20102,47.70
+random,20019,47.80
