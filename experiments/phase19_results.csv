@@ -1,0 +1,5 @@
+model,accuracy,embedding
+TSO_Topological,41.55,none
+TSO_Vector,44.00,MiniLM
+BERT,80.40,WordPiece
+Random,33.33,none
