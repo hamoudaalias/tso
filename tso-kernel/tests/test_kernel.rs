@@ -1,5 +1,5 @@
 use ndarray::{Array1, Array2};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use tso_kernel::{
     compute_trifriction, AnchoredTSODecoder, FrictionCalculator, LIFCluster, LIFNeuron,
     LocalWaveCritic, RSTDPPlasticity, TopographicOperator, VolatileSyntaxInverter, WaveContext,
@@ -257,12 +257,12 @@ fn make_toy_decoder() -> AnchoredTSODecoder {
 fn test_triple_lif_predictive_state() {
     let mut dec = make_toy_decoder();
     // Ingest "dog" → slow and medium should be near dog's embedding
-    let dog_vec = dec.embeddings.row(0).to_owned();
+    let dog_vec = dec.embeddings[0].to_owned();
     dec.ingest(&[("dog".into(), dog_vec)]);
     let pred = dec.predictive_state();
     // pred should be closer to dog (1,0,0,0) than to cat (0.5,0.5,0,0)
-    let dog_cos = pred.dot(&dec.embeddings.row(0));
-    let cat_cos = pred.dot(&dec.embeddings.row(4));
+    let dog_cos = pred.dot(&dec.embeddings[0]);
+    let cat_cos = pred.dot(&dec.embeddings[4]);
     assert!(dog_cos > cat_cos, "predictive state should favor dog over cat");
 }
 
@@ -272,14 +272,14 @@ fn test_anchor_teleport_on_low_medium_friction() {
     dec.anchor_interval = 5;
     dec.anchor_friction_threshold = 0.1;
 
-    let dog_vec = dec.embeddings.row(0).to_owned();
+    let dog_vec = dec.embeddings[0].to_owned();
     dec.ingest(&[("dog".into(), dog_vec)]);
 
     // Emit 5 "dog" tokens — medium state stays near equilibrium → low friction
     for _ in 0..5 {
-        dec.slow_state = dec.alpha_slow * &dec.slow_state + (1.0 - dec.alpha_slow) * &dec.embeddings.row(0);
-        dec.medium_state = dec.alpha_medium * &dec.medium_state + (1.0 - dec.alpha_medium) * &dec.embeddings.row(0);
-        dec.fast_state = dec.alpha_fast * &dec.fast_state + (1.0 - dec.alpha_fast) * &dec.embeddings.row(0);
+        dec.slow_state = dec.alpha_slow * &dec.slow_state + (1.0 - dec.alpha_slow) * &dec.embeddings[0];
+        dec.medium_state = dec.alpha_medium * &dec.medium_state + (1.0 - dec.alpha_medium) * &dec.embeddings[0];
+        dec.fast_state = dec.alpha_fast * &dec.fast_state + (1.0 - dec.alpha_fast) * &dec.embeddings[0];
         dec.normalize_states();
         dec.token_count_since_anchor += 1;
     }
@@ -300,7 +300,7 @@ fn test_anchor_teleport_on_low_medium_friction() {
         dec.token_count_since_anchor, 0,
         "Anchor teleport should reset token counter"
     );
-    let dog_cos = dec.anchor_state.dot(&dec.embeddings.row(0));
+    let dog_cos = dec.anchor_state.dot(&dec.embeddings[0]);
     assert!(
         dog_cos > 0.9,
         "Anchor should still be near 'dog' after teleport (cos={:.4})",
@@ -314,15 +314,15 @@ fn test_anchor_no_teleport_on_high_medium_friction() {
     dec.anchor_interval = 5;
     dec.anchor_friction_threshold = 0.001; // very low threshold
 
-    let dog_vec = dec.embeddings.row(0).to_owned();
+    let dog_vec = dec.embeddings[0].to_owned();
     dec.ingest(&[("dog".into(), dog_vec)]);
     let anchor_before = dec.anchor_state.clone();
 
     // Emit 5 "cat" tokens — medium state drifts significantly from dog to cat
     for _ in 0..5 {
-        dec.slow_state = dec.alpha_slow * &dec.slow_state + (1.0 - dec.alpha_slow) * &dec.embeddings.row(4);
-        dec.medium_state = dec.alpha_medium * &dec.medium_state + (1.0 - dec.alpha_medium) * &dec.embeddings.row(4);
-        dec.fast_state = dec.alpha_fast * &dec.fast_state + (1.0 - dec.alpha_fast) * &dec.embeddings.row(4);
+        dec.slow_state = dec.alpha_slow * &dec.slow_state + (1.0 - dec.alpha_slow) * &dec.embeddings[4];
+        dec.medium_state = dec.alpha_medium * &dec.medium_state + (1.0 - dec.alpha_medium) * &dec.embeddings[4];
+        dec.fast_state = dec.alpha_fast * &dec.fast_state + (1.0 - dec.alpha_fast) * &dec.embeddings[4];
         dec.normalize_states();
         dec.token_count_since_anchor += 1;
     }
@@ -336,8 +336,8 @@ fn test_anchor_no_teleport_on_high_medium_friction() {
     }
 
     // Anchor should NOT have teleported because friction was too high
-    let dog_cos_before = anchor_before.dot(&dec.embeddings.row(0));
-    let dog_cos_after = dec.anchor_state.dot(&dec.embeddings.row(0));
+    let dog_cos_before = anchor_before.dot(&dec.embeddings[0]);
+    let dog_cos_after = dec.anchor_state.dot(&dec.embeddings[0]);
     assert!(
         (dog_cos_before - dog_cos_after).abs() < 1e-6,
         "Anchor should be unchanged when medium friction exceeds threshold"
@@ -393,29 +393,92 @@ fn test_negation_inverts_decoder_trajectory() {
     // Use custom negation markers
     dec.volatile_inverter = VolatileSyntaxInverter::new(&["not"]);
 
-    let dog_vec = dec.embeddings.row(0).to_owned();
-    let cat_vec = dec.embeddings.row(4).to_owned();
+    let dog_vec = dec.embeddings[0].to_owned();
+    let cat_vec = dec.embeddings[4].to_owned();
 
     // Trajectory A: ingest "dog" → check prediction angle
     dec.ingest(&[("dog".into(), dog_vec.clone())]);
     let pred_after_dog = dec.predictive_state();
-    let dog_cos = pred_after_dog.dot(&dec.embeddings.row(0));
-    let cat_cos = pred_after_dog.dot(&dec.embeddings.row(4));
+    let dog_cos = pred_after_dog.dot(&dec.embeddings[0]);
+    let cat_cos = pred_after_dog.dot(&dec.embeddings[4]);
     // After "dog", should point toward dog
     assert!(dog_cos > cat_cos, "dog prompt should favor dog over cat");
 
     // Trajectory B: ingest "not dog" → should point away from dog
     dec.reset();
     dec.ingest(&[
-        ("not".into(), dec.embeddings.row(2).to_owned()), // "not" vector (arbitrary, just sets flag)
+        ("not".into(), dec.embeddings[2].to_owned()), // "not" vector (arbitrary, just sets flag)
         ("dog".into(), dog_vec.clone()),
     ]);
     let pred_after_not_dog = dec.predictive_state();
-    let not_dog_cos = pred_after_not_dog.dot(&dec.embeddings.row(0));
+    let not_dog_cos = pred_after_not_dog.dot(&dec.embeddings[0]);
     // After "not dog", should point AWAY from dog (negative cosine)
     assert!(
         not_dog_cos < 0.0,
         "'not dog' should invert trajectory away from dog (cos={:.4})",
         not_dog_cos
     );
+}
+
+#[test]
+fn test_v10_variable_dimension_embeddings() {
+    // Build decoder with mixed-dimension embeddings
+    let mut idx_to_word: HashMap<usize, String> = HashMap::new();
+    idx_to_word.insert(0, "dog".into());
+    idx_to_word.insert(1, "cat".into());
+    let mut word_to_idx = HashMap::new();
+    word_to_idx.insert("dog".into(), 0);
+    word_to_idx.insert("cat".into(), 1);
+
+    // dog: 4D, cat: 6D
+    let embeddings = vec![
+        Array1::from_vec(vec![1.0, 0.0, 0.0, 0.0]),         // dog, 4D
+        Array1::from_vec(vec![0.0, 1.0, 0.0, 0.0, 0.5, 0.5]), // cat, 6D
+    ];
+
+    let mut dec = AnchoredTSODecoder::from_embeddings_vec(
+        idx_to_word, word_to_idx, embeddings, 0.9, 0.5,
+    );
+
+    // Predictive state starts at 4D (default dim from constructor, adjusted at ingest)
+    // But actually new() converted from Array2 which was 4D in the original...
+    // We use from_embeddings_vec directly with mixed dimensions
+
+    // Ingest "cat" (6D) → LIF states should grow to 6D
+    dec.ingest(&[("cat".into(), dec.embeddings[1].clone())]);
+    assert_eq!(
+        dec.slow_state.len(),
+        6,
+        "LIF states should grow to 6D after ingesting a 6D vector"
+    );
+
+    // predict_next should work on intersection (first 4 dims for dog, all 6 for cat)
+    let emitted = HashSet::new();
+    let (idx, score) = dec.predict_next(Some("cat"), &emitted);
+    assert!(
+        score > -2.0 && score < 2.0,
+        "Intersection dot product should produce a valid cosine (score={:.4})",
+        score
+    );
+
+    // Generate one token to verify the generation path
+    let result = dec.generate(1, Some("cat"));
+    assert_eq!(result.len(), 1, "Should generate one token");
+}
+
+#[test]
+fn test_v10_intersection_dot() {
+    // 4D vector
+    let a = Array1::from_vec(vec![1.0, 0.0, 0.0, 0.0]);
+    // 6D vector
+    let b = Array1::from_vec(vec![0.0, 1.0, 0.0, 0.0, 0.5, 0.5]);
+
+    // Intersection dot = only first 4 dims: 1*0 + 0*1 + 0*0 + 0*0 = 0
+    let dot = AnchoredTSODecoder::intersection_dot(&a, &b);
+    assert!((dot - 0.0).abs() < 1e-10, "Expected 0, got {dot}");
+
+    // Same-length dot (both 4D): 1*1 + 0*0 + 0*0 + 0*0 = 1
+    let c = Array1::from_vec(vec![1.0, 0.0, 0.0, 0.0]);
+    let dot2 = AnchoredTSODecoder::intersection_dot(&a, &c);
+    assert!((dot2 - 1.0).abs() < 1e-10, "Expected 1, got {dot2}");
 }

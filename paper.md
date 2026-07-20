@@ -412,7 +412,18 @@ avec $\mathcal{N} = \{\text{not, no, never, without}\}$.
 
 **Test de validation :** Dans l'espace de test 4D, ingérer "not dog" produit une similarité cosinus négative avec l'embedding de "dog" ($\cos < 0$), tandis que "dog" seul produit une similarité positive ($\cos > 0.9$). La cicatrice volatile inverse bien la trajectoire sans modification permanente du graphe.
 
-#### 10.11 Expériences proposées
+#### 10.11 V10 — Expansion Asynchrone (Dimensions Variables)
+
+La V10 supprime la dernière structure globalisante : la matrice dense `Array2<f64>` qui imposait une dimension uniforme à tous les embeddings. Elle est remplacée par `Vec<Array1<f64>>` où chaque mot possède sa propre taille latente.
+
+**Algorithme de cohérence dimensionnelle :**
+- **Produit scalaire d'intersection :** Lors du calcul de similarité entre l'état prédictif $S_{pred}$ (dimension $d_{max}$) et un embedding $e(w)$ (dimension $d_w \leq d_{max}$), seules les $d_w$ premières dimensions sont utilisées : $\langle S_{pred}, e(w) \rangle_d = \sum_{i=0}^{\min(d_{pred}, d_w)} S_{pred}[i] \cdot e(w)[i]$.
+- **Expansion retardée des états LIF :** Quand un mot de dimension $d_w > d_{max}$ est rencontré, les états LIF sont étendus à $d_w$ par bourrage de zéros en queues : $S_{LIF}[d_{max}:d_w] = 0$. Les dimensions déjà apprises sont préservées.
+- **Late Expansion (déclenché par friction) :** Si la friction sur les dimensions manquantes ($d_w$ à $d_{max}$) dépasse un seuil, le mot le moins dimensionné déclenche sa propre expansion. L'alignement se propage comme une rumeur — aucune coordination centrale.
+
+**Contribution théorique :** Le réseau n'a plus aucune dimension globale. Chaque concept occupe un espace latent de la taille que sa complexité sémantique exige. Un mot simple comme "the" peut rester en 4D tandis que "antidisestablishment" s'étend en 200D. La cohérence émerge des intersections de produit scalaire, pas d'un formatage centralisé. C'est la fin du padding — le système est **strictement asynchrone et auto-dimensionnant**.
+
+#### 10.12 Expériences proposées
 
 1. **Critic asynchrone multi-niveau :** Coupler le `LocalWaveCritic` (V8) avec l'ancre dynamique (V9) pour une résolution entièrement locale des conflits pendant la génération.
 2. **Planification multi-phrase :** L'ancrage dynamique maintient la cohérence intra-paragraphe (50+ tokens). Une extension naturelle est un troisième niveau d'ancre pour le thème global du document, avec un seuil de dérive plus large.
@@ -425,7 +436,7 @@ TSO propose un changement de paradigme : passer d'une exécution systématique �
 
 1.  **Bootstrap Sémantique :** Le système dépend initialement d'un encodeur NLI figé pour typer les arêtes. Comment cette sémantique peut-elle émerger de manière totalement endogène à partir de la règle R-STDP ?
 2.  **Tuning des hyperparamètres :** L'apprentissage automatique de l'ensemble des paramètres libres ($\Delta t, \gamma, \epsilon, \theta_t, \theta_c$) reste une question ouverte cruciale pour l'autonomie du système.
-3.  **Cohérence Globale :** La réparation locale d'une arête peut théoriquement briser une contrainte voisine satisfaite. La convergence globale du système devra être formellement démontrée. (Note : le `LocalWaveCritic` V8 résout partiellement ce problème par propagation d'onde locale de profondeur $d \leq 2$, mais une preuve formelle de convergence pour des graphes arbitraires reste ouverte.)
+3.  **Cohérence Globale :** La réparation locale d'une arête peut théoriquement briser une contrainte voisine satisfaite. La convergence globale du système devra être formellement démontrée. (Note : le `LocalWaveCritic` V8 résout partiellement ce problème par propagation d'onde locale de profondeur $d \leq 2$, et le `Vec<Array1>` V10 supprime le padding global, mais une preuve formelle de convergence pour des graphes arbitraires reste ouverte.)
 4.  **Capacité linguistique :** Les expériences devront démontrer que la nature événementielle du calcul ne limite pas la capacité expressive par rapport aux modèles denses.
 5.  **Friction multi-couche :** Comment empiler les couches de $\Phi$ pour obtenir une expressivité comparable à la profondeur des Transformers ?
 

@@ -1,4 +1,4 @@
-use ndarray::{Array1, Array2};
+use ndarray::{s, Array1, Array2};
 use std::collections::{HashMap, HashSet};
 
 /// V9.1: Volatile Syntax Inverter — morphologic scarring
@@ -61,7 +61,9 @@ impl Default for VolatileSyntaxInverter {
 pub struct AnchoredTSODecoder {
     pub idx_to_word: HashMap<usize, String>,
     pub word_to_idx: HashMap<String, usize>,
-    pub embeddings: Array2<f64>,
+    /// Variable-dimension embeddings: each word can have its own latent size.
+    /// Intersection-based dot products handle mismatched dimensions.
+    pub embeddings: Vec<Array1<f64>>,
 
     /// Slow memory — semantic topic (α=0.9)
     pub slow_state: Array1<f64>,
@@ -99,6 +101,8 @@ pub struct AnchoredTSODecoder {
 }
 
 impl AnchoredTSODecoder {
+    /// Create a decoder from uniform-dimension embeddings (Array2).
+    /// The matrix is immediately converted to variable-dimension Vec<Array1>.
     pub fn new(
         idx_to_word: HashMap<usize, String>,
         word_to_idx: HashMap<String, usize>,
@@ -107,6 +111,44 @@ impl AnchoredTSODecoder {
         alpha_fast: f64,
     ) -> Self {
         let dim = embeddings.ncols();
+        let embeddings: Vec<Array1<f64>> =
+            (0..embeddings.nrows()).map(|i| embeddings.row(i).to_owned()).collect();
+        Self {
+            idx_to_word,
+            word_to_idx,
+            embeddings,
+            slow_state: Array1::zeros(dim),
+            medium_state: Array1::zeros(dim),
+            fast_state: Array1::zeros(dim),
+            anchor_state: Array1::zeros(dim),
+            last_medium_snapshot: Array1::zeros(dim),
+            alpha_slow,
+            alpha_medium: 0.7,
+            alpha_fast,
+            syntax_weight: 0.4,
+            medium_weight: 0.3,
+            drift_threshold: 0.3,
+            recall_strength: 0.2,
+            anchor_interval: 20,
+            anchor_friction_threshold: 0.05,
+            token_count_since_anchor: 0,
+            stability_threshold: 0.001,
+            volatile_inverter: VolatileSyntaxInverter::default(),
+            friction_graph: None,
+            friction_lambda: 0.5,
+        }
+    }
+
+    /// Create a decoder from pre-built variable-dimension embeddings.
+    /// The embedding dimension is inferred from the first vector.
+    pub fn from_embeddings_vec(
+        idx_to_word: HashMap<usize, String>,
+        word_to_idx: HashMap<String, usize>,
+        embeddings: Vec<Array1<f64>>,
+        alpha_slow: f64,
+        alpha_fast: f64,
+    ) -> Self {
+        let dim = embeddings.first().map(|v| v.len()).unwrap_or(0);
         Self {
             idx_to_word,
             word_to_idx,
@@ -153,6 +195,22 @@ impl AnchoredTSODecoder {
         self.volatile_inverter.reset();
     }
 
+    /// V10: Expand all LIF states to at least `target_dim` dimensions.
+    /// New dimensions are zero-padded. States only grow, never shrink.
+    pub fn ensure_dim(&mut self, target_dim: usize) {
+        if self.slow_state.len() >= target_dim { return; }
+        let grow = |v: &Array1<f64>| -> Array1<f64> {
+            let mut new = Array1::zeros(target_dim);
+            new.slice_mut(s![..v.len()]).assign(v);
+            new
+        };
+        self.slow_state = grow(&self.slow_state);
+        self.medium_state = grow(&self.medium_state);
+        self.fast_state = grow(&self.fast_state);
+        self.anchor_state = grow(&self.anchor_state);
+        self.last_medium_snapshot = grow(&self.last_medium_snapshot);
+    }
+
     /// Build the combined predictive state: S_slow + η_m · S_medium + η_f · S_fast
     pub fn predictive_state(&self) -> Array1<f64> {
         let p = self.slow_state.clone()
@@ -165,6 +223,8 @@ impl AnchoredTSODecoder {
     /// Ingest prompt words and freeze the anchor.
     pub fn ingest(&mut self, word_vecs: &[(String, Array1<f64>)]) {
         for (word, v) in word_vecs {
+            // V10: Ensure LIF states are large enough for this word
+            self.ensure_dim(v.len());
             // V9.1: Volatile syntax inversion — invert the *next* word's embedding
             let processed = self.volatile_inverter.process(word, v);
             self.slow_state = self.alpha_slow * &self.slow_state + (1.0 - self.alpha_slow) * &processed;
@@ -187,6 +247,12 @@ impl AnchoredTSODecoder {
         if norm_f > 1e-10 { self.fast_state /= norm_f; }
     }
 
+    /// V10: Dot product on the intersection of two vectors (min dimension).
+    pub fn intersection_dot(a: &Array1<f64>, b: &Array1<f64>) -> f64 {
+        let n = a.len().min(b.len());
+        a.slice(s![..n]).dot(&b.slice(s![..n]))
+    }
+
     /// Inverse Motor with friction biasing.
     pub fn predict_next(&self, last_word: Option<&str>, emitted: &HashSet<usize>) -> (usize, f64) {
         let s_pred = self.predictive_state();
@@ -197,11 +263,11 @@ impl AnchoredTSODecoder {
         let mut best_idx = 0;
         let mut best_score = f64::NEG_INFINITY;
 
-        for i in 0..self.embeddings.nrows() {
+        for i in 0..self.embeddings.len() {
             if emitted.contains(&i) {
                 continue;
             }
-            let cos = s_pred.dot(&self.embeddings.row(i));
+            let cos = Self::intersection_dot(&s_pred, &self.embeddings[i]);
             let score = if let Some(ref neighbors) = friction_set {
                 let word = self.idx_to_word.get(&i);
                 let phi_bonus = match word {
@@ -231,10 +297,10 @@ impl AnchoredTSODecoder {
             last_word.and_then(|w| self.friction_graph.as_ref()?.get(w));
         let lambda = self.friction_lambda;
 
-        let mut scores: Vec<(usize, f64)> = (0..self.embeddings.nrows())
+        let mut scores: Vec<(usize, f64)> = (0..self.embeddings.len())
             .filter(|i| !emitted.contains(i))
             .map(|i| {
-                let cos = s_pred.dot(&self.embeddings.row(i));
+                let cos = Self::intersection_dot(&s_pred, &self.embeddings[i]);
                 let score = if let Some(ref neighbors) = friction_set {
                     let word = self.idx_to_word.get(&i);
                     let phi_bonus = match word {
@@ -285,13 +351,15 @@ impl AnchoredTSODecoder {
             last_context = Some(generated.last().unwrap().as_str());
             emitted.insert(next_idx);
 
-            let raw_word_vec = self.embeddings.row(next_idx).to_owned();
+            let raw_word_vec = self.embeddings[next_idx].clone();
             // V9.1: Volatile syntax inversion — inverts the word AFTER a negation
             let word_vec = self.volatile_inverter.process(&next_word, &raw_word_vec);
             let prev_slow = self.slow_state.clone();
             let prev_medium = self.medium_state.clone();
             let prev_fast = self.fast_state.clone();
 
+            // V10: If the word has a larger dimension, grow LIF states first
+            self.ensure_dim(word_vec.len());
             // V9: Triple-LIF update
             self.slow_state = self.alpha_slow * &self.slow_state + (1.0 - self.alpha_slow) * &word_vec;
             self.medium_state = self.alpha_medium * &self.medium_state + (1.0 - self.alpha_medium) * &word_vec;
