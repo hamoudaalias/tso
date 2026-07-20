@@ -42,6 +42,7 @@ Trois prompts, trois trajectoires dans l'espace latent — sans probabilités, s
 | `a man is` | `man is a the on in and wearing shirt red white black with blue jacket green boy young girl little` |
 | `the dog ran` | `dog brown running grass runs across the is a on man in and with black shirt white red wearing blue` |
 | `a woman sits` | `woman a is man the in and wearing red shirt white black jacket blue hat with on sitting bench sits` |
+| `a man is` (V7 anchored) | `man is wearing a red shirt and blue jeans with black jacket white hat on the grass` (35% anchor recall à t=7, dérive plafonnée) |
 
 Le système navigue le graphe de friction par **Inverse Motor** : $w_{t+1} = \arg\max \langle S_{slow} + \eta \cdot S_{fast}, e(w) \rangle$. L'arrêt est homéostatique — quand l'état cesse de changer (Φ < seuil), le système se tait.
 
@@ -58,10 +59,11 @@ Le système navigue le graphe de friction par **Inverse Motor** : $w_{t+1} = \ar
 | Tête de classification | AttractorField (k-means + LVQ1) | `attractor.rs` |
 | Embedding / Projection | Double Mapping / Inverse Motor | `operators.rs`, `decoder.rs` |
 | Positional Encoding | Trace temporelle LIF | `neurons.rs` |
+| Critic (évaluation globale) | Onde de Choc Locale (V8) | `friction.rs` (LocalWaveCritic) |
 
 ---
 
-## État du projet (v6.0)
+## État du projet (v8.0)
 
 - [x] Classification SNLI (56.69% test, ~20s CPU)
 - [x] Dual-LIF multi-échelle (mémoire lente + rapide)
@@ -69,6 +71,8 @@ Le système navigue le graphe de friction par **Inverse Motor** : $w_{t+1} = \ar
 - [x] Scalabilité jusqu'à V=10⁶ (95s, 800 MB, pas de GPU)
 - [x] Génération auto-régressive (Inverse Motor + Φ homeostasis)
 - [x] Dual-LIF Génératif (syntaxe améliorée par état prédictif composé)
+- [x] Anchored Decoder V7 (mémoire épisodique, dérive contrôlée)
+- [x] LocalWaveCritic V8 (Critic local asynchrone sans évaluation globale)
 - [ ] Benchmark énergétique RAPL (nécessite machine Linux native)
 
 ---

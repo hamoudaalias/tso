@@ -65,6 +65,207 @@ impl Default for FrictionCalculator {
 }
 
 // ---------------------------------------------------------------------------
+// V8: Local Wave Critic — asynchronous, depth-limited friction propagation
+// ---------------------------------------------------------------------------
+
+/// V8 Local Wave Critic.
+///
+/// Replaces the global Critic (which simulates an action across the entire
+/// graph) with a **depth-limited wave propagation**. The action is evaluated
+/// only on the immediate neighbourhood of the conflicting nodes. If the local
+/// friction decreases, the action is validated. If new tension appears at a
+/// neighbour, the wave propagates to depth+1 to find a resolution.
+///
+/// This turns friction evaluation from O(V·E) to O(k^max_depth) where k is
+/// the average degree of the conflict neighbourhood — typically 3–5 nodes.
+pub struct LocalWaveCritic {
+    /// Maximum wave propagation depth (default: 2).
+    pub max_depth: usize,
+    /// Friction parameters (gamma for implication, epsilon for exclusion).
+    pub gamma: f64,
+    pub epsilon: f64,
+}
+
+/// Context passed to the wave critic for a local action evaluation.
+pub struct WaveContext<'a> {
+    /// The set of all node activations (rates / state vectors).
+    pub node_states: &'a [f64],
+    /// All typed edges (i, j, edge_type ±1, strength).
+    pub edges: &'a [(usize, usize, f64, f64)],
+    /// Adjacency list: for each node, its neighbours.
+    pub adjacency: &'a [Vec<usize>],
+}
+
+impl LocalWaveCritic {
+    pub fn new(max_depth: usize, gamma: f64, epsilon: f64) -> Self {
+        Self { max_depth, gamma, epsilon }
+    }
+
+    /// Evaluate an action on the local neighbourhood of node conflict (i, j).
+    ///
+    /// Returns `true` if the action reduces local friction.
+    pub fn evaluate_action<F>(
+        &self,
+        ctx: &WaveContext,
+        node_i: usize,
+        node_j: usize,
+        simulate: F,
+    ) -> bool
+    where
+        F: Fn(usize) -> f64,
+    {
+        // 1. Compute initial local phi (depth = max_depth)
+        let initial = self.local_phi(ctx, &[node_i, node_j], self.max_depth);
+
+        // 2. Simulate the action on node_i (e.g., invert its activation)
+        let simulated = simulate(node_i);
+
+        // 3. Temporarily override node_i's state for the local evaluation
+        let mut patched_states = ctx.node_states.to_vec();
+        patched_states[node_i] = simulated;
+
+        let patched_ctx = WaveContext {
+            node_states: &patched_states,
+            edges: ctx.edges,
+            adjacency: ctx.adjacency,
+        };
+
+        let post = self.local_phi(&patched_ctx, &[node_i, node_j], self.max_depth);
+
+        // 4. If local friction went down, validate
+        if post < initial {
+            return true;
+        }
+
+        // 5. Wave propagation: check if neighbours developed new tension
+        let neighbours = self.gather_neighbourhood(ctx.adjacency, &[node_i, node_j], 1);
+        for &n in &neighbours {
+            if n == node_i || n == node_j {
+                continue;
+            }
+            let n_initial = self.node_phi(ctx, n);
+            let n_post = self.node_phi(&patched_ctx, n);
+            if n_post > n_initial + 1e-8 {
+                // New tension at neighbour — propagate wave to depth+1
+                return self.evaluate_action_deep(ctx, &patched_ctx, n, self.max_depth + 1);
+            }
+        }
+
+        false
+    }
+
+    /// Recursive wave evaluation at increased depth.
+    fn evaluate_action_deep(
+        &self,
+        original_ctx: &WaveContext,
+        patched_ctx: &WaveContext,
+        tension_node: usize,
+        depth: usize,
+    ) -> bool {
+        if depth > self.max_depth * 2 {
+            return false; // wave has dissipated without resolution
+        }
+
+        let initial = self.local_phi(original_ctx, &[tension_node], depth);
+        let post = self.local_phi(patched_ctx, &[tension_node], depth);
+
+        if post < initial {
+            return true;
+        }
+
+        // Propagate further
+        let neighbours = self.gather_neighbourhood(original_ctx.adjacency, &[tension_node], 1);
+        for &n in &neighbours {
+            if n == tension_node {
+                continue;
+            }
+            let n_initial = self.node_phi(original_ctx, n);
+            let n_post = self.node_phi(patched_ctx, n);
+            if n_post > n_initial + 1e-8 {
+                return self.evaluate_action_deep(original_ctx, patched_ctx, n, depth + 1);
+            }
+        }
+
+        false // no further propagation; wave died
+    }
+
+    /// Compute total friction within the local neighbourhood around `seeds`,
+    /// expanding up to `depth` hops.
+    pub fn local_phi(
+        &self,
+        ctx: &WaveContext,
+        seeds: &[usize],
+        depth: usize,
+    ) -> f64 {
+        let nodes = self.gather_neighbourhood(ctx.adjacency, seeds, depth);
+        let mut phi = 0.0;
+        for &(i, j, w, strength) in ctx.edges {
+            if nodes.contains(&i) && nodes.contains(&j) {
+                let dot = ctx.node_states[i] * ctx.node_states[j];
+                if w > 0.0 {
+                    phi += strength * (self.gamma - dot).max(0.0);
+                } else if w < 0.0 {
+                    phi += strength * (dot - self.epsilon).max(0.0);
+                }
+            }
+        }
+        phi
+    }
+
+    /// Friction on a single node (sum over its incident edges).
+    fn node_phi(&self, ctx: &WaveContext, node: usize) -> f64 {
+        let mut phi = 0.0;
+        for &(i, j, w, strength) in ctx.edges {
+            if i == node || j == node {
+                let dot = ctx.node_states[i] * ctx.node_states[j];
+                if w > 0.0 {
+                    phi += strength * (self.gamma - dot).max(0.0);
+                } else if w < 0.0 {
+                    phi += strength * (dot - self.epsilon).max(0.0);
+                }
+            }
+        }
+        phi
+    }
+
+    /// Gather all nodes within `depth` hops of any seed node.
+    fn gather_neighbourhood(
+        &self,
+        adjacency: &[Vec<usize>],
+        seeds: &[usize],
+        depth: usize,
+    ) -> Vec<usize> {
+        let mut visited = std::collections::HashSet::new();
+        let mut frontier: Vec<usize> = seeds.to_vec();
+        for s in seeds {
+            visited.insert(*s);
+        }
+
+        for _ in 0..depth {
+            let mut next: Vec<usize> = Vec::new();
+            for &n in &frontier {
+                if n < adjacency.len() {
+                    for &neighbour in &adjacency[n] {
+                        if visited.insert(neighbour) {
+                            next.push(neighbour);
+                        }
+                    }
+                }
+            }
+            frontier = next;
+        }
+
+        visited.into_iter().collect()
+    }
+}
+
+impl Default for LocalWaveCritic {
+    fn default() -> Self {
+        Self::new(2, 0.5, 0.3)
+    }
+}
+
+// ---------------------------------------------------------------------------
 // Tri-friction computation (Phase 20+)
 // ---------------------------------------------------------------------------
 

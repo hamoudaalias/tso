@@ -94,6 +94,20 @@ L'architecture repose sur une topographie stricte en clusters sémantiques. Pour
 **Résolution du paradoxe Actor-Critic sans Backpropagation :**
 Dans TSO, le Critic n'est pas un réseau neuronal profond entraîné par TD-Learning. C'est une **fonction analytique de simulation "forward"** qui évalue la physique du système. L'Actor (le réseau SNN) ne calcule pas les seuils ; son rôle est d'apprendre, via la R-STDP, la **carte de routage prioritaire**. Lors d'une contradiction multiple, l'Actor sélectionne l'arête à traiter et l'opérateur à appliquer. Le Critic simule alors $S_{simul} = P_a(S_t)$ et calcule $\Delta\Phi_{global}$. Si $\Delta\Phi > 0$, l'action est validée. Le neuromodulateur $M(t)$ renforce alors les synapses ayant mené au choix de cette priorité. Aucun gradient global ne traverse le réseau.
 
+#### 5.1 Onde de Choc Locale (V8) — Résolution du Paradoxe de l'Évaluation Globale
+
+La version V8 remplace l'évaluation globale $\Delta\Phi_{global}$ par une **propagation d'onde locale asynchrone**. Le Critic ne calcule la friction que sur le **voisinage immédiat** du conflit (profondeur $d \leq 2$), réduisant la complexité de $O(V \cdot E)$ à $O(k^d)$ où $k$ est le degré moyen du sous-graphe conflictuel (typiquement 3–5 nœuds).
+
+**Algorithme :**
+1. Conflit détecté entre les nœuds $A$ et $B$.
+2. L'opérateur candidat est appliqué localement à $A$.
+3. La friction est recalculée uniquement sur le sous-graphe $N_{d}(A, B)$ — l'ensemble des nœuds à distance $\leq d$ de $A$ ou $B$.
+4. Si $\Delta\Phi_{local} < 0$, l'action est validée. Le reste du graphe est ignoré — toute tension qui y apparaît sera résolue à son propre pas de temps.
+5. Si une nouvelle tension apparaît chez un voisin $C \in N_1(A, B)$, l'onde se propage : le voisinage s'élargit à $N_{d+1}(A, B, C)$ pour chercher un opérateur complémentaire.
+6. Si aucune résolution locale n'est trouvée après $d_{max}$ sauts, l'onde s'éteint et le conflit est marqué comme irrésoluble localement.
+
+**Implication théorique :** Le système devient **strictement local**. Il n'existe plus aucun point centralisé : chaque conflit est résolu indépendamment, et la cohérence globale émerge de la propagation des ondes de choc. C'est un système physique asynchrone pur, où le temps de résolution est proportionnel à la complexité locale du conflit, jamais à la taille du graphe.
+
 ### 6. ALGORITHME COMPLET
 
 Soit $\Delta\Phi = \Phi(S_t) - \Phi(P_a(S_t))$ la variation de friction globale (succès si $\Delta\Phi > 0$).

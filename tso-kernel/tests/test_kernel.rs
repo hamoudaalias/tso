@@ -1,8 +1,8 @@
 use ndarray::Array1;
 use std::collections::HashMap;
 use tso_kernel::{
-    compute_trifriction, FrictionCalculator, LIFCluster, LIFNeuron, RSTDPPlasticity,
-    TopographicOperator,
+    compute_trifriction, FrictionCalculator, LIFCluster, LIFNeuron, LocalWaveCritic, RSTDPPlasticity,
+    TopographicOperator, WaveContext,
 };
 
 #[test]
@@ -176,4 +176,55 @@ fn test_trifriction_basic() {
     assert!(trif[0] <= 1.0);
     assert!(trif[1] >= 0.0);
     assert!(trif[2] >= 0.0);
+}
+
+#[test]
+fn test_local_wave_critic() {
+    // Graph: 0--1--2  (linear chain)
+    // Edges: (0,1) implication, (1,2) implication
+    let states = vec![0.8, 0.1, 0.8]; // 0 and 2 are active, 1 is inactive → tension on (0,1) and (1,2)
+    let edges = vec![
+        (0, 1, 1.0, 1.0),
+        (1, 2, 1.0, 1.0),
+    ];
+    let adjacency = vec![
+        vec![1],
+        vec![0, 2],
+        vec![1],
+    ];
+
+    let critic = LocalWaveCritic::new(2, 0.5, 0.3);
+    let ctx = WaveContext {
+        node_states: &states,
+        edges: &edges,
+        adjacency: &adjacency,
+    };
+
+    // Validate the initial local phi is positive (conflict on (0,1) and (1,2))
+    let initial = critic.local_phi(&ctx, &[0, 1], 1);
+    assert!(initial > 0.0, "Expected positive friction on conflict, got {initial}");
+
+    // Simulate inverting node 1's activation (0.1 → -0.1)
+    // This should NOT help because both edges are implication (need positive dot)
+    let bad_action =
+        critic.evaluate_action(&ctx, 1, 0, |node| -ctx.node_states[node]);
+    assert!(!bad_action, "Inverting node 1 should not reduce friction");
+
+    // Simulate boosting node 1's activation to match (0.1 → 0.8)
+    let good_action =
+        critic.evaluate_action(&ctx, 1, 0, |_node| 0.8);
+    assert!(good_action, "Boosting node 1 should reduce friction");
+
+    // Local phi on neighbourhood of (1) should now be lower
+    let post: f64 = {
+        let mut patched = states.clone();
+        patched[1] = 0.8;
+        let pctx = WaveContext {
+            node_states: &patched,
+            edges: &edges,
+            adjacency: &adjacency,
+        };
+        critic.local_phi(&pctx, &[0, 1], 1)
+    };
+    assert!(post < initial, "Local phi should decrease after good action");
 }
