@@ -43,8 +43,9 @@ Trois prompts, trois trajectoires dans l'espace latent — sans probabilités, s
 | `the dog ran` | `dog brown running grass runs across the is a on man in and with black shirt white red wearing blue` |
 | `a woman sits` | `woman a is man the in and wearing red shirt white black jacket blue hat with on sitting bench sits` |
 | `a man is` (V7 anchored) | `man is wearing a red shirt and blue jeans with black jacket white hat on the grass` (35% anchor recall à t=7, dérive plafonnée) |
+| `the dog ran` (V9 Triple-LIF) | `dog runs across the grass in the park with a ball and a boy playing fetch` (ancre téléportée à t=18 du chien → parc → ballon) |
 
-Le système navigue le graphe de friction par **Inverse Motor** : $w_{t+1} = \arg\max \langle S_{slow} + \eta \cdot S_{fast}, e(w) \rangle$. L'arrêt est homéostatique — quand l'état cesse de changer (Φ < seuil), le système se tait.
+Le système navigue le graphe de friction par **Inverse Motor** : $w_{t+1} = \arg\max \langle S_{slow} + \eta_m \cdot S_{medium} + \eta_f \cdot S_{fast}, e(w) \rangle$. L'arrêt est homéostatique — quand l'état cesse de changer (Φ < seuil), le système se tait.
 
 ---
 
@@ -54,7 +55,7 @@ Le système navigue le graphe de friction par **Inverse Motor** : $w_{t+1} = \ar
 |----------------------|----------------|--------|
 | Self-Attention | Friction topographique Φ | `friction.rs` |
 | Feed-Forward | Réservoir LIF (Leaky Integrate-and-Fire) | `neurons.rs` |
-| Multi-Head Attention | Dual-LIF (α=0.9 lent / α=0.5 rapide) | `distributional.rs` |
+| Multi-Head Attention | Triple-LIF (α=0.9 lent / α=0.7 moyen / α=0.5 rapide) | `decoder.rs` |
 | Backpropagation | R-STDP (plasticité locale, zéro gradient) | `plasticity.rs` |
 | Tête de classification | AttractorField (k-means + LVQ1) | `attractor.rs` |
 | Embedding / Projection | Double Mapping / Inverse Motor | `operators.rs`, `decoder.rs` |
@@ -63,7 +64,7 @@ Le système navigue le graphe de friction par **Inverse Motor** : $w_{t+1} = \ar
 
 ---
 
-## État du projet (v8.0)
+## État du projet (v9.0)
 
 - [x] Classification SNLI (56.69% test, ~20s CPU)
 - [x] Dual-LIF multi-échelle (mémoire lente + rapide)
@@ -73,6 +74,7 @@ Le système navigue le graphe de friction par **Inverse Motor** : $w_{t+1} = \ar
 - [x] Dual-LIF Génératif (syntaxe améliorée par état prédictif composé)
 - [x] Anchored Decoder V7 (mémoire épisodique, dérive contrôlée)
 - [x] LocalWaveCritic V8 (Critic local asynchrone sans évaluation globale)
+- [x] Triple-LIF V9 (α=0.7 medium, ancre dynamique téléportable)
 - [ ] Benchmark énergétique RAPL (nécessite machine Linux native)
 
 ---

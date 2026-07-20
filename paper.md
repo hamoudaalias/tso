@@ -369,10 +369,26 @@ Le motif est clair : **drift → rappel → reset → re-dérive** — un **osci
 
 **Contribution clé :** C'est la première démonstration de génération auto-régressive sans backprop ni probabilités, utilisant uniquement la géométrie d'un espace d'embeddings PPMI-SVD contrainte par un graphe de friction topographique. Le Dual-LIF Génératif démontre qu'une mémoire multi-échelle améliore la cohérence syntaxique même dans un cadre sans gradient, et l'ancrage épisodique résout la limitation de mémoire longue-distance sans rétropropagation temporelle (BPTT) — une solution biologiquement inspirée, infiniment plus économe que la conservation de l'historique complet des activations.
 
-#### 10.9 Expériences proposées
+#### 10.10 V9 — Ancre Dynamique Triple-Échelle
 
-1. **Triple-échelle temporelle :** Ajout d'une mémoire intermédiaire ($\alpha = 0.7$) pour une hiérarchie complète (lent/moyen/rapide).
-2. **Planification multi-phrase :** L'ancrage épisodique maintient la cohérence intra-phrase (50+ tokens). Une extension naturelle est l'ancrage hiérarchique : un deuxième niveau d'ancre pour le thème global du paragraphe, avec un seuil de dérive plus large.
+La V9 remplace l'ancre épisodique statique (V7) par une **ancre dynamique** couplée à un réservoir **Triple-LIF** (lent $\alpha=0.9$, moyen $\alpha=0.7$, rapide $\alpha=0.5$). L'état prédictif devient :
+
+$$S_{pred} = S_{slow} + \eta_m \cdot S_{medium} + \eta_f \cdot S_{fast}$$
+
+où $\eta_m = 0.3$ est le poids de la mémoire de paragraphe (~20 tokens) et $\eta_f = 0.4$ celui de la syntaxe locale (~3 tokens).
+
+**Algorithme d'ancrage dynamique :** Tous les $N=20$ tokens, la friction du canal moyen est évaluée :
+
+$$\Phi_m = \| S_{medium}(t) - S_{medium}(t_{anchor}) \|^2$$
+
+Si $\Phi_m < \theta_m$ (seuil 0.05), l'ancre se **téléporte** : $S_{anchor} \leftarrow S_{medium}$. Le système lâche le thème précédent pour adopter le contexte de paragraphe en cours — une progression thématique permise par la seule cohérence interne du flux, sans superviseur externe.
+
+**Contribution :** L'ancre dynamique transforme l'oscillation V7 en véritable progression. Le système peut passer d'un sujet à l'autre (e.g., "chien" → "parc" → "ballon") sans perdre la cohérence locale, et sans aucune rétropropagation temporelle. C'est la première mémoire de travail neuromorphique autonome pour la génération de séquences longues.
+
+#### 10.11 Expériences proposées
+
+1. **Critic asynchrone multi-niveau :** Coupler le `LocalWaveCritic` (V8) avec l'ancre dynamique (V9) pour une résolution entièrement locale des conflits pendant la génération.
+2. **Planification multi-phrase :** L'ancrage dynamique maintient la cohérence intra-paragraphe (50+ tokens). Une extension naturelle est un troisième niveau d'ancre pour le thème global du document, avec un seuil de dérive plus large.
 
 ### 11. DISCUSSION
 
@@ -382,7 +398,7 @@ TSO propose un changement de paradigme : passer d'une exécution systématique �
 
 1.  **Bootstrap Sémantique :** Le système dépend initialement d'un encodeur NLI figé pour typer les arêtes. Comment cette sémantique peut-elle émerger de manière totalement endogène à partir de la règle R-STDP ?
 2.  **Tuning des hyperparamètres :** L'apprentissage automatique de l'ensemble des paramètres libres ($\Delta t, \gamma, \epsilon, \theta_t, \theta_c$) reste une question ouverte cruciale pour l'autonomie du système.
-3.  **Cohérence Globale :** La réparation locale d'une arête peut théoriquement briser une contrainte voisine satisfaite. La convergence globale du système devra être formellement démontrée.
+3.  **Cohérence Globale :** La réparation locale d'une arête peut théoriquement briser une contrainte voisine satisfaite. La convergence globale du système devra être formellement démontrée. (Note : le `LocalWaveCritic` V8 résout partiellement ce problème par propagation d'onde locale de profondeur $d \leq 2$, mais une preuve formelle de convergence pour des graphes arbitraires reste ouverte.)
 4.  **Capacité linguistique :** Les expériences devront démontrer que la nature événementielle du calcul ne limite pas la capacité expressive par rapport aux modèles denses.
 5.  **Friction multi-couche :** Comment empiler les couches de $\Phi$ pour obtenir une expressivité comparable à la profondeur des Transformers ?
 

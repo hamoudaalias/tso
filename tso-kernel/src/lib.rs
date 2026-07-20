@@ -11,6 +11,7 @@ pub mod plasticity;
 
 pub use attractor::SharpAttractorField;
 pub use core::TSOCore;
+pub use decoder::AnchoredTSODecoder;
 pub use deep::{DeepConfig, DeepBatchProcessor, DeepOutput, DeepTSO, LayerOutput};
 pub use friction::{
     build_typed_graph, compute_trifriction, compute_trifriction_fast, compute_typed_trifriction,

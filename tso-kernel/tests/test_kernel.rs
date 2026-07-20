@@ -1,8 +1,8 @@
-use ndarray::Array1;
+use ndarray::{Array1, Array2};
 use std::collections::HashMap;
 use tso_kernel::{
-    compute_trifriction, FrictionCalculator, LIFCluster, LIFNeuron, LocalWaveCritic, RSTDPPlasticity,
-    TopographicOperator, WaveContext,
+    compute_trifriction, AnchoredTSODecoder, FrictionCalculator, LIFCluster, LIFNeuron,
+    LocalWaveCritic, RSTDPPlasticity, TopographicOperator, WaveContext,
 };
 
 #[test]
@@ -227,4 +227,119 @@ fn test_local_wave_critic() {
         critic.local_phi(&pctx, &[0, 1], 1)
     };
     assert!(post < initial, "Local phi should decrease after good action");
+}
+
+fn make_toy_decoder() -> AnchoredTSODecoder {
+    // 5 words, 4D embeddings
+    let mut idx_to_word: HashMap<usize, String> = HashMap::new();
+    idx_to_word.insert(0, "dog".into());
+    idx_to_word.insert(1, "park".into());
+    idx_to_word.insert(2, "run".into());
+    idx_to_word.insert(3, "ball".into());
+    idx_to_word.insert(4, "cat".into());
+    let mut word_to_idx = HashMap::new();
+    for (k, v) in &idx_to_word {
+        word_to_idx.insert(v.clone(), *k);
+    }
+    // Orthogonal-ish 4D vectors
+    let data = vec![
+        1.0, 0.0, 0.0, 0.0,
+        0.0, 1.0, 0.0, 0.0,
+        0.0, 0.0, 1.0, 0.0,
+        0.0, 0.0, 0.0, 1.0,
+        0.5, 0.5, 0.0, 0.0,
+    ];
+    let embeddings = Array2::from_shape_vec((5, 4), data).unwrap();
+    AnchoredTSODecoder::new(idx_to_word, word_to_idx, embeddings, 0.9, 0.5)
+}
+
+#[test]
+fn test_triple_lif_predictive_state() {
+    let mut dec = make_toy_decoder();
+    // Ingest "dog" → slow and medium should be near dog's embedding
+    let dog_vec = dec.embeddings.row(0).to_owned();
+    dec.ingest(&[("dog".into(), dog_vec)]);
+    let pred = dec.predictive_state();
+    // pred should be closer to dog (1,0,0,0) than to cat (0.5,0.5,0,0)
+    let dog_cos = pred.dot(&dec.embeddings.row(0));
+    let cat_cos = pred.dot(&dec.embeddings.row(4));
+    assert!(dog_cos > cat_cos, "predictive state should favor dog over cat");
+}
+
+#[test]
+fn test_anchor_teleport_on_low_medium_friction() {
+    let mut dec = make_toy_decoder();
+    dec.anchor_interval = 5;
+    dec.anchor_friction_threshold = 0.1;
+
+    let dog_vec = dec.embeddings.row(0).to_owned();
+    dec.ingest(&[("dog".into(), dog_vec)]);
+
+    // Emit 5 "dog" tokens — medium state stays near equilibrium → low friction
+    for _ in 0..5 {
+        dec.slow_state = dec.alpha_slow * &dec.slow_state + (1.0 - dec.alpha_slow) * &dec.embeddings.row(0);
+        dec.medium_state = dec.alpha_medium * &dec.medium_state + (1.0 - dec.alpha_medium) * &dec.embeddings.row(0);
+        dec.fast_state = dec.alpha_fast * &dec.fast_state + (1.0 - dec.alpha_fast) * &dec.embeddings.row(0);
+        dec.normalize_states();
+        dec.token_count_since_anchor += 1;
+    }
+
+    // Trigger teleport check
+    if dec.token_count_since_anchor >= dec.anchor_interval {
+        let m_delta = &dec.medium_state - &dec.last_medium_snapshot;
+        let medium_friction: f64 = m_delta.mapv(|x| x * x).sum();
+        if medium_friction < dec.anchor_friction_threshold {
+            dec.anchor_state = dec.medium_state.clone();
+            dec.last_medium_snapshot = dec.medium_state.clone();
+            dec.token_count_since_anchor = 0;
+        }
+    }
+
+    // Anchor should have teleported (counter reset, anchor = medium_state)
+    assert_eq!(
+        dec.token_count_since_anchor, 0,
+        "Anchor teleport should reset token counter"
+    );
+    let dog_cos = dec.anchor_state.dot(&dec.embeddings.row(0));
+    assert!(
+        dog_cos > 0.9,
+        "Anchor should still be near 'dog' after teleport (cos={:.4})",
+        dog_cos
+    );
+}
+
+#[test]
+fn test_anchor_no_teleport_on_high_medium_friction() {
+    let mut dec = make_toy_decoder();
+    dec.anchor_interval = 5;
+    dec.anchor_friction_threshold = 0.001; // very low threshold
+
+    let dog_vec = dec.embeddings.row(0).to_owned();
+    dec.ingest(&[("dog".into(), dog_vec)]);
+    let anchor_before = dec.anchor_state.clone();
+
+    // Emit 5 "cat" tokens — medium state drifts significantly from dog to cat
+    for _ in 0..5 {
+        dec.slow_state = dec.alpha_slow * &dec.slow_state + (1.0 - dec.alpha_slow) * &dec.embeddings.row(4);
+        dec.medium_state = dec.alpha_medium * &dec.medium_state + (1.0 - dec.alpha_medium) * &dec.embeddings.row(4);
+        dec.fast_state = dec.alpha_fast * &dec.fast_state + (1.0 - dec.alpha_fast) * &dec.embeddings.row(4);
+        dec.normalize_states();
+        dec.token_count_since_anchor += 1;
+    }
+
+    if dec.token_count_since_anchor >= dec.anchor_interval {
+        let m_delta = &dec.medium_state - &dec.last_medium_snapshot;
+        let medium_friction: f64 = m_delta.mapv(|x| x * x).sum();
+        if medium_friction < dec.anchor_friction_threshold {
+            dec.anchor_state = dec.medium_state.clone();
+        }
+    }
+
+    // Anchor should NOT have teleported because friction was too high
+    let dog_cos_before = anchor_before.dot(&dec.embeddings.row(0));
+    let dog_cos_after = dec.anchor_state.dot(&dec.embeddings.row(0));
+    assert!(
+        (dog_cos_before - dog_cos_after).abs() < 1e-6,
+        "Anchor should be unchanged when medium friction exceeds threshold"
+    );
 }
