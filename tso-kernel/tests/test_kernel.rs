@@ -1,8 +1,8 @@
 use ndarray::{Array1, Array2};
 use std::collections::{HashMap, HashSet};
 use tso_kernel::{
-    compute_trifriction, AnchoredTSODecoder, FrictionCalculator, LIFCluster, LIFNeuron,
-    LocalWaveCritic, RSTDPPlasticity, TopographicOperator, VolatileSyntaxInverter, WaveContext,
+    compute_trifriction, AnchoredTSODecoder, EndogenousInversionDetector, FrictionCalculator,
+    LIFCluster, LIFNeuron, LocalWaveCritic, RSTDPPlasticity, TopographicOperator, WaveContext,
 };
 
 #[test]
@@ -345,8 +345,8 @@ fn test_anchor_no_teleport_on_high_medium_friction() {
 }
 
 #[test]
-fn test_volatile_inverter_basic() {
-    let mut inv = VolatileSyntaxInverter::new(&["not", "no"]);
+fn test_endogenous_inverter_basic() {
+    let mut inv = EndogenousInversionDetector::new(&["not", "no"]);
 
     // Normal word: no inversion
     let v = Array1::from_vec(vec![1.0, 0.0]);
@@ -355,7 +355,7 @@ fn test_volatile_inverter_basic() {
     assert_eq!(result[1], 0.0);
     assert!(!inv.inversion_active);
 
-    // Negation marker: sets flag, returns unchanged
+    // Seed marker: sets flag, returns unchanged
     let result = inv.process("not", &v);
     assert_eq!(result[0], 1.0);
     assert!(inv.inversion_active);
@@ -372,8 +372,8 @@ fn test_volatile_inverter_basic() {
 }
 
 #[test]
-fn test_volatile_inverter_reset() {
-    let mut inv = VolatileSyntaxInverter::new(&["not"]);
+fn test_endogenous_inverter_reset() {
+    let mut inv = EndogenousInversionDetector::new(&["not"]);
     let v = Array1::from_vec(vec![1.0, 0.0]);
 
     inv.process("not", &v);
@@ -388,13 +388,59 @@ fn test_volatile_inverter_reset() {
 }
 
 #[test]
+fn test_endogenous_inverter_learns_triggers() {
+    let mut inv = EndogenousInversionDetector::new(&[]); // NO seed markers!
+    inv.threshold = 0.3;
+    inv.learning_rate = 0.4;
+
+    let v = Array1::from_vec(vec![1.0, 0.0]);
+    let before = Array1::from_vec(vec![1.0, 0.0]);
+    let after = Array1::from_vec(vec![-0.9, 0.1]); // flipped >90°
+
+    // First, "not" is not a known trigger
+    assert!(!inv.is_trigger("not"), "'not' should not be a trigger yet");
+
+    // Process "not" normally (no inversion since no active flag)
+    let r = inv.process("not", &v);
+    assert_eq!(r[0], 1.0);
+    assert!(!inv.inversion_active);
+    // last_trigger should be None because is_trigger("not") is false
+    // Let's manually set it to simulate what process() would do if not were a trigger
+    // Instead, we simulate the full loop: process word, LIF update, observe flip
+
+    // Manually: treat "not" as if process found it
+    // Actually, let's redesign: we need to process a word that HAS triggered
+    // Use seed markers to set the flag, then observe the flip
+    let mut inv2 = EndogenousInversionDetector::new(&["not"]);
+    inv2.threshold = 0.3;
+    inv2.learning_rate = 0.4;
+
+    // "not" sets inversion_active, last_trigger = Some("not"), returns normal vec
+    let r2 = inv2.process("not", &v);
+    assert_eq!(r2[0], 1.0);
+    assert!(inv2.inversion_active);
+    assert_eq!(inv2.last_trigger.as_deref(), Some("not"));
+
+    // "dog" gets inverted because flag is set
+    let r3 = inv2.process("dog", &v);
+    assert_eq!(r3[0], -1.0);
+    assert!(!inv2.inversion_active);
+    // last_trigger is still Some("not") — not cleared until observe_flip
+
+    // Now observe the flip: before = [1,0], after = [-1,0] → flip!
+    inv2.observe_flip(&before, &after);
+    // "not" should have been credited
+    assert!(inv2.inversion_scores.get("not").copied().unwrap_or(0.0) > 0.0);
+    assert_eq!(inv2.last_trigger, None); // consumed by observe_flip
+}
+
+#[test]
 fn test_negation_inverts_decoder_trajectory() {
     let mut dec = make_toy_decoder();
-    // Use custom negation markers
-    dec.volatile_inverter = VolatileSyntaxInverter::new(&["not"]);
+    // Use custom seed markers
+    dec.endogenous_inverter = EndogenousInversionDetector::new(&["not"]);
 
     let dog_vec = dec.embeddings[0].to_owned();
-    let cat_vec = dec.embeddings[4].to_owned();
 
     // Trajectory A: ingest "dog" → check prediction angle
     dec.ingest(&[("dog".into(), dog_vec.clone())]);

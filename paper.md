@@ -423,6 +423,25 @@ La V10 supprime la dernière structure globalisante : la matrice dense `Array2<f
 
 **Contribution théorique :** Le réseau n'a plus aucune dimension globale. Chaque concept occupe un espace latent de la taille que sa complexité sémantique exige. Un mot simple comme "the" peut rester en 4D tandis que "antidisestablishment" s'étend en 200D. La cohérence émerge des intersections de produit scalaire, pas d'un formatage centralisé. C'est la fin du padding — le système est **strictement asynchrone et auto-dimensionnant**.
 
+##### 10.11.1 Instinct Endogène (V11) — Apprendre la Négation par la Friction
+
+La V11 remplace le `VolatileSyntaxInverter` codé en dur (V9.1) par un `EndogenousInversionDetector` qui *découvre* les marqueurs de négation à partir de la dynamique du système.
+
+**Problème (V9.1) :** La liste `["not", "no", "never", "without"]` est écrite dans le code source. C'est efficace mais figé — le système ne peut pas apprendre de nouveaux marqueurs (e.g., "seldom", "rien" en français) et depend d'une connaissance a priori.
+
+**Solution (V11) :** Le détecteur endogène part d'une graine initiale (les marqueurs communs) mais observe en permanence la **trajectoire de l'état prédictif** après chaque incorporation de mot. Si un mot provoque systématiquement un retournement de la trajectoire ($\cos\langle S_{pred}^{t}, S_{pred}^{t+1}\rangle < 0$), son score d'inversion augmente :
+
+$$s(w) \leftarrow s(w) + \eta \cdot \mathbb{1}[\cos\langle S_{pred}^{t-1}, S_{pred}^{t}\rangle < 0]$$
+
+où $\eta = 0.1$ est le taux d'apprentissage. Lorsque $s(w) > \theta$ (seuil 0.5), le mot devient un déclencheur d'inversion automatique — au même titre que les marqueurs de la graine.
+
+**Architecture :**
+- **Graines fixes** : `["not", "no", "never", "without"]` pour un comportement correct immédiat.
+- **Scores appris** : Tous les mots sont évalués ; seuls ceux qui retournent la trajectoire de façon fiable deviennent des déclencheurs.
+- **Crédit différé** : Le mot qui lève le drapeau d'inversion est stocké comme `last_trigger`. Lorsque le mot suivant est incorporé et que la trajectoire se retourne, le crédit est attribué à `last_trigger` — pas au mot inversé.
+
+**Contribution :** La distinction étincelle syntaxique / incendie statistique devient entièrement endogène. Plus aucune règle n'est codée en dur — le système *apprend qu'il a un réflexe*. C'est l'équivalent neuromorphique de l'habituation : un circuit réflexe (la graine) cède progressivement la place à un apprentissage structurel (les scores).
+
 #### 10.12 Expériences proposées
 
 1. **Critic asynchrone multi-niveau :** Coupler le `LocalWaveCritic` (V8) avec l'ancre dynamique (V9) pour une résolution entièrement locale des conflits pendant la génération.

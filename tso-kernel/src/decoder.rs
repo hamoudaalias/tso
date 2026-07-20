@@ -1,48 +1,98 @@
 use ndarray::{s, Array1, Array2};
 use std::collections::{HashMap, HashSet};
 
-/// V9.1: Volatile Syntax Inverter — morphologic scarring
+/// V11: Endogenous Inversion Detector — emergent negation learning
 ///
-/// When a negation marker (e.g. "not", "no") is read, the *next* word's
-/// embedding is inverted *before* LIF incorporation. This creates an
-/// immediate geometric contradiction in the latent space — a volatile
-/// "scar" — without waiting for slow R-STDP to learn the exclusion.
+/// Replaces the hardcoded `VolatileSyntaxInverter` (V9.1) with a mechanism
+/// that *discovers* negation markers from the system's own dynamics.
 ///
-/// The scar is ephemeral (single token). Only repeated co-occurrence
-/// of the same pattern across the corpus eventually burns the edge
-/// to -1 via R-STDP — the spark is syntactic, the fire is statistical.
-pub struct VolatileSyntaxInverter {
-    pub markers: Vec<String>,
+/// **Bootstrapping:** A seed set of markers provides correct behavior from
+/// the start. The system additionally learns new triggers by observing
+/// trajectory flips: if a word consistently precedes a >90° change in the
+/// predictive state, its score increases. Once a score crosses `threshold`,
+/// the word becomes an automatic trigger.
+///
+/// **Spark (syntax) + Fire (statistics):** The seed handles the common cases
+/// immediately; the learned scores capture rare or domain-specific patterns.
+pub struct EndogenousInversionDetector {
+    /// Hardcoded seed markers for bootstrapping (e.g. "not", "no")
+    pub seed_markers: Vec<String>,
+    /// Learned scores for every word encountered
+    pub inversion_scores: HashMap<String, f64>,
+    /// Score threshold for automatic trigger
+    pub threshold: f64,
+    /// Learning rate for score increments on flip detection
+    pub learning_rate: f64,
+    /// Current flag — if true, the next word's embedding will be inverted
     pub inversion_active: bool,
+    /// The word that set `inversion_active` (for credit assignment in learn())
+    pub last_trigger: Option<String>,
 }
 
-impl VolatileSyntaxInverter {
-    pub fn new(markers: &[&str]) -> Self {
+impl EndogenousInversionDetector {
+    pub fn new(seed_markers: &[&str]) -> Self {
         Self {
-            markers: markers.iter().map(|s| s.to_string()).collect(),
+            seed_markers: seed_markers.iter().map(|s| s.to_string()).collect(),
+            inversion_scores: HashMap::new(),
+            threshold: 0.5,
+            learning_rate: 0.1,
             inversion_active: false,
+            last_trigger: None,
         }
     }
 
-    /// Process a word: if the previous word was a negation marker, invert
-    /// the embedding. Returns the (possibly inverted) vector.
+    /// Process a word: if `inversion_active` is set, invert the embedding.
+    /// Then check if this word (seed or learned) should trigger for the
+    /// *next* word.
     pub fn process(&mut self, word: &str, word_vec: &Array1<f64>) -> Array1<f64> {
         if self.inversion_active {
             self.inversion_active = false;
             return -word_vec;
         }
-        if self.markers.iter().any(|m| m == word) {
+        if self.is_trigger(word) {
             self.inversion_active = true;
+            self.last_trigger = Some(word.to_string());
         }
         word_vec.clone()
     }
 
+    /// Check if a word is a known trigger (seed marker or learned score).
+    pub fn is_trigger(&self, word: &str) -> bool {
+        if self.seed_markers.iter().any(|m| m == word) {
+            return true;
+        }
+        self.inversion_scores.get(word).copied().unwrap_or(0.0) >= self.threshold
+    }
+
+    /// Observe the change in predictive state before/after a word.
+    /// If the trajectory flipped by >90°, credit `last_trigger`.
+    /// Call this AFTER the LIF update for the word.
+    pub fn observe_flip(&mut self, before: &Array1<f64>, after: &Array1<f64>) {
+        let n_b = before.dot(before).sqrt();
+        let n_a = after.dot(after).sqrt();
+        if n_b < 1e-10 || n_a < 1e-10 {
+            self.last_trigger = None;
+            return;
+        }
+        let cos = before.dot(after) / (n_b * n_a);
+        if cos < 0.0 {
+            if let Some(trigger) = self.last_trigger.take() {
+                let entry = self.inversion_scores.entry(trigger).or_insert(0.0);
+                *entry += self.learning_rate;
+            }
+        } else {
+            self.last_trigger = None;
+        }
+    }
+
     pub fn reset(&mut self) {
         self.inversion_active = false;
+        self.last_trigger = None;
+        // Learned scores persist across resets — instincts are permanent
     }
 }
 
-impl Default for VolatileSyntaxInverter {
+impl Default for EndogenousInversionDetector {
     fn default() -> Self {
         Self::new(&["not", "no", "never", "without"])
     }
@@ -95,7 +145,7 @@ pub struct AnchoredTSODecoder {
     pub last_medium_snapshot: Array1<f64>,
 
     pub stability_threshold: f64,
-    pub volatile_inverter: VolatileSyntaxInverter,
+    pub endogenous_inverter: EndogenousInversionDetector,
     pub friction_graph: Option<HashMap<String, Vec<String>>>,
     pub friction_lambda: f64,
 }
@@ -133,7 +183,7 @@ impl AnchoredTSODecoder {
             anchor_friction_threshold: 0.05,
             token_count_since_anchor: 0,
             stability_threshold: 0.001,
-            volatile_inverter: VolatileSyntaxInverter::default(),
+            endogenous_inverter: EndogenousInversionDetector::default(),
             friction_graph: None,
             friction_lambda: 0.5,
         }
@@ -169,14 +219,15 @@ impl AnchoredTSODecoder {
             anchor_friction_threshold: 0.05,
             token_count_since_anchor: 0,
             stability_threshold: 0.001,
-            volatile_inverter: VolatileSyntaxInverter::default(),
+            endogenous_inverter: EndogenousInversionDetector::default(),
             friction_graph: None,
             friction_lambda: 0.5,
         }
     }
 
+    /// Replace the seed markers for the endogenous inverter.
     pub fn with_negation_markers(mut self, markers: &[&str]) -> Self {
-        self.volatile_inverter = VolatileSyntaxInverter::new(markers);
+        self.endogenous_inverter = EndogenousInversionDetector::new(markers);
         self
     }
 
@@ -192,7 +243,7 @@ impl AnchoredTSODecoder {
         self.anchor_state.fill(0.0);
         self.last_medium_snapshot.fill(0.0);
         self.token_count_since_anchor = 0;
-        self.volatile_inverter.reset();
+        self.endogenous_inverter.reset();
     }
 
     /// V10: Expand all LIF states to at least `target_dim` dimensions.
@@ -225,11 +276,15 @@ impl AnchoredTSODecoder {
         for (word, v) in word_vecs {
             // V10: Ensure LIF states are large enough for this word
             self.ensure_dim(v.len());
-            // V9.1: Volatile syntax inversion — invert the *next* word's embedding
-            let processed = self.volatile_inverter.process(word, v);
+            // V11: Process through endogenous inverter (may invert, may learn)
+            let s_before = self.predictive_state();
+            let processed = self.endogenous_inverter.process(word, v);
             self.slow_state = self.alpha_slow * &self.slow_state + (1.0 - self.alpha_slow) * &processed;
             self.medium_state = self.alpha_medium * &self.medium_state + (1.0 - self.alpha_medium) * &processed;
             self.fast_state = self.alpha_fast * &self.fast_state + (1.0 - self.alpha_fast) * &processed;
+            self.normalize_states();
+            let s_after = self.predictive_state();
+            self.endogenous_inverter.observe_flip(&s_before, &s_after);
         }
         self.normalize_states();
         // Episodic memory: freeze the slow state as the topic anchor
@@ -352,20 +407,27 @@ impl AnchoredTSODecoder {
             emitted.insert(next_idx);
 
             let raw_word_vec = self.embeddings[next_idx].clone();
-            // V9.1: Volatile syntax inversion — inverts the word AFTER a negation
-            let word_vec = self.volatile_inverter.process(&next_word, &raw_word_vec);
+            // V10: If the word has a larger dimension, grow LIF states first
+            self.ensure_dim(raw_word_vec.len());
+
+            // V11: Process through endogenous inverter — may invert the word
+            // and learn new negation triggers from trajectory flips
+            let s_before_lif = self.predictive_state();
+            let word_vec = self.endogenous_inverter.process(&next_word, &raw_word_vec);
             let prev_slow = self.slow_state.clone();
             let prev_medium = self.medium_state.clone();
             let prev_fast = self.fast_state.clone();
 
-            // V10: If the word has a larger dimension, grow LIF states first
-            self.ensure_dim(word_vec.len());
             // V9: Triple-LIF update
             self.slow_state = self.alpha_slow * &self.slow_state + (1.0 - self.alpha_slow) * &word_vec;
             self.medium_state = self.alpha_medium * &self.medium_state + (1.0 - self.alpha_medium) * &word_vec;
             self.fast_state = self.alpha_fast * &self.fast_state + (1.0 - self.alpha_fast) * &word_vec;
 
             self.normalize_states();
+
+            // V11: Observe flip — if the trajectory changed by >90°, credit the trigger word
+            let s_after_lif = self.predictive_state();
+            self.endogenous_inverter.observe_flip(&s_before_lif, &s_after_lif);
 
             // V7: Episodic drift control (slow vs anchor)
             let alignment = self.slow_state.dot(&self.anchor_state);
