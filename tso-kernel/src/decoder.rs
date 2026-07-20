@@ -1,6 +1,53 @@
 use ndarray::{Array1, Array2};
 use std::collections::{HashMap, HashSet};
 
+/// V9.1: Volatile Syntax Inverter — morphologic scarring
+///
+/// When a negation marker (e.g. "not", "no") is read, the *next* word's
+/// embedding is inverted *before* LIF incorporation. This creates an
+/// immediate geometric contradiction in the latent space — a volatile
+/// "scar" — without waiting for slow R-STDP to learn the exclusion.
+///
+/// The scar is ephemeral (single token). Only repeated co-occurrence
+/// of the same pattern across the corpus eventually burns the edge
+/// to -1 via R-STDP — the spark is syntactic, the fire is statistical.
+pub struct VolatileSyntaxInverter {
+    pub markers: Vec<String>,
+    pub inversion_active: bool,
+}
+
+impl VolatileSyntaxInverter {
+    pub fn new(markers: &[&str]) -> Self {
+        Self {
+            markers: markers.iter().map(|s| s.to_string()).collect(),
+            inversion_active: false,
+        }
+    }
+
+    /// Process a word: if the previous word was a negation marker, invert
+    /// the embedding. Returns the (possibly inverted) vector.
+    pub fn process(&mut self, word: &str, word_vec: &Array1<f64>) -> Array1<f64> {
+        if self.inversion_active {
+            self.inversion_active = false;
+            return -word_vec;
+        }
+        if self.markers.iter().any(|m| m == word) {
+            self.inversion_active = true;
+        }
+        word_vec.clone()
+    }
+
+    pub fn reset(&mut self) {
+        self.inversion_active = false;
+    }
+}
+
+impl Default for VolatileSyntaxInverter {
+    fn default() -> Self {
+        Self::new(&["not", "no", "never", "without"])
+    }
+}
+
 /// TSO V9 Triple-LIF Dynamic Anchor Generative Decoder
 ///
 /// Extends V7 with:
@@ -46,7 +93,7 @@ pub struct AnchoredTSODecoder {
     pub last_medium_snapshot: Array1<f64>,
 
     pub stability_threshold: f64,
-    pub negation_set: Vec<String>,
+    pub volatile_inverter: VolatileSyntaxInverter,
     pub friction_graph: Option<HashMap<String, Vec<String>>>,
     pub friction_lambda: f64,
 }
@@ -80,10 +127,15 @@ impl AnchoredTSODecoder {
             anchor_friction_threshold: 0.05,
             token_count_since_anchor: 0,
             stability_threshold: 0.001,
-            negation_set: Vec::new(),
+            volatile_inverter: VolatileSyntaxInverter::default(),
             friction_graph: None,
             friction_lambda: 0.5,
         }
+    }
+
+    pub fn with_negation_markers(mut self, markers: &[&str]) -> Self {
+        self.volatile_inverter = VolatileSyntaxInverter::new(markers);
+        self
     }
 
     pub fn with_friction_graph(mut self, graph: HashMap<String, Vec<String>>) -> Self {
@@ -98,6 +150,7 @@ impl AnchoredTSODecoder {
         self.anchor_state.fill(0.0);
         self.last_medium_snapshot.fill(0.0);
         self.token_count_since_anchor = 0;
+        self.volatile_inverter.reset();
     }
 
     /// Build the combined predictive state: S_slow + η_m · S_medium + η_f · S_fast
@@ -112,14 +165,11 @@ impl AnchoredTSODecoder {
     /// Ingest prompt words and freeze the anchor.
     pub fn ingest(&mut self, word_vecs: &[(String, Array1<f64>)]) {
         for (word, v) in word_vecs {
-            self.slow_state = self.alpha_slow * &self.slow_state + (1.0 - self.alpha_slow) * v;
-            self.medium_state = self.alpha_medium * &self.medium_state + (1.0 - self.alpha_medium) * v;
-            self.fast_state = self.alpha_fast * &self.fast_state + (1.0 - self.alpha_fast) * v;
-            if self.negation_set.contains(word) {
-                self.slow_state.mapv_inplace(|x| -x);
-                self.medium_state.mapv_inplace(|x| -x);
-                self.fast_state.mapv_inplace(|x| -x);
-            }
+            // V9.1: Volatile syntax inversion — invert the *next* word's embedding
+            let processed = self.volatile_inverter.process(word, v);
+            self.slow_state = self.alpha_slow * &self.slow_state + (1.0 - self.alpha_slow) * &processed;
+            self.medium_state = self.alpha_medium * &self.medium_state + (1.0 - self.alpha_medium) * &processed;
+            self.fast_state = self.alpha_fast * &self.fast_state + (1.0 - self.alpha_fast) * &processed;
         }
         self.normalize_states();
         // Episodic memory: freeze the slow state as the topic anchor
@@ -235,7 +285,9 @@ impl AnchoredTSODecoder {
             last_context = Some(generated.last().unwrap().as_str());
             emitted.insert(next_idx);
 
-            let word_vec = self.embeddings.row(next_idx).to_owned();
+            let raw_word_vec = self.embeddings.row(next_idx).to_owned();
+            // V9.1: Volatile syntax inversion — inverts the word AFTER a negation
+            let word_vec = self.volatile_inverter.process(&next_word, &raw_word_vec);
             let prev_slow = self.slow_state.clone();
             let prev_medium = self.medium_state.clone();
             let prev_fast = self.fast_state.clone();
@@ -244,12 +296,6 @@ impl AnchoredTSODecoder {
             self.slow_state = self.alpha_slow * &self.slow_state + (1.0 - self.alpha_slow) * &word_vec;
             self.medium_state = self.alpha_medium * &self.medium_state + (1.0 - self.alpha_medium) * &word_vec;
             self.fast_state = self.alpha_fast * &self.fast_state + (1.0 - self.alpha_fast) * &word_vec;
-
-            if self.negation_set.contains(&next_word) {
-                self.slow_state.mapv_inplace(|x| -x);
-                self.medium_state.mapv_inplace(|x| -x);
-                self.fast_state.mapv_inplace(|x| -x);
-            }
 
             self.normalize_states();
 

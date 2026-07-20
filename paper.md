@@ -385,6 +385,33 @@ Si $\Phi_m < \theta_m$ (seuil 0.05), l'ancre se **téléporte** : $S_{anchor} \l
 
 **Contribution :** L'ancre dynamique transforme l'oscillation V7 en véritable progression. Le système peut passer d'un sujet à l'autre (e.g., "chien" → "parc" → "ballon") sans perdre la cohérence locale, et sans aucune rétropropagation temporelle. C'est la première mémoire de travail neuromorphique autonome pour la génération de séquences longues.
 
+##### 10.10.1 Cicatrice Morphologique (V9.1) — Étincelle Syntaxique, Incendie Statistique
+
+La V9.1 ajoute un **inverseur syntaxique volatile** (`VolatileSyntaxInverter`) qui résout le problème fondamental de la lenteur d'apprentissage de la R-STDP. Au lieu d'attendre que des milliers de co-occurrences gravent une arête d'exclusion dans le graphe, le système utilise la **syntaxe** comme déclencheur instantané :
+
+$$S_{LIF}(t+1) = \alpha S_{LIF}(t) + (1-\alpha) \cdot f_{inv}(w_t)$$
+
+où :
+
+$$f_{inv}(w_t) = \begin{cases}
+-e(w_t) & \text{si } w_{t-1} \in \mathcal{N} \\
+e(w_t) & \text{sinon}
+\end{cases}$$
+
+avec $\mathcal{N} = \{\text{not, no, never, without}\}$.
+
+**Algorithme :**
+1. Le tokenizer détecte un marqueur de négation ("not", "no", "never", "without").
+2. Un drapeau `inversion_active` est levé pour le prochain token uniquement.
+3. Au token suivant, son embedding $e(w)$ est inversé **avant** incorporation dans le réservoir LIF : $S = \alpha S + (1-\alpha)(-e(w))$.
+4. Le drapeau retombe immédiatement — la cicatrice est volatile, limitée à un seul pas de temps.
+
+**Double échelle temporelle :**
+- **L'Étincelle (syntaxique, volatile) :** La négation force une inversion immédiate dans l'espace latent. Si le système lit "not dog", l'état LIF pointe vers $-e(\text{dog})$, ce qui déplace immédiatement la prédiction Inverse Motor vers les mots les plus proches de $-e(\text{dog})$ — typiquement "cat" si "dog" et "cat" sont opposés dans l'espace PPMI-SVD.
+- **L'Incendie (statistique, permanent) :** Si la R-STDP observe que "dog" et "cat" sont systématiquement opposés par des négations à travers le corpus, l'arête $(e(\text{dog}), e(\text{cat}))$ finit par passer à $-1$ de façon permanente dans le graphe de friction. Le réflexe syntaxique est devenu loi topologique.
+
+**Test de validation :** Dans l'espace de test 4D, ingérer "not dog" produit une similarité cosinus négative avec l'embedding de "dog" ($\cos < 0$), tandis que "dog" seul produit une similarité positive ($\cos > 0.9$). La cicatrice volatile inverse bien la trajectoire sans modification permanente du graphe.
+
 #### 10.11 Expériences proposées
 
 1. **Critic asynchrone multi-niveau :** Coupler le `LocalWaveCritic` (V8) avec l'ancre dynamique (V9) pour une résolution entièrement locale des conflits pendant la génération.

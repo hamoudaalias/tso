@@ -2,7 +2,7 @@ use ndarray::{Array1, Array2};
 use std::collections::HashMap;
 use tso_kernel::{
     compute_trifriction, AnchoredTSODecoder, FrictionCalculator, LIFCluster, LIFNeuron,
-    LocalWaveCritic, RSTDPPlasticity, TopographicOperator, WaveContext,
+    LocalWaveCritic, RSTDPPlasticity, TopographicOperator, VolatileSyntaxInverter, WaveContext,
 };
 
 #[test]
@@ -341,5 +341,81 @@ fn test_anchor_no_teleport_on_high_medium_friction() {
     assert!(
         (dog_cos_before - dog_cos_after).abs() < 1e-6,
         "Anchor should be unchanged when medium friction exceeds threshold"
+    );
+}
+
+#[test]
+fn test_volatile_inverter_basic() {
+    let mut inv = VolatileSyntaxInverter::new(&["not", "no"]);
+
+    // Normal word: no inversion
+    let v = Array1::from_vec(vec![1.0, 0.0]);
+    let result = inv.process("hello", &v);
+    assert_eq!(result[0], 1.0);
+    assert_eq!(result[1], 0.0);
+    assert!(!inv.inversion_active);
+
+    // Negation marker: sets flag, returns unchanged
+    let result = inv.process("not", &v);
+    assert_eq!(result[0], 1.0);
+    assert!(inv.inversion_active);
+
+    // Word after negation: inverted
+    let result = inv.process("dog", &v);
+    assert_eq!(result[0], -1.0);
+    assert_eq!(result[1], 0.0);
+    assert!(!inv.inversion_active);
+
+    // Back to normal
+    let result = inv.process("hello", &v);
+    assert_eq!(result[0], 1.0);
+}
+
+#[test]
+fn test_volatile_inverter_reset() {
+    let mut inv = VolatileSyntaxInverter::new(&["not"]);
+    let v = Array1::from_vec(vec![1.0, 0.0]);
+
+    inv.process("not", &v);
+    assert!(inv.inversion_active);
+
+    inv.reset();
+    assert!(!inv.inversion_active);
+
+    // After reset, word is not inverted
+    let result = inv.process("dog", &v);
+    assert_eq!(result[0], 1.0);
+}
+
+#[test]
+fn test_negation_inverts_decoder_trajectory() {
+    let mut dec = make_toy_decoder();
+    // Use custom negation markers
+    dec.volatile_inverter = VolatileSyntaxInverter::new(&["not"]);
+
+    let dog_vec = dec.embeddings.row(0).to_owned();
+    let cat_vec = dec.embeddings.row(4).to_owned();
+
+    // Trajectory A: ingest "dog" → check prediction angle
+    dec.ingest(&[("dog".into(), dog_vec.clone())]);
+    let pred_after_dog = dec.predictive_state();
+    let dog_cos = pred_after_dog.dot(&dec.embeddings.row(0));
+    let cat_cos = pred_after_dog.dot(&dec.embeddings.row(4));
+    // After "dog", should point toward dog
+    assert!(dog_cos > cat_cos, "dog prompt should favor dog over cat");
+
+    // Trajectory B: ingest "not dog" → should point away from dog
+    dec.reset();
+    dec.ingest(&[
+        ("not".into(), dec.embeddings.row(2).to_owned()), // "not" vector (arbitrary, just sets flag)
+        ("dog".into(), dog_vec.clone()),
+    ]);
+    let pred_after_not_dog = dec.predictive_state();
+    let not_dog_cos = pred_after_not_dog.dot(&dec.embeddings.row(0));
+    // After "not dog", should point AWAY from dog (negative cosine)
+    assert!(
+        not_dog_cos < 0.0,
+        "'not dog' should invert trajectory away from dog (cos={:.4})",
+        not_dog_cos
     );
 }

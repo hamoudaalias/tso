@@ -61,10 +61,11 @@ Le système navigue le graphe de friction par **Inverse Motor** : $w_{t+1} = \ar
 | Embedding / Projection | Double Mapping / Inverse Motor | `operators.rs`, `decoder.rs` |
 | Positional Encoding | Trace temporelle LIF | `neurons.rs` |
 | Critic (évaluation globale) | Onde de Choc Locale (V8) | `friction.rs` (LocalWaveCritic) |
+| Apprentissage lent des exclusions | Cicatrice Morphologique Volatile (V9.1) | `decoder.rs` (VolatileSyntaxInverter) |
 
 ---
 
-## État du projet (v9.0)
+## État du projet (v9.1)
 
 - [x] Classification SNLI (56.69% test, ~20s CPU)
 - [x] Dual-LIF multi-échelle (mémoire lente + rapide)
@@ -75,6 +76,7 @@ Le système navigue le graphe de friction par **Inverse Motor** : $w_{t+1} = \ar
 - [x] Anchored Decoder V7 (mémoire épisodique, dérive contrôlée)
 - [x] LocalWaveCritic V8 (Critic local asynchrone sans évaluation globale)
 - [x] Triple-LIF V9 (α=0.7 medium, ancre dynamique téléportable)
+- [x] VolatileSyntaxInverter V9.1 (cicatrice morphologique, négation instantanée)
 - [ ] Benchmark énergétique RAPL (nécessite machine Linux native)
 
 ---
