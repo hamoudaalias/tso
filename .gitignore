@@ -1,0 +1,21 @@
+# Rust
+tso-kernel/target/
+
+# Python (legacy, kept for reference)
+__pycache__/
+*.pyc
+
+# OS
+.DS_Store
+target/
+checkpoints_*/
+data/
+*.bin
+*.zip
+*.parquet
+tso-bench/checkpoints_*/
+tso-bench/bpe_syntagmatic/
+tso-bench/directional_6d/
+tso-bench/svd_6d/
+tso-bench/checkpoints_snli/
+tso-bench/checkpoints_snli_test/

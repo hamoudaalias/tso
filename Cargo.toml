@@ -1,0 +1,3 @@
+[workspace]
+members = ["tso-kernel", "tso-nlp", "tso-bench"]
+resolver = "2"
