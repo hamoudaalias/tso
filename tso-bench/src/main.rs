@@ -7,7 +7,7 @@ use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
 
 use ndarray::{Array1, Array2};
-use tso_kernel::decoder::DualTSODecoder;
+use tso_kernel::decoder::AnchoredTSODecoder;
 use tso_kernel::friction::{compute_trifriction_fast, prepare_sorted_neighbors};
 use tso_kernel::model::{FrictionGraphCheckpoint, ModelConfig};
 use tso_nlp::dataset::NLIDataset;
@@ -824,20 +824,22 @@ fn run_generate(
     println!();
     println!();
 
-    // Build V6 Dual-LIF decoder
-    let decoder = DualTSODecoder::new(idx_to_word, word_to_idx, embeddings, 0.9, 0.5)
+    // Build V7 Anchored Dual-LIF decoder
+    let decoder = AnchoredTSODecoder::new(idx_to_word, word_to_idx, embeddings, 0.9, 0.5)
         .with_friction_graph(sorted_neighbors);
     let mut decoder = decoder;
     decoder.syntax_weight = 0.4;
+    decoder.drift_threshold = 0.25;
+    decoder.recall_strength = 0.35;
     decoder.stability_threshold = 0.001;
     decoder.friction_lambda = 0.5;
-    decoder.repeat_penalty = 0.5;
 
     decoder.ingest(&prompt_vecs);
 
     // Show top-15 candidates before first prediction (with/without friction)
+    let empty_set = HashSet::new();
     println!("Top-15 candidates (pure inverse motor, no friction):");
-    let candidates_raw = decoder.top_k_candidates(15, None);
+    let candidates_raw = decoder.top_k_candidates(15, None, &empty_set);
     for (i, (_idx, word, score)) in candidates_raw.iter().enumerate() {
         println!("  {}. {}  {:.4}", i + 1, word, score);
     }
@@ -848,7 +850,7 @@ fn run_generate(
         "Top-15 candidates (with Phi friction, λ={}):",
         decoder.friction_lambda
     );
-    let candidates_phi = decoder.top_k_candidates(15, last_word);
+    let candidates_phi = decoder.top_k_candidates(15, last_word, &empty_set);
     for (i, (_idx, word, score)) in candidates_phi.iter().enumerate() {
         println!("  {}. {}  {:.4}", i + 1, word, score);
     }
