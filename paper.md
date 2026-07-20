@@ -411,29 +411,10 @@ La V10 supprime la dernière structure globalisante : la matrice dense `Array2<f
 
 **Contribution théorique :** Le réseau n'a plus aucune dimension globale. Chaque concept occupe un espace latent de la taille que sa complexité sémantique exige. Un mot simple comme "the" peut rester en 4D tandis que "antidisestablishment" s'étend en 200D. La cohérence émerge des intersections de produit scalaire, pas d'un formatage centralisé. C'est la fin du padding — le système est **strictement asynchrone et auto-dimensionnant**.
 
-##### 10.11.1 Instinct Endogène (V11) — Apprendre la Négation par la Friction
-
-La V11 remplace le `VolatileSyntaxInverter` codé en dur (V9.1) par un `EndogenousInversionDetector` qui *découvre* les marqueurs de négation à partir de la dynamique du système.
-
-**Problème (V9.1) :** La liste `["not", "no", "never", "without"]` est écrite dans le code source. C'est efficace mais figé — le système ne peut pas apprendre de nouveaux marqueurs (e.g., "seldom", "rien" en français) et depend d'une connaissance a priori.
-
-**Solution (V11) :** Le détecteur endogène part d'une graine initiale (les marqueurs communs) mais observe en permanence la **trajectoire de l'état prédictif** après chaque incorporation de mot. Si un mot provoque systématiquement un retournement de la trajectoire ($\cos\langle S_{pred}^{t}, S_{pred}^{t+1}\rangle < 0$), son score d'inversion augmente :
-
-$$s(w) \leftarrow s(w) + \eta \cdot \mathbb{1}[\cos\langle S_{pred}^{t-1}, S_{pred}^{t}\rangle < 0]$$
-
-où $\eta = 0.1$ est le taux d'apprentissage. Lorsque $s(w) > \theta$ (seuil 0.5), le mot devient un déclencheur d'inversion automatique — au même titre que les marqueurs de la graine.
-
-**Architecture :**
-- **Graines fixes** : `["not", "no", "never", "without"]` pour un comportement correct immédiat.
-- **Scores appris** : Tous les mots sont évalués ; seuls ceux qui retournent la trajectoire de façon fiable deviennent des déclencheurs.
-- **Crédit différé** : Le mot qui lève le drapeau d'inversion est stocké comme `last_trigger`. Lorsque le mot suivant est incorporé et que la trajectoire se retourne, le crédit est attribué à `last_trigger` — pas au mot inversé.
-
-**Contribution :** La distinction étincelle syntaxique / incendie statistique devient entièrement endogène. Plus aucune règle n'est codée en dur — le système *apprend qu'il a un réflexe*. C'est l'équivalent neuromorphique de l'habituation : un circuit réflexe (la graine) cède progressivement la place à un apprentissage structurel (les scores).
-
 #### 10.12 Expériences proposées
 
 1. **Critic asynchrone multi-niveau :** Coupler le `LocalWaveCritic` (V8) avec l'ancre dynamique (V9) pour une résolution entièrement locale des conflits pendant la génération.
- 2. **Planification multi-phrase :** L'ancrage dynamique maintient la cohérence intra-paragraphe (50+ tokens). Une extension naturelle est un troisième niveau d'ancre pour le thème global du document, avec un seuil de dérive plus large.
+2. **Planification multi-phrase :** L'ancrage dynamique maintient la cohérence intra-paragraphe (50+ tokens). Une extension naturelle est un troisième niveau d'ancre pour le thème global du document, avec un seuil de dérive plus large.
 
 #### 10.13 V12 — Remodelage Synaptique (Concept)
 
@@ -445,6 +426,36 @@ La dernière critique non résolue est la **fossilisation** : en gelant les prot
 2. **Réallocation Topologique :** Les nœuds devenus libres par le pruning peuvent être réaffectés à de nouveaux concepts, permettant une restructuration profonde sans oubli catastrophique. La destruction d'une arête est locale ; la reconstruction est guidée par la R-STDP.
 
 **Défi théorique :** Comment distinguer une arête "morte" (obsolète) d'une arête "en sommeil" (utile mais non sollicitée) ? La viscosité topologique (V8) et l'horloge de consolidation (trace d'éligibilité longue) offrent des pistes, mais aucune solution définitive n'est implémentée à ce stade.
+
+#### 10.14 V13.0 — Coupe-Circuit de Fatigue (Waterbed Breaker)
+
+La V13 résout un problème fondamental des systèmes de critic local : le **paradoxe de l'oscillation infinie** (effet matelas à eau). Quand le graphe contient un cycle paradoxal (e.g., A→B, B→C, C→¬A), toute correction locale en brise une autre, créant une oscillation qui fige le `decoder.rs`.
+
+**Problème :** Dans un cycle A→B→C→¬A avec tous les nœuds actifs, l'exclusion C→¬A est violée. Corriger C (l'inverser) satisfait C→¬A mais brise B→C. Corriger C à nouveau (le rétablir) satisfait B→C mais brise C→¬A. Oscillation infinie — le `LocalWaveCritic` ne peut pas converger.
+
+**Solution (V13) :** Le **FatigueTracker** attribue à chaque nœud un compteur de fatigue qui s'incrémente à chaque correction. Quand la fatigue d'un nœud dépasse un seuil ($\theta_{fatigue} = 5$), le nœud entre en **isolement** : le critic ne peut plus agir sur lui, forçant l'onde de choc à chercher une autre route ou à s'éteindre. La fatigue décroît exponentiellement ($\gamma_{decay} = 0.95$) à chaque pas de temps ; quand elle repasse sous le seuil de récupération (0.1), le nœud se réveille naturellement.
+
+**Architecture :**
+```rust
+pub struct FatigueTracker {
+    fatigue: Vec<f64>,           // Compteurs par nœud
+    isolated: Vec<bool>,         // Drapeaux d'isolement
+    fatigue_threshold: f64,      // Seuil d'isolement (5.0)
+    decay_rate: f64,             // Décroissance exponentielle (0.95)
+    recovery_threshold: f64,     // Réveil sous ce seuil (0.1)
+    action_increment: f64,       // Incrément par correction (1.0)
+}
+```
+
+**Test du paradoxe :**
+```
+A→B (implication), B→C (implication), C→¬A (exclusion)
+Tous actifs → C est corrigé 2× par cycle (inversion/rétablissement)
+Fatigue(C) ≥ 5 après 3 cycles → C isolé → boucle brisée
+Après 90 decays → C réveillé (fatigue < 0.1)
+```
+
+**Contribution :** Le système ne se fige plus sur les paradoxes locaux. Au lieu de boucler à l'infini sur un sous-graphe insoluble, il abandonne l'arène, permettant au `decoder.rs` de passer au token suivant. C'est un **réflexe biologique** : un nœud qui s'épulse et s'isole temporairement, comme un muscle fatigué.
 
 ### 11. DISCUSSION
 
@@ -474,9 +485,11 @@ Les RNN ont été remplacés par les Transformers grâce à la parallélisation 
 | V9.0 | Ancre statique (oscillation) | Triple-LIF + téléportation dynamique |
 | V10.0 | Padding dimensionnel global | Expansion asynchrone par intersection |
 | V11.0 | Règles syntaxiques codées en dur | Instinct endogène par détection de friction |
+| V13.0 | Oscillation infinie du Critic local | Coupe-circuit de fatigue par isolement temporaire |
 
 Le **Dual-LIF (α=0.9/0.5)** agit comme un équivalent neuromorphique de l'attention multi-tête, ajoutant **+0.80%** au mono-LIF et portant le gain total à **+1.84% au-delà du plafond sac-de-mots**. En apprentissage continu, TSO démontre une **immunité structurelle à l'oubli catastrophique** : les features TSO 17D sont un fixateur topologique immuable — après apprentissage d'une seconde tâche (MultiNLI), un classifieur ré-entraîné sur SNLI retrouve exactement 56.96% (Δ = 0.00%), et le mode Freeze+Add préserve 100% de la performance originale. Ces propriétés sont structurellement impossibles pour les Transformers dont la rétropropagation modifie globalement tous les poids partagés.
 
 Enfin, **la génération auto-régressive par Inverse Motor** démontre que TSO peut produire du texte cohérent par dérive sémantique topologique — sans gradient, sans softmax, sans couche de projection apprise. L'**ancrage épisodique (V7 → V9)** évolue d'une oscillation homéostatique vers une progression thématique dynamique. L'**instinct endogène (V11)** remplace les règles syntaxiques codées en dur par une découverte émergente des marqueurs de friction.
 
-La dernière frontière reste le **Remodelage Synaptique (V12)** : permettre au réseau de restructurer ses fondations par pruning sous friction, sans oubli catastrophique. Avec son kernel Rust comme fondation, TSO pose les bases d'une intelligence artificielle véritablement asynchrone, locale et auto-dimensionnante. La validation sur SNLI (56.69% test, ~20s CPU) démontre que l'architecture TSO complète — Dual-LIF multi-échelle, friction séquentielle $\Phi$, opérateur de négation et classification par attracteurs locaux — capture l'ordre des mots et les relations de contradiction sans attention dense ni rétropropagation. Le **Dual-LIF (α=0.9/0.5)** agit comme un équivalent neuromorphique de l'attention multi-tête, ajoutant **+0.80%** au mono-LIF et portant le gain total à **+1.84% au-delà du plafond sac-de-mots**. En apprentissage continu, TSO démontre une **immunité structurelle à l'oubli catastrophique** : les features TSO 17D sont un fixateur topologique immuable — après apprentissage d'une seconde tâche (MultiNLI), un classifieur ré-entraîné sur SNLI retrouve exactement 56.96% (Δ = 0.00%), et le mode Freeze+Add préserve 100% de la performance originale. Ces propriétés sont structurellement impossibles pour les Transformers dont la rétropropagation modifie globalement tous les poids partagés. Enfin, **la génération auto-régressive par Inverse Motor** (Section 10.8) démontre que TSO peut produire du texte cohérent par dérive sémantique topologique — sans gradient, sans softmax, sans couche de projection apprise — confirmant que l'architecture est un véritable générateur de langage, pas seulement un extracteur de features. L'**ancrage épisodique (V7)** résout le problème de mémoire longue-distance sans BPTT : le système oscille homéostatiquement autour de son ancre sémantique, produisant un comportement analogue aux oscillateurs à attracteur étrange des systèmes dynamiques biologiques. Avec son kernel Rust comme fondation, TSO pose les bases d'une intelligence artificielle véritablement adaptative, événementielle, efficiente et compatible avec les principes d'apprentissage continu des systèmes neuromorphiques.
+La dernière frontière reste le **Remodelage Synaptique (V12)** : permettre au réseau de restructurer ses fondations par pruning sous friction, sans oubli catastrophique. Le **Coupe-Circuit de Fatigue (V13)** immunise déjà le système contre l'oscillation paradoxale — le `LocalWaveCritic` ne peut plus se figer sur un cycle A→B→C→¬A. Avec son kernel Rust comme fondation, TSO pose les bases d'une intelligence artificielle véritablement asynchrone, locale et auto-dimensionnante.
+

@@ -1,8 +1,9 @@
 use ndarray::{Array1, Array2};
 use std::collections::{HashMap, HashSet};
 use tso_kernel::{
-    compute_trifriction, AnchoredTSODecoder, EndogenousInversionDetector, FrictionCalculator,
-    LIFCluster, LIFNeuron, LocalWaveCritic, RSTDPPlasticity, TopographicOperator, WaveContext,
+    compute_trifriction, AnchoredTSODecoder, EndogenousInversionDetector, FatigueTracker,
+    FrictionCalculator, LIFCluster, LIFNeuron, LocalWaveCritic, RSTDPPlasticity,
+    TopographicOperator, WaveContext,
 };
 
 #[test]
@@ -510,6 +511,91 @@ fn test_v10_variable_dimension_embeddings() {
     // Generate one token to verify the generation path
     let result = dec.generate(1, Some("cat"));
     assert_eq!(result.len(), 1, "Should generate one token");
+}
+
+// ---------------------------------------------------------------------------
+// V13.0: Fatigue Breaker tests
+// ---------------------------------------------------------------------------
+
+#[test]
+fn test_fatigue_tracker_basic() {
+    let mut ft = FatigueTracker::new(3);
+    assert!(!ft.is_isolated(0));
+    assert_eq!(ft.fatigue_of(0), 0.0);
+
+    // Record 4 actions on node 0 (threshold = 5.0, increment = 1.0)
+    for _ in 0..4 {
+        ft.record_action(0);
+    }
+    assert!(!ft.is_isolated(0));
+    assert!((ft.fatigue_of(0) - 4.0).abs() < 1e-10);
+
+    // 5th action crosses threshold → isolation
+    let just_isolated = ft.record_action(0);
+    assert!(just_isolated);
+    assert!(ft.is_isolated(0));
+
+    // Tick decay: fatigue *= 0.95
+    ft.tick_decay();
+    assert!((ft.fatigue_of(0) - 4.75).abs() < 1e-10);
+    // Still isolated (fatigue 4.75 > recovery 0.1)
+    assert!(ft.is_isolated(0));
+
+    // Many decays until recovery (0.95^90 ≈ 0.0098)
+    for _ in 0..90 {
+        ft.tick_decay();
+    }
+    assert!(ft.fatigue_of(0) < 0.5, "Fatigue should be nearly zero after decay");
+    assert!(!ft.is_isolated(0), "Node should recover after sufficient decay");
+}
+
+#[test]
+fn test_fatigue_paradox_loop_breaking() {
+    // Simulate the Waterbed Effect: A→B→C→¬A
+    // Nodes: 0=A, 1=B, 2=C
+    // Edges: (0,1) implication, (1,2) implication, (2,0) exclusion
+    //
+    // The paradox: fixing C (invert to satisfy exclusion) breaks B→C,
+    // and un-inverting C breaks C→¬A. An external agent that force-corrects
+    // C back and forth creates infinite oscillation.
+    //
+    // FatigueTracker detects the repeated correction on node 2 (C) and
+    // isolates it, breaking the cycle.
+
+    let mut fatigue = FatigueTracker::new(3);
+
+    // Simulate an external corrective loop that keeps flipping node 2.
+    // The critic may or may not approve — the key is that the node is
+    // repeatedly targeted, accumulating fatigue until isolation.
+    let mut isolated_at = None;
+    for step in 0..20 {
+        if fatigue.is_isolated(2) {
+            isolated_at = Some(step);
+            break;
+        }
+        // Force a correction attempt on node 2 (alternating directions)
+        fatigue.record_action(2);
+        // Alternate between two "fixes"
+        fatigue.record_action(2);
+    }
+
+    assert!(
+        isolated_at.is_some(),
+        "Fatigue should have isolated node 2 (C) within 20 half-cycles, \
+         breaking the paradox loop (isolated at step {:?})",
+        isolated_at
+    );
+
+    // At this point, C is isolated. The system can move on instead of looping.
+    assert!(fatigue.is_isolated(2));
+    assert!(fatigue.fatigue_of(2) >= 5.0);
+
+    // After tick decay, fatigue decreases and C eventually recovers
+    for _ in 0..90 {
+        fatigue.tick_decay();
+    }
+    assert!(!fatigue.is_isolated(2), "Node 2 should recover after decay");
+    assert!(fatigue.fatigue_of(2) < 0.5, "Fatigue should be nearly zero");
 }
 
 #[test]

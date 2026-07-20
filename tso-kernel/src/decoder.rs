@@ -1,3 +1,4 @@
+use crate::friction::FatigueTracker;
 use ndarray::{s, Array1, Array2};
 use std::collections::{HashMap, HashSet};
 
@@ -146,6 +147,7 @@ pub struct AnchoredTSODecoder {
 
     pub stability_threshold: f64,
     pub endogenous_inverter: EndogenousInversionDetector,
+    pub word_fatigue: FatigueTracker,
     pub friction_graph: Option<HashMap<String, Vec<String>>>,
     pub friction_lambda: f64,
 }
@@ -161,8 +163,9 @@ impl AnchoredTSODecoder {
         alpha_fast: f64,
     ) -> Self {
         let dim = embeddings.ncols();
+        let n_embeds = embeddings.nrows();
         let embeddings: Vec<Array1<f64>> =
-            (0..embeddings.nrows()).map(|i| embeddings.row(i).to_owned()).collect();
+            (0..n_embeds).map(|i| embeddings.row(i).to_owned()).collect();
         Self {
             idx_to_word,
             word_to_idx,
@@ -184,6 +187,7 @@ impl AnchoredTSODecoder {
             token_count_since_anchor: 0,
             stability_threshold: 0.001,
             endogenous_inverter: EndogenousInversionDetector::default(),
+            word_fatigue: FatigueTracker::new(n_embeds),
             friction_graph: None,
             friction_lambda: 0.5,
         }
@@ -199,6 +203,7 @@ impl AnchoredTSODecoder {
         alpha_fast: f64,
     ) -> Self {
         let dim = embeddings.first().map(|v| v.len()).unwrap_or(0);
+        let n_embeds = embeddings.len();
         Self {
             idx_to_word,
             word_to_idx,
@@ -220,6 +225,7 @@ impl AnchoredTSODecoder {
             token_count_since_anchor: 0,
             stability_threshold: 0.001,
             endogenous_inverter: EndogenousInversionDetector::default(),
+            word_fatigue: FatigueTracker::new(n_embeds),
             friction_graph: None,
             friction_lambda: 0.5,
         }
@@ -244,6 +250,7 @@ impl AnchoredTSODecoder {
         self.last_medium_snapshot.fill(0.0);
         self.token_count_since_anchor = 0;
         self.endogenous_inverter.reset();
+        self.word_fatigue.reset();
     }
 
     /// V10: Expand all LIF states to at least `target_dim` dimensions.
@@ -319,7 +326,7 @@ impl AnchoredTSODecoder {
         let mut best_score = f64::NEG_INFINITY;
 
         for i in 0..self.embeddings.len() {
-            if emitted.contains(&i) {
+            if emitted.contains(&i) || self.word_fatigue.is_isolated(i) {
                 continue;
             }
             let cos = Self::intersection_dot(&s_pred, &self.embeddings[i]);
@@ -353,7 +360,7 @@ impl AnchoredTSODecoder {
         let lambda = self.friction_lambda;
 
         let mut scores: Vec<(usize, f64)> = (0..self.embeddings.len())
-            .filter(|i| !emitted.contains(i))
+            .filter(|i| !emitted.contains(i) && !self.word_fatigue.is_isolated(*i))
             .map(|i| {
                 let cos = Self::intersection_dot(&s_pred, &self.embeddings[i]);
                 let score = if let Some(ref neighbors) = friction_set {
@@ -396,11 +403,16 @@ impl AnchoredTSODecoder {
                 None => break,
             };
 
-            // Anti-loop
+            // Anti-loop via fatigue (safety net — emitted set normally prevents repeats)
             if generated.last().map_or(false, |w| *w == next_word) {
-                eprintln!("  [step {}] loop on '{}', stopping", step, next_word);
-                break;
+                let just_isolated = self.word_fatigue.record_action(next_idx);
+                eprintln!(
+                    "  [step {}] loop on '{}', fatigue={:.1}{}",
+                    step, next_word, self.word_fatigue.fatigue_of(next_idx),
+                    if just_isolated { " [ISOLATED]" } else { "" }
+                );
             }
+            self.word_fatigue.tick_decay();
 
             generated.push(next_word.clone());
             last_context = Some(generated.last().unwrap().as_str());

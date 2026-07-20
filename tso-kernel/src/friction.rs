@@ -766,7 +766,7 @@ pub fn rstdp_update_edges(
                 None => continue,
             };
             let cos = cosine_similarity(emb_p, emb_h);
-            let (mut delta, bound) = if edge.edge_type == 1 {
+            let (delta, bound) = if edge.edge_type == 1 {
                 let viol = (gamma - cos).max(0.0);
                 let mut d = lr * (1.0 - viol / gamma.max(1e-12));
                 if label != 0 { d = -d; }
@@ -783,5 +783,95 @@ pub fn rstdp_update_edges(
             };
             edge.weight = (edge.weight + delta * bound.max(0.0)).clamp(W_MIN, W_MAX);
         }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// V13.0: Fatigue Breaker — prevents infinite oscillation (Waterbed Effect)
+// ---------------------------------------------------------------------------
+
+/// Tracks per-node fatigue to break infinite correction loops in the
+/// `LocalWaveCritic`.
+///
+/// The **Waterbed Effect** (paradox A→B→C→¬A) causes the critic to oscillate
+/// indefinitely: fixing one relation breaks another. Fatigue forces the system
+/// to abandon the unresolvable subgraph after a threshold of repeated
+/// corrections on the same node.
+///
+/// **Mechanism:**
+/// - Each time a node is corrected, `fatigue[node]` increments by
+///   `action_increment`.
+/// - When `fatigue[node] > fatigue_threshold`, the node enters **isolation**
+///   — the critic will skip it, forcing the wave to find another path or die.
+/// - Every `tick_decay()` call decays all fatigue values by `decay_rate`.
+/// - When a fatigued node's count drops below `recovery_threshold`, it
+///   re-awakens (isolation lifted).
+#[derive(Clone)]
+pub struct FatigueTracker {
+    fatigue: Vec<f64>,
+    isolated: Vec<bool>,
+    pub fatigue_threshold: f64,
+    pub decay_rate: f64,
+    pub recovery_threshold: f64,
+    pub action_increment: f64,
+}
+
+impl FatigueTracker {
+    pub fn new(node_count: usize) -> Self {
+        Self {
+            fatigue: vec![0.0; node_count],
+            isolated: vec![false; node_count],
+            fatigue_threshold: 5.0,
+            decay_rate: 0.95,
+            recovery_threshold: 0.1,
+            action_increment: 1.0,
+        }
+    }
+
+    /// Check whether a node is currently isolated.
+    pub fn is_isolated(&self, node: usize) -> bool {
+        node < self.isolated.len() && self.isolated[node]
+    }
+
+    /// Record that `node` was corrected. Returns `true` if the node just
+    /// entered isolation (first time crossing the threshold).
+    pub fn record_action(&mut self, node: usize) -> bool {
+        if node >= self.fatigue.len() {
+            return false;
+        }
+        self.fatigue[node] += self.action_increment;
+        if !self.isolated[node] && self.fatigue[node] >= self.fatigue_threshold {
+            self.isolated[node] = true;
+            return true; // just isolated
+        }
+        false
+    }
+
+    /// Record an action on multiple nodes at once.
+    /// Returns the number of nodes that just entered isolation.
+    pub fn record_actions(&mut self, nodes: &[usize]) -> usize {
+        nodes.iter().filter(|&&n| self.record_action(n)).count()
+    }
+
+    /// Exponentially decay all fatigue values. Nodes whose fatigue drops
+    /// below `recovery_threshold` are automatically re-activated.
+    pub fn tick_decay(&mut self) {
+        for node in 0..self.fatigue.len() {
+            self.fatigue[node] *= self.decay_rate;
+            if self.isolated[node] && self.fatigue[node] < self.recovery_threshold {
+                self.isolated[node] = false;
+            }
+        }
+    }
+
+    /// Reset the tracker (all nodes zero fatigue, not isolated).
+    pub fn reset(&mut self) {
+        self.fatigue.fill(0.0);
+        self.isolated.fill(false);
+    }
+
+    /// Current fatigue value for a node.
+    pub fn fatigue_of(&self, node: usize) -> f64 {
+        self.fatigue.get(node).copied().unwrap_or(0.0)
     }
 }

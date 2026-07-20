@@ -63,10 +63,11 @@ Le système navigue le graphe de friction par **Inverse Motor** : $w_{t+1} = \ar
 | Positional Encoding | Trace temporelle LIF | `neurons.rs` |
 | Critic (évaluation globale) | Onde de Choc Locale (V8) | `friction.rs` (LocalWaveCritic) |
 | Apprentissage lent des exclusions | Cicatrice Morphologique Volatile (V9.1) → Instinct Endogène (V11) | `decoder.rs` (EndogenousInversionDetector) |
+| Oscillation infinie du Critic | Coupe-Circuit de Fatigue (V13, isolement temporaire) | `friction.rs` (FatigueTracker) |
 
 ---
 
-## État du projet (v12.0)
+## État du projet (v13.0)
 
 - [x] Classification SNLI (56.69% test, ~20s CPU)
 - [x] Dual-LIF multi-échelle (mémoire lente + rapide)
@@ -80,6 +81,7 @@ Le système navigue le graphe de friction par **Inverse Motor** : $w_{t+1} = \ar
 - [x] Expansion Asynchrone V10 (`Vec<Array1<f64>>`, dimensions variables, plus de padding global)
 - [x] Instinct Endogène V11 (apprentissage de la négation par la friction, plus de code en dur)
 - [ ] **Remodelage Synaptique V12** — pruning sous friction pour restructuration profonde (concept)
+- [x] **Coupe-Circuit de Fatigue V13** — isolement temporaire des nœuds pour briser les boucles paradoxales
 - [ ] Benchmark énergétique RAPL (nécessite machine Linux native)
 
 ---

@@ -16,7 +16,7 @@ pub use deep::{DeepConfig, DeepBatchProcessor, DeepOutput, DeepTSO, LayerOutput}
 pub use friction::{
     build_typed_graph, compute_trifriction, compute_trifriction_fast, compute_typed_trifriction,
     compute_weighted_trifriction, predict_from_phi, prepare_sorted_neighbors, rstdp_update_edges,
-    FrictionCalculator, LocalWaveCritic, TypedEdge, WaveContext,
+    FatigueTracker, FrictionCalculator, LocalWaveCritic, TypedEdge, WaveContext,
 };
 pub use neurons::{LIFCluster, LIFNeuron};
 pub use operators::TopographicOperator;
