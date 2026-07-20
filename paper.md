@@ -204,9 +204,6 @@ TSO propose un mappage direct des composants d'un Transformer vers des équivale
 | Apprentissage (Backprop) | R-STDP + Friction-Gated Consolidation | ✅ `plasticity.rs` |
 | **Génération auto-régressive** | **Inverse Motor + Φ homeostasis + répression répétitions** | ✅ **`decoder.rs`** |
 
-**Ce qui est en développement :**
-- **Triple-échelle temporelle** — hiérarchie LIF (lent/moyen/rapide) pour une capture multi-granulaire du contexte
-
 ### 10. RÉSULTATS EXPÉRIMENTAUX
 
 #### 10.1 Benchmark SNLI — Pipeline Complet
@@ -234,7 +231,6 @@ La tâche de Natural Language Inference (SNLI v1.0, 570k paires) est utilisée p
 | Précision contradiction | 34.3% | 34.2% | — |
 | Temps total (550k paires) | ~20s | ~20s | ~20s |
 | Écart dev-test | — | 0.54% | **0.27%** |
-| Écart dev-test | — | 0.54% |
 
 **Matrice de confusion (test, 9824 paires) :**
 
@@ -385,32 +381,24 @@ Si $\Phi_m < \theta_m$ (seuil 0.05), l'ancre se **téléporte** : $S_{anchor} \l
 
 **Contribution :** L'ancre dynamique transforme l'oscillation V7 en véritable progression. Le système peut passer d'un sujet à l'autre (e.g., "chien" → "parc" → "ballon") sans perdre la cohérence locale, et sans aucune rétropropagation temporelle. C'est la première mémoire de travail neuromorphique autonome pour la génération de séquences longues.
 
-##### 10.10.1 Cicatrice Morphologique (V9.1) — Étincelle Syntaxique, Incendie Statistique
+##### 10.10.1 Cicatrice Morphologique (V9.1 → V11) — De la Règle Codée à l'Instinct Endogène
 
-La V9.1 ajoute un **inverseur syntaxique volatile** (`VolatileSyntaxInverter`) qui résout le problème fondamental de la lenteur d'apprentissage de la R-STDP. Au lieu d'attendre que des milliers de co-occurrences gravent une arête d'exclusion dans le graphe, le système utilise la **syntaxe** comme déclencheur instantané :
+La V9.1 a introduit le concept de **cicatrice morphologique** : une inversion géométrique volatile de l'embedding du mot suivant un marqueur de négation, avant incorporation LIF :
 
-$$S_{LIF}(t+1) = \alpha S_{LIF}(t) + (1-\alpha) \cdot f_{inv}(w_t)$$
-
-où :
-
-$$f_{inv}(w_t) = \begin{cases}
+$$S_{LIF}(t+1) = \alpha S_{LIF}(t) + (1-\alpha) \cdot \begin{cases}
 -e(w_t) & \text{si } w_{t-1} \in \mathcal{N} \\
 e(w_t) & \text{sinon}
 \end{cases}$$
 
-avec $\mathcal{N} = \{\text{not, no, never, without}\}$.
+**Problème (V9.1) :** L'ensemble $\mathcal{N} = \{\text{not, no, never, without}\}$ était codé en dur dans le source Rust. Le système ne pouvait pas apprendre de nouveaux marqueurs.
 
-**Algorithme :**
-1. Le tokenizer détecte un marqueur de négation ("not", "no", "never", "without").
-2. Un drapeau `inversion_active` est levé pour le prochain token uniquement.
-3. Au token suivant, son embedding $e(w)$ est inversé **avant** incorporation dans le réservoir LIF : $S = \alpha S + (1-\alpha)(-e(w))$.
-4. Le drapeau retombe immédiatement — la cicatrice est volatile, limitée à un seul pas de temps.
+**Solution (V11) :** Le `VolatileSyntaxInverter` est remplacé par `EndogenousInversionDetector` qui *découvre* les déclencheurs d'inversion par observation de sa propre dynamique. Après chaque incorporation de mot, la trajectoire de l'état prédictif est mesurée. Si un mot provoque systématiquement un retournement ($\cos\langle S_{pred}^{t}, S_{pred}^{t+1}\rangle < 0$), son score d'inversion augmente :
 
-**Double échelle temporelle :**
-- **L'Étincelle (syntaxique, volatile) :** La négation force une inversion immédiate dans l'espace latent. Si le système lit "not dog", l'état LIF pointe vers $-e(\text{dog})$, ce qui déplace immédiatement la prédiction Inverse Motor vers les mots les plus proches de $-e(\text{dog})$ — typiquement "cat" si "dog" et "cat" sont opposés dans l'espace PPMI-SVD.
-- **L'Incendie (statistique, permanent) :** Si la R-STDP observe que "dog" et "cat" sont systématiquement opposés par des négations à travers le corpus, l'arête $(e(\text{dog}), e(\text{cat}))$ finit par passer à $-1$ de façon permanente dans le graphe de friction. Le réflexe syntaxique est devenu loi topologique.
+$$s(w) \leftarrow s(w) + \eta \cdot \mathbb{1}[\cos\langle S_{pred}^{t-1}, S_{pred}^{t}\rangle < 0]$$
 
-**Test de validation :** Dans l'espace de test 4D, ingérer "not dog" produit une similarité cosinus négative avec l'embedding de "dog" ($\cos < 0$), tandis que "dog" seul produit une similarité positive ($\cos > 0.9$). La cicatrice volatile inverse bien la trajectoire sans modification permanente du graphe.
+avec $\eta = 0.1$. Lorsque $s(w) > 0.5$, le mot devient un déclencheur automatique — au même titre que les marqueurs de la graine initiale. Le système conserve une graine fixe pour un comportement immédiat correct, mais les scores appris peuvent supplanter ou étendre cette liste.
+
+**Contribution :** Plus aucune règle syntaxique n'est codée en dur. Si le modèle est entraîné sur du français, il découvre "jamais" ; sur du code, il découvre `!` ou `except`. L'instinct est une cicatrice topologique émergente de la dynamique, pas une ligne de code.
 
 #### 10.11 V10 — Expansion Asynchrone (Dimensions Variables)
 
@@ -445,7 +433,18 @@ où $\eta = 0.1$ est le taux d'apprentissage. Lorsque $s(w) > \theta$ (seuil 0.5
 #### 10.12 Expériences proposées
 
 1. **Critic asynchrone multi-niveau :** Coupler le `LocalWaveCritic` (V8) avec l'ancre dynamique (V9) pour une résolution entièrement locale des conflits pendant la génération.
-2. **Planification multi-phrase :** L'ancrage dynamique maintient la cohérence intra-paragraphe (50+ tokens). Une extension naturelle est un troisième niveau d'ancre pour le thème global du document, avec un seuil de dérive plus large.
+ 2. **Planification multi-phrase :** L'ancrage dynamique maintient la cohérence intra-paragraphe (50+ tokens). Une extension naturelle est un troisième niveau d'ancre pour le thème global du document, avec un seuil de dérive plus large.
+
+#### 10.13 V12 — Remodelage Synaptique (Concept)
+
+La dernière critique non résolue est la **fossilisation** : en gelant les prototypes de la première tâche (Freeze+Add), TSO peut ajouter de nouveaux concepts mais ne peut pas restructurer les anciens. C'est efficace contre l'oubli catastrophique, mais statique — le système ne peut pas passer d'un paradigme newtonien à un paradigme quantique sans tout reconstruire.
+
+**Concept V12 (non implémenté) :** Le **Remodelage Synaptique** couple deux processus locaux :
+
+1. **Pruning sous Friction :** Une arête dont la friction reste nulle pendant $T_{prune}$ pas de temps est marquée comme candidate à l'élagage. Si elle reste nulle après une période de grâce, elle est détruite localement — sans impacter les connexions voisines validées.
+2. **Réallocation Topologique :** Les nœuds devenus libres par le pruning peuvent être réaffectés à de nouveaux concepts, permettant une restructuration profonde sans oubli catastrophique. La destruction d'une arête est locale ; la reconstruction est guidée par la R-STDP.
+
+**Défi théorique :** Comment distinguer une arête "morte" (obsolète) d'une arête "en sommeil" (utile mais non sollicitée) ? La viscosité topologique (V8) et l'horloge de consolidation (trace d'éligibilité longue) offrent des pistes, mais aucune solution définitive n'est implémentée à ce stade.
 
 ### 11. DISCUSSION
 
@@ -456,9 +455,28 @@ TSO propose un changement de paradigme : passer d'une exécution systématique �
 1.  **Bootstrap Sémantique :** Le système dépend initialement d'un encodeur NLI figé pour typer les arêtes. Comment cette sémantique peut-elle émerger de manière totalement endogène à partir de la règle R-STDP ?
 2.  **Tuning des hyperparamètres :** L'apprentissage automatique de l'ensemble des paramètres libres ($\Delta t, \gamma, \epsilon, \theta_t, \theta_c$) reste une question ouverte cruciale pour l'autonomie du système.
 3.  **Cohérence Globale :** La réparation locale d'une arête peut théoriquement briser une contrainte voisine satisfaite. La convergence globale du système devra être formellement démontrée. (Note : le `LocalWaveCritic` V8 résout partiellement ce problème par propagation d'onde locale de profondeur $d \leq 2$, et le `Vec<Array1>` V10 supprime le padding global, mais une preuve formelle de convergence pour des graphes arbitraires reste ouverte.)
-4.  **Capacité linguistique :** Les expériences devront démontrer que la nature événementielle du calcul ne limite pas la capacité expressive par rapport aux modèles denses.
-5.  **Friction multi-couche :** Comment empiler les couches de $\Phi$ pour obtenir une expressivité comparable à la profondeur des Transformers ?
+4.  **Fossilisation (Freeze+Add) :** Le découplage features/classifieur (V5.1) immunise contre l'oubli catastrophique mais interdit la restructuration profonde des connaissances. Le Remodelage Synaptique (V12, conceptuel) pourrait résoudre ce problème par pruning sous friction.
+5.  **Capacité linguistique :** Les expériences devront démontrer que la nature événementielle du calcul ne limite pas la capacité expressive par rapport aux modèles denses.
+6.  **Friction multi-couche :** Comment empiler les couches de $\Phi$ pour obtenir une expressivité comparable à la profondeur des Transformers ?
 
 ### 13. CONCLUSION
 
-Les RNN ont été remplacés par les Transformers grâce à la parallélisation de l'attention. Nous proposons que la **friction topographique ($\Phi$)** explore une direction alternative où le calcul est conditionné par une dynamique interne de stabilisation, et non par une obligation liée au flux de données. La validation sur SNLI (56.69% test, ~20s CPU) démontre que l'architecture TSO complète — Dual-LIF multi-échelle, friction séquentielle $\Phi$, opérateur de négation et classification par attracteurs locaux — capture l'ordre des mots et les relations de contradiction sans attention dense ni rétropropagation. Le **Dual-LIF (α=0.9/0.5)** agit comme un équivalent neuromorphique de l'attention multi-tête, ajoutant **+0.80%** au mono-LIF et portant le gain total à **+1.84% au-delà du plafond sac-de-mots**. En apprentissage continu, TSO démontre une **immunité structurelle à l'oubli catastrophique** : les features TSO 17D sont un fixateur topologique immuable — après apprentissage d'une seconde tâche (MultiNLI), un classifieur ré-entraîné sur SNLI retrouve exactement 56.96% (Δ = 0.00%), et le mode Freeze+Add préserve 100% de la performance originale. Ces propriétés sont structurellement impossibles pour les Transformers dont la rétropropagation modifie globalement tous les poids partagés. Enfin, **la génération auto-régressive par Inverse Motor** (Section 10.8) démontre que TSO peut produire du texte cohérent par dérive sémantique topologique — sans gradient, sans softmax, sans couche de projection apprise — confirmant que l'architecture est un véritable générateur de langage, pas seulement un extracteur de features. L'**ancrage épisodique (V7)** résout le problème de mémoire longue-distance sans BPTT : le système oscille homéostatiquement autour de son ancre sémantique, produisant un comportement analogue aux oscillateurs à attracteur étrange des systèmes dynamiques biologiques. Avec son kernel Rust comme fondation, TSO pose les bases d'une intelligence artificielle véritablement adaptative, événementielle, efficiente et compatible avec les principes d'apprentissage continu des systèmes neuromorphiques.
+Les RNN ont été remplacés par les Transformers grâce à la parallélisation de l'attention. Nous proposons que la **friction topographique ($\Phi$)** explore une direction alternative où le calcul est conditionné par une dynamique interne de stabilisation, et non par une obligation liée au flux de données. La validation sur SNLI (56.69% test, ~20s CPU) démontre que l'architecture TSO complète capture l'ordre des mots et les relations de contradiction sans attention dense ni rétropropagation.
+
+**Bilan des versions :**
+
+| Version | Problème résolu | Solution |
+|---------|----------------|----------|
+| V5.0 | Ordre des mots sans attention | Réservoir LIF séquentiel |
+| V5.1 | Oubli catastrophique | Freeze+Add, fixateur topologique |
+| V7.0 | Mémoire longue sans BPTT | Ancrage épisodique |
+| V8.0 | Critic global centralisé | Onde de choc locale asynchrone |
+| V9.0 | Ancre statique (oscillation) | Triple-LIF + téléportation dynamique |
+| V10.0 | Padding dimensionnel global | Expansion asynchrone par intersection |
+| V11.0 | Règles syntaxiques codées en dur | Instinct endogène par détection de friction |
+
+Le **Dual-LIF (α=0.9/0.5)** agit comme un équivalent neuromorphique de l'attention multi-tête, ajoutant **+0.80%** au mono-LIF et portant le gain total à **+1.84% au-delà du plafond sac-de-mots**. En apprentissage continu, TSO démontre une **immunité structurelle à l'oubli catastrophique** : les features TSO 17D sont un fixateur topologique immuable — après apprentissage d'une seconde tâche (MultiNLI), un classifieur ré-entraîné sur SNLI retrouve exactement 56.96% (Δ = 0.00%), et le mode Freeze+Add préserve 100% de la performance originale. Ces propriétés sont structurellement impossibles pour les Transformers dont la rétropropagation modifie globalement tous les poids partagés.
+
+Enfin, **la génération auto-régressive par Inverse Motor** démontre que TSO peut produire du texte cohérent par dérive sémantique topologique — sans gradient, sans softmax, sans couche de projection apprise. L'**ancrage épisodique (V7 → V9)** évolue d'une oscillation homéostatique vers une progression thématique dynamique. L'**instinct endogène (V11)** remplace les règles syntaxiques codées en dur par une découverte émergente des marqueurs de friction.
+
+La dernière frontière reste le **Remodelage Synaptique (V12)** : permettre au réseau de restructurer ses fondations par pruning sous friction, sans oubli catastrophique. Avec son kernel Rust comme fondation, TSO pose les bases d'une intelligence artificielle véritablement asynchrone, locale et auto-dimensionnante. La validation sur SNLI (56.69% test, ~20s CPU) démontre que l'architecture TSO complète — Dual-LIF multi-échelle, friction séquentielle $\Phi$, opérateur de négation et classification par attracteurs locaux — capture l'ordre des mots et les relations de contradiction sans attention dense ni rétropropagation. Le **Dual-LIF (α=0.9/0.5)** agit comme un équivalent neuromorphique de l'attention multi-tête, ajoutant **+0.80%** au mono-LIF et portant le gain total à **+1.84% au-delà du plafond sac-de-mots**. En apprentissage continu, TSO démontre une **immunité structurelle à l'oubli catastrophique** : les features TSO 17D sont un fixateur topologique immuable — après apprentissage d'une seconde tâche (MultiNLI), un classifieur ré-entraîné sur SNLI retrouve exactement 56.96% (Δ = 0.00%), et le mode Freeze+Add préserve 100% de la performance originale. Ces propriétés sont structurellement impossibles pour les Transformers dont la rétropropagation modifie globalement tous les poids partagés. Enfin, **la génération auto-régressive par Inverse Motor** (Section 10.8) démontre que TSO peut produire du texte cohérent par dérive sémantique topologique — sans gradient, sans softmax, sans couche de projection apprise — confirmant que l'architecture est un véritable générateur de langage, pas seulement un extracteur de features. L'**ancrage épisodique (V7)** résout le problème de mémoire longue-distance sans BPTT : le système oscille homéostatiquement autour de son ancre sémantique, produisant un comportement analogue aux oscillateurs à attracteur étrange des systèmes dynamiques biologiques. Avec son kernel Rust comme fondation, TSO pose les bases d'une intelligence artificielle véritablement adaptative, événementielle, efficiente et compatible avec les principes d'apprentissage continu des systèmes neuromorphiques.

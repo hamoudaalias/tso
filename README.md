@@ -66,7 +66,7 @@ Le système navigue le graphe de friction par **Inverse Motor** : $w_{t+1} = \ar
 
 ---
 
-## État du projet (v11.0)
+## État du projet (v12.0)
 
 - [x] Classification SNLI (56.69% test, ~20s CPU)
 - [x] Dual-LIF multi-échelle (mémoire lente + rapide)
@@ -77,9 +77,9 @@ Le système navigue le graphe de friction par **Inverse Motor** : $w_{t+1} = \ar
 - [x] Anchored Decoder V7 (mémoire épisodique, dérive contrôlée)
 - [x] LocalWaveCritic V8 (Critic local asynchrone sans évaluation globale)
 - [x] Triple-LIF V9 (α=0.7 medium, ancre dynamique téléportable)
-- [x] VolatileSyntaxInverter V9.1 (cicatrice morphologique, négation instantanée)
 - [x] Expansion Asynchrone V10 (`Vec<Array1<f64>>`, dimensions variables, plus de padding global)
 - [x] Instinct Endogène V11 (apprentissage de la négation par la friction, plus de code en dur)
+- [ ] **Remodelage Synaptique V12** — pruning sous friction pour restructuration profonde (concept)
 - [ ] Benchmark énergétique RAPL (nécessite machine Linux native)
 
 ---
