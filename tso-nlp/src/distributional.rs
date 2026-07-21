@@ -274,7 +274,7 @@ pub fn randomized_svd(
     }
 
     // 4. QR(Y) → Q (m × l)
-    let mut q = mgs_qr(&mut y);
+    let q = mgs_qr(&mut y);
 
     // 5. B = Q^T × matrix (l × n)
     let mut b = Array2::zeros((l, n));

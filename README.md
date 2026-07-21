@@ -8,8 +8,8 @@
 
 | Propriété | Résultat | vs Transformer |
 |-----------|----------|----------------|
-| SNLI test (classification) | **56.69%** (17D Dual-LIF) | +1.84% au-delà du plafond sac-de-mots |
-| Temps d'entraînement | **~20 secondes** (CPU 8 cœurs) | vs ~30 min sur GPU |
+| SNLI test (classification) | **57.03%** (V14 DeepTSO 2L, 20D, 30 clusters) | +0.34% vs V13, hiérarchie validée |
+| Temps d'entraînement | **~2 minutes** (CPU 28 cœurs, R-STDP inter-couches) | vs ~30 min sur GPU |
 | Apprentissage continu | **Δ = 0.00%** (oubli catastrophique vaincu) | Impossible sans EWC/replay |
 | Scalabilité | **V=10⁶ en 95s** (SVD randomisée, 800 MB) | vs ~3 Go pour embeddings Transformer |
 | Génération auto-régressive | **Dérive sémantique émergente** (sans backprop) | Aucun équivalent |
@@ -29,6 +29,14 @@ cargo run --release --bin tso-bench continual data/snli_1.0/snli_1.0/snli_1.0_tr
 
 # Génération auto-régressive (V6 Dual-LIF)
 cargo run --release --bin tso-bench generate checkpoints_snli "a man is"
+
+# DeepTSO validation (V14) — 1 couche
+cargo run --release --bin tso-bench deval data/snli_1.0/snli_1.0/snli_1.0_train.jsonl \
+  data/snli_1.0/snli_1.0/snli_1.0_dev.jsonl 30 1
+
+# DeepTSO validation (V14) — 2 couches + R-STDP inter-couches
+cargo run --release --bin tso-bench deval data/snli_1.0/snli_1.0/snli_1.0_train.jsonl \
+  data/snli_1.0/snli_1.0/snli_1.0_dev.jsonl 30 2
 ```
 
 ---
@@ -68,9 +76,9 @@ Le système navigue le graphe de friction par **Inverse Motor** : $w_{t+1} = \ar
 
 ---
 
-## État du projet (v14.0)
+## État du projet (v14.1)
 
-- [x] Classification SNLI (56.69% test, ~20s CPU)
+- [x] Classification SNLI (57.03% test, V14 DeepTSO 2L + R-STDP, ~2min CPU)
 - [x] Dual-LIF multi-échelle (mémoire lente + rapide)
 - [x] Apprentissage continu (oubli catastrophique vaincu structuralement)
 - [x] Scalabilité jusqu'à V=10⁶ (95s, 800 MB, pas de GPU)

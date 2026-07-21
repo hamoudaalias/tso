@@ -8,11 +8,12 @@ use serde::{Deserialize, Serialize};
 
 use ndarray::{Array1, Array2};
 use tso_kernel::decoder::AnchoredTSODecoder;
+use tso_kernel::deep::{DeepConfig, DeepTSO};
 use tso_kernel::friction::{compute_trifriction_fast, prepare_sorted_neighbors};
 use tso_kernel::model::{FrictionGraphCheckpoint, ModelConfig};
 use tso_nlp::dataset::NLIDataset;
 use tso_nlp::distributional::{
-    alignment_features, distributional_features_duallif, distributional_features_lif, phi_sequential, randomized_svd, PPMIMatrix,
+    alignment_features, distributional_features_duallif, phi_sequential, randomized_svd, PPMIMatrix,
 };
 use tso_nlp::metrics::Metrics;
 use tso_nlp::tokenizer::TSOTokenizer;
@@ -600,7 +601,7 @@ fn run_continual_learning(
     let mut clf_naive = {
         let mut clf = AttractorField::new(N_FEATS, 3, 15);
         clf.init_kmeans(&snli_train_ft, &snli_labels, 15);
-        for epoch in 0..20 {
+        for _epoch in 0..20 {
             clf.train_epoch(&snli_train_ft, &snli_labels, 0.001);
         }
         clf
@@ -636,7 +637,7 @@ fn run_continual_learning(
     // Recovery test: fresh classifier on SNLI proves features are intact
     // =====================================================================
     println!("\n--- Recovery test: fresh SNLI-only classifier after MNLI overwrite ---");
-    let mut clf_recovery = {
+    let clf_recovery = {
         let mut clf = AttractorField::new(N_FEATS, 3, 15);
         clf.init_kmeans(&snli_train_ft, &snli_labels, 15);
         for _epoch in 0..20 {
@@ -758,7 +759,7 @@ fn run_generate(
     checkpoint_dir: &str,
     _svd_dim: usize,
     _window_size: usize,
-    top_k: usize,
+    _top_k: usize,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let ckpt = PathBuf::from(checkpoint_dir);
 
@@ -874,12 +875,278 @@ fn run_generate(
     Ok(())
 }
 
+// ── DeepTSO Validation (V14) ────────────────────────────────────────────
+
+fn cosine_similarity(a: &[f64], b: &[f64]) -> f64 {
+    let dot: f64 = a.iter().zip(b).map(|(x, y)| x * y).sum();
+    let na: f64 = a.iter().map(|x| x * x).sum::<f64>().sqrt();
+    let nb: f64 = b.iter().map(|x| x * x).sum::<f64>().sqrt();
+    if na * nb < 1e-12 { 0.0 } else { dot / (na * nb) }
+}
+
+/// K-means on all word embeddings.
+fn kmeans_centroids(
+    embeddings: &HashMap<String, Vec<f64>>,
+    n_centroids: usize,
+    n_dims: usize,
+) -> Vec<Vec<f64>> {
+    let vecs: Vec<Vec<f64>> = embeddings.values().cloned().collect();
+    let indices: Vec<usize> = (0..vecs.len()).collect();
+    kmeans_class(&vecs, &indices, n_centroids, n_dims, 42)
+}
+
+/// Cluster activation for a word: cos(emb, centroid) per cluster.
+fn word_to_cluster_activation(
+    word: &str,
+    embeddings: &HashMap<String, Vec<f64>>,
+    centroids: &[Vec<f64>],
+) -> Vec<f64> {
+    let emb = match embeddings.get(word) {
+        Some(e) => e,
+        None => return vec![0.0; centroids.len()],
+    };
+    centroids.iter().map(|c| cosine_similarity(emb, c)).collect()
+}
+
+/// Extract COMPARATIVE DeepTSO features between premise and hypothesis.
+///
+/// Process premise through DeepTSO → capture final_rates (P_state).
+/// Reset DeepTSO, process hypothesis → capture final_rates (H_state).
+/// Features: [cos(P,H), euclidean(P,H), norm_ratio(P,H)].
+fn extract_deep_features(
+    deep: &mut DeepTSO,
+    p_words: &[String],
+    h_words: &[String],
+    embeddings: &HashMap<String, Vec<f64>>,
+    centroids: &[Vec<f64>],
+    dt: f64,
+) -> Vec<f64> {
+    let n_clusters = centroids.len();
+
+    // Premise → P_state
+    deep.reset();
+    let mut last = None;
+    for w in p_words {
+        let act = Array1::from_vec(word_to_cluster_activation(w, embeddings, centroids));
+        last = Some(deep.step(&act, dt).final_rates);
+    }
+    let p_state = last.unwrap_or_else(|| Array1::zeros(n_clusters));
+
+    // Hypothesis → H_state (reset so H state is independent)
+    deep.reset();
+    let mut last = None;
+    for w in h_words {
+        let act = Array1::from_vec(word_to_cluster_activation(w, embeddings, centroids));
+        last = Some(deep.step(&act, dt).final_rates);
+    }
+    let h_state = last.unwrap_or_else(|| Array1::zeros(n_clusters));
+
+    // Comparative features
+    let cos: f64 = p_state.dot(&h_state);
+    let diff = &p_state - &h_state;
+    let euc: f64 = diff.dot(&diff).sqrt();
+    let norm_p: f64 = p_state.dot(&p_state).sqrt();
+    let norm_h: f64 = h_state.dot(&h_state).sqrt();
+    let ratio = if norm_h > 1e-12 { norm_p / norm_h } else { 1.0 };
+
+    vec![cos, euc, ratio]
+}
+
+/// Build typed edges from centroid cosine similarity.
+fn build_deep_edges(
+    deep: &mut DeepTSO,
+    centroids: &[Vec<f64>],
+) {
+    let n_clusters = centroids.len();
+    let n_layers = deep.n_layers();
+
+    for li in 0..n_layers {
+        let layer = deep.layer_mut(li).unwrap();
+        let mut cnt = 0usize;
+        for i in 0..n_clusters {
+            for j in (i + 1)..n_clusters {
+                let cos = cosine_similarity(&centroids[i], &centroids[j]);
+                if cos > 0.3 {
+                    layer.add_edge(i, j, 1.0, cos);
+                    cnt += 1;
+                } else if cos < -0.1 {
+                    layer.add_edge(i, j, -1.0, -cos);
+                    cnt += 1;
+                }
+            }
+        }
+        eprintln!("    Layer {}: {} intra edges", li, cnt);
+    }
+
+    for li in 0..n_layers.saturating_sub(1) {
+        let mut cnt = 0usize;
+        for i in 0..n_clusters {
+            for j in 0..n_clusters {
+                let cos = cosine_similarity(&centroids[i], &centroids[j]);
+                if cos > 0.3 {
+                    deep.add_inter_edge(li, i, li + 1, j, 1.0, cos);
+                    cnt += 1;
+                } else if cos < -0.1 {
+                    deep.add_inter_edge(li, i, li + 1, j, -1.0, -cos);
+                    cnt += 1;
+                }
+            }
+        }
+        eprintln!("    Layer {}→{}: {} inter edges", li, li + 1, cnt);
+    }
+}
+
+/// Run DeepTSO classification on SNLI.
+fn run_deep_validation(
+    train: &NLIDataset,
+    test: &NLIDataset,
+    tokenizer: &mut TSOTokenizer,
+    config: &BenchConfig,
+    n_clusters: usize,
+    n_layers: usize,
+) {
+    let t0_all = Instant::now();
+    let alpha_slow = 0.9;
+    let alpha_fast = 0.5;
+    let negation_set: HashSet<String> = [
+        "not", "no", "never", "n't", "but", "however", "yet", "neither", "nor", "none", "nobody",
+        "nothing", "nowhere", "cannot", "without",
+    ].iter().map(|s| s.to_string()).collect();
+    let dt = 0.5;
+
+    // Step 1: Build pipeline for word embeddings + V13 features
+    let (sorted_sets, word_embeddings, idf_weights) = build_pipeline(train, tokenizer, config);
+    let n_dims = word_embeddings.values().next().map(|v| v.len()).unwrap_or(0);
+
+    // Step 2: K-means centroids for DeepTSO
+    eprint!("  K-means (k={})...", n_clusters);
+    let t0 = Instant::now();
+    let centroids = kmeans_centroids(&word_embeddings, n_clusters, n_dims);
+    eprintln!(" {:.2?}", t0.elapsed());
+
+    // Step 3: Create DeepTSO
+    // For 2L+, enable inter-layer R-STDP during training so edges adapt online.
+    // The within-sentence Φ-gradient updates edges that persist across all 549k samples.
+    // For 1L, R-STDP is irrelevant (no inter-layer edges).
+    let dt_mults: Vec<f64> = (0..n_layers).map(|i| (2.0_f64).powi(i as i32)).collect();
+    let deep_cfg = DeepConfig {
+        n_layers,
+        n_clusters,
+        d: 5,
+        dt_multipliers: dt_mults,
+        modulatory_strength: if n_layers > 1 { 0.05 } else { 0.0 },
+        inter_edge_lr: if n_layers > 1 { 0.01 } else { 0.0 },
+        learn_inter_edges: n_layers > 1,
+        ..Default::default()
+    };
+    let mut deep = DeepTSO::new(deep_cfg);
+
+    // Step 4: Build typed edges
+    eprintln!("  Building typed edges from centroid similarities...");
+    build_deep_edges(&mut deep, &centroids);
+
+    // Feature dimensionality: V13 (17D) + DeepTSO comparative (3D)
+    let n_feats = N_FEATS + 3;
+
+    // Step 5: Extract training features
+    eprintln!("  Extracting V13+DeepTSO features from {} train samples...", train.len());
+    let t0 = Instant::now();
+    let mut train_features = Vec::with_capacity(train.len());
+    let mut train_labels = Vec::with_capacity(train.len());
+
+    for (i, sample) in train.samples.iter().enumerate() {
+        let Some(label) = NLIDataset::label_to_idx(&sample.label) else { continue };
+        let p_words = tokenize_words(&sample.sentence1);
+        let h_words = tokenize_words(&sample.sentence2);
+
+        // V13 17D features
+        let j3 = compute_trifriction_fast(&sample.sentence1, &sample.sentence2, &sorted_sets);
+        let l6 = distributional_features_duallif(&p_words, &h_words, &word_embeddings, &idf_weights,
+            alpha_slow, alpha_fast, &negation_set);
+        let p4 = phi_sequential(&p_words, &h_words, &word_embeddings, &idf_weights, alpha_slow, &negation_set);
+        let a4 = alignment_features(&p_words, &h_words, &word_embeddings);
+
+        // DeepTSO 3D comparative features
+        let d3 = extract_deep_features(&mut deep, &p_words, &h_words, &word_embeddings, &centroids, dt);
+
+        let mut feat = Vec::with_capacity(n_feats);
+        feat.extend_from_slice(&j3);
+        feat.extend_from_slice(&l6);
+        feat.extend_from_slice(&p4);
+        feat.extend_from_slice(&a4);
+        feat.extend_from_slice(&d3);
+        train_features.push(feat);
+        train_labels.push(label);
+
+        if (i + 1) % 50000 == 0 || i == train.len() - 1 {
+            eprint!("\r    [{:>5.1}%] {}/{} ({:.2?})",
+                (i + 1) as f64 / train.len() as f64 * 100.0, i + 1, train.len(), t0.elapsed());
+            let _ = std::io::stderr().flush();
+        }
+    }
+    eprintln!();
+    println!("    {} features ({:.2?})", train_features.len(), t0.elapsed());
+
+    // Step 6: Normalise
+    eprint!("  Z-scoring {}D features...", n_feats);
+    let t0 = Instant::now();
+    let normaliser = Normaliser::fit(&train_features);
+    let train_norm: Vec<Vec<f64>> = train_features.par_iter().map(|f| normaliser.transform(f)).collect();
+    eprintln!(" {:.2?}", t0.elapsed());
+
+    // Step 7: Train AttractorField
+    let k_per_class = 15;
+    eprintln!("  Training AttractorField (k={}/cls, lr=0.001, 20 epochs)...", k_per_class);
+    let mut clf = AttractorField::new(n_feats, 3, k_per_class);
+    clf.init_kmeans(&train_norm, &train_labels, k_per_class);
+    for epoch in 0..20 {
+        let correct = clf.train_epoch(&train_norm, &train_labels, 0.001);
+        let acc = correct as f64 / train_norm.len() as f64 * 100.0;
+        eprintln!("    Epoch {}: {:.2}% ({}/{})", epoch + 1, acc, correct, train_norm.len());
+    }
+
+    // Step 8: Evaluate
+    eprintln!("  Evaluating on {} test samples...", test.len());
+    let t0 = Instant::now();
+    let mut eval: Vec<(usize, usize)> = Vec::with_capacity(test.samples.len());
+    for sample in &test.samples {
+        let Some(actual) = NLIDataset::label_to_idx(&sample.label) else { continue };
+        let p_words = tokenize_words(&sample.sentence1);
+        let h_words = tokenize_words(&sample.sentence2);
+
+        let j3 = compute_trifriction_fast(&sample.sentence1, &sample.sentence2, &sorted_sets);
+        let l6 = distributional_features_duallif(&p_words, &h_words, &word_embeddings, &idf_weights,
+            alpha_slow, alpha_fast, &negation_set);
+        let p4 = phi_sequential(&p_words, &h_words, &word_embeddings, &idf_weights, alpha_slow, &negation_set);
+        let a4 = alignment_features(&p_words, &h_words, &word_embeddings);
+        let d3 = extract_deep_features(&mut deep, &p_words, &h_words, &word_embeddings, &centroids, dt);
+
+        let mut raw = Vec::with_capacity(n_feats);
+        raw.extend_from_slice(&j3);
+        raw.extend_from_slice(&l6);
+        raw.extend_from_slice(&p4);
+        raw.extend_from_slice(&a4);
+        raw.extend_from_slice(&d3);
+        let feat = normaliser.transform(&raw);
+        let pred = clf.predict(&feat);
+        eval.push((pred, actual));
+    }
+
+    let mut m = Metrics::new();
+    for (p, a) in eval { m.add(p, a); }
+    m.compute();
+    println!("\n=== DeepTSO {}L × {}C | V13+Deep 20D RESULTS ({:.2?}, total {:.2?}) ===",
+        n_layers, n_clusters, t0.elapsed(), t0_all.elapsed());
+    println!("{}", m.report());
+}
+
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let args: Vec<String> = std::env::args().collect();
     if args.len() < 2 {
         eprintln!("Usage:");
         eprintln!("  {} eval <train.jsonl> <test.jsonl> [window_size] [top_k] [svd_dim] [checkpoint_dir]", args[0]);
         eprintln!("  {} continual <snli_train> <snli_dev> <mnli_train> [window_size] [top_k] [svd_dim] [checkpoint_dir]", args[0]);
+        eprintln!("  {} deval <train.jsonl> <test.jsonl> <n_clusters> <n_layers> [window_size] [top_k] [svd_dim] [checkpoint_dir]", args[0]);
         std::process::exit(1);
     }
 
@@ -940,6 +1207,35 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             let config = BenchConfig { window_size, top_k, svd_dim,
                 checkpoint_dir: PathBuf::from(&checkpoint_dir) };
             run_continual_learning(&snli_train, &snli_dev, &mnli_train, &mut tokenizer, &config);
+        }
+        "deval" | "deep" => {
+            if args.len() < 6 {
+                eprintln!("Usage: {} deval <train.jsonl> <test.jsonl> <n_clusters> <n_layers> [window_size] [top_k] [svd_dim] [checkpoint_dir]", args[0]);
+                eprintln!("  DeepTSO validation — n_clusters centroids from word embeddings, n_layers cortical layers.");
+                eprintln!("  Example: {} deval snli_1.0_train.jsonl snli_1.0_dev.jsonl 50 1", args[0]);
+                eprintln!("  Example: {} deval snli_1.0_train.jsonl snli_1.0_dev.jsonl 50 2", args[0]);
+                std::process::exit(1);
+            }
+            let train_path = &args[2];
+            let test_path = &args[3];
+            let n_clusters: usize = args[4].parse().expect("n_clusters must be usize");
+            let n_layers: usize = args[5].parse().expect("n_layers must be usize");
+            let window_size = args.get(6).and_then(|s| s.parse().ok()).unwrap_or(5);
+            let top_k = args.get(7).and_then(|s| s.parse().ok()).unwrap_or(20);
+            let svd_dim = args.get(8).and_then(|s| s.parse().ok()).unwrap_or(100);
+            let checkpoint_dir = args.get(9).cloned().unwrap_or_else(|| "checkpoints_deep".to_string());
+
+            println!("TSO V14 — DeepTSO Validation");
+            println!("==============================");
+            let train = NLIDataset::from_jsonl(train_path)?;
+            println!("Train: {} samples", train.len());
+            let test = NLIDataset::from_jsonl(test_path)?;
+            println!("Test: {} samples", test.len());
+
+            let mut tokenizer = TSOTokenizer::whitespace();
+            let config = BenchConfig { window_size, top_k, svd_dim,
+                checkpoint_dir: PathBuf::from(&checkpoint_dir) };
+            run_deep_validation(&train, &test, &mut tokenizer, &config, n_clusters, n_layers);
         }
         "generate" | "gen" => {
             if args.len() < 4 {

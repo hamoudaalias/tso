@@ -36,6 +36,9 @@ pub struct DeepConfig {
     /// Learning rate for inter-layer R-STDP edge updates (default 0.01).
     /// Set to 0.0 to disable inter-layer learning.
     pub inter_edge_lr: f64,
+    /// Disable inter-layer R-STDP entirely. Speeds up feature extraction.
+    /// Set to `false` during inference / feature extraction.
+    pub learn_inter_edges: bool,
 }
 
 impl Default for DeepConfig {
@@ -54,6 +57,7 @@ impl Default for DeepConfig {
             modulatory_strength: 0.05,
             output_layer: None,
             inter_edge_lr: 0.01,
+            learn_inter_edges: true,
         }
     }
 }
@@ -326,7 +330,10 @@ impl DeepTSO {
             });
 
         // ── Phase 3: Inter-layer R-STDP edge learning ──
-        if self.config.inter_edge_lr > 0.0 && !self.cached_rates.is_empty() {
+        if self.config.learn_inter_edges
+            && self.config.inter_edge_lr > 0.0
+            && !self.cached_rates.is_empty()
+        {
             self.update_inter_edges(&layer_outputs, total_inter_phi);
         }
 
