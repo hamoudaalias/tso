@@ -39,6 +39,11 @@ pub struct DeepConfig {
     /// Disable inter-layer R-STDP entirely. Speeds up feature extraction.
     /// Set to `false` during inference / feature extraction.
     pub learn_inter_edges: bool,
+    /// Winner-Take-All sparsity: fraction of clusters to KEEP per layer (e.g. 0.05 = keep top 5%).
+    /// 1.0 = disabled (keep all). < 1.0 = competitive sparsity: only the strongest survive.
+    /// Applied after each step to guarantee that at most `wta_keep_ratio × n_clusters` clusters
+    /// have non-zero rates. This is how TSO achieves O(α·N) with α ≪ 1.
+    pub wta_keep_ratio: f64,
 }
 
 impl Default for DeepConfig {
@@ -58,6 +63,7 @@ impl Default for DeepConfig {
             output_layer: None,
             inter_edge_lr: 0.01,
             learn_inter_edges: true,
+            wta_keep_ratio: 0.05,
         }
     }
 }
@@ -138,6 +144,9 @@ impl DeepTSO {
     pub fn layer_mut(&mut self, idx: usize) -> Option<&mut TSOCore> { self.layers.get_mut(idx) }
 
     pub fn config(&self) -> &DeepConfig { &self.config }
+
+    pub fn set_learn_inter_edges(&mut self, v: bool) { self.config.learn_inter_edges = v; }
+    pub fn set_inter_edge_lr(&mut self, v: f64) { self.config.inter_edge_lr = v; }
 
     /// Add an inter-layer edge from `from_layer`'s cluster `from_cluster`
     /// to `to_layer`'s cluster `to_cluster`.
@@ -272,7 +281,16 @@ impl DeepTSO {
                 combined
             };
 
-            let (phi, rates, spikes) = layer.step(&biased_input, actual_dt);
+            let (phi, mut rates, spikes) = layer.step(&biased_input, actual_dt);
+            // Winner-Take-All: keep only the top `wta_keep_ratio` fraction of clusters
+            if self.config.wta_keep_ratio < 1.0 {
+                let keep = (self.config.n_clusters as f64 * self.config.wta_keep_ratio).max(1.0).ceil() as usize;
+                let mut idxs: Vec<usize> = (0..rates.len()).collect();
+                idxs.sort_unstable_by(|&a, &b| rates[b].partial_cmp(&rates[a]).unwrap_or(std::cmp::Ordering::Equal));
+                for &i in &idxs[keep.min(idxs.len())..] {
+                    rates[i] = 0.0;
+                }
+            }
             total_intra_phi += phi;
 
             if self.config.residual && current.len() == rates.len() {

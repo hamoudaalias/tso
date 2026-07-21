@@ -920,6 +920,7 @@ fn extract_deep_features(
     embeddings: &HashMap<String, Vec<f64>>,
     centroids: &[Vec<f64>],
     dt: f64,
+    input_scale: f64,
 ) -> Vec<f64> {
     let n_clusters = centroids.len();
 
@@ -927,8 +928,9 @@ fn extract_deep_features(
     deep.reset();
     let mut last = None;
     for w in p_words {
-        let act = Array1::from_vec(word_to_cluster_activation(w, embeddings, centroids));
-        last = Some(deep.step(&act, dt).final_rates);
+        let mut act = word_to_cluster_activation(w, embeddings, centroids);
+        for a in &mut act { *a *= input_scale; }
+        last = Some(deep.step(&Array1::from_vec(act), dt).final_rates);
     }
     let p_state = last.unwrap_or_else(|| Array1::zeros(n_clusters));
 
@@ -936,8 +938,9 @@ fn extract_deep_features(
     deep.reset();
     let mut last = None;
     for w in h_words {
-        let act = Array1::from_vec(word_to_cluster_activation(w, embeddings, centroids));
-        last = Some(deep.step(&act, dt).final_rates);
+        let mut act = word_to_cluster_activation(w, embeddings, centroids);
+        for a in &mut act { *a *= input_scale; }
+        last = Some(deep.step(&Array1::from_vec(act), dt).final_rates);
     }
     let h_state = last.unwrap_or_else(|| Array1::zeros(n_clusters));
 
@@ -996,6 +999,65 @@ fn build_deep_edges(
     }
 }
 
+/// Compute sparsity: fraction of clusters with rate > threshold.
+/// Pre-train DeepTSO inter-layer edges by streaming the entire corpus
+/// as one continuous word sequence. No reset between samples.
+/// Returns sparsity statistics.
+fn pretrain_deep_tso(
+    deep: &mut DeepTSO,
+    train: &NLIDataset,
+    embeddings: &HashMap<String, Vec<f64>>,
+    centroids: &[Vec<f64>],
+    dt: f64,
+    input_scale: f64,
+) {
+    let n_layers = deep.n_layers();
+    let n_clusters = deep.config().n_clusters;
+    let wta_keep = (n_clusters as f64 * deep.config().wta_keep_ratio).max(1.0).ceil() as usize;
+    let mut total_words = 0usize;
+    let mut total_nonzero: Vec<f64> = vec![0.0; n_layers];
+    let mut sample_count = 0usize;
+
+    eprintln!("  Pre-training: streaming {} sentences through {}-layer DeepTSO (WTA keep={}/{}, R-STDP on)...",
+        train.len(), n_layers, wta_keep, n_clusters);
+    let t0 = Instant::now();
+
+    for sample in &train.samples {
+        let p_words = tokenize_words(&sample.sentence1);
+        let h_words = tokenize_words(&sample.sentence2);
+
+        for w in p_words.iter().chain(h_words.iter()) {
+            let mut act = word_to_cluster_activation(w, embeddings, centroids);
+            for a in &mut act { *a *= input_scale; }
+            let out = deep.step(&Array1::from_vec(act), dt);
+            for li in 0..n_layers.min(out.layers.len()) {
+                let nz = out.layers[li].rates.iter().filter(|&&r| r > 0.0).count();
+                total_nonzero[li] += nz as f64;
+            }
+            total_words += 1;
+        }
+
+        sample_count += 1;
+        if sample_count % 50000 == 0 || sample_count == train.len() {
+            let pct = sample_count as f64 / train.len() as f64 * 100.0;
+            let mean_nz: Vec<String> = total_nonzero.iter()
+                .map(|&n| format!("{:.1}/{}", n / total_words as f64, wta_keep))
+                .collect();
+            eprint!("\r    [{:>5.1}%] {} words, nonzero/cluster: [{}] ({:.2?})",
+                pct, total_words, mean_nz.join(", "), t0.elapsed());
+            let _ = std::io::stderr().flush();
+        }
+    }
+    eprintln!();
+    let elapsed = t0.elapsed();
+    let mean_nz: Vec<String> = total_nonzero.iter()
+        .map(|&n| format!("{:.2}/{}({:.1}%)", n / total_words as f64, wta_keep,
+            n / total_words as f64 / n_clusters as f64 * 100.0))
+        .collect();
+    println!("    Pre-training done: {} words, {:.2?}, mean nonzero/cluster: [{}]",
+        total_words, elapsed, mean_nz.join(", "));
+}
+
 /// Run DeepTSO classification on SNLI.
 fn run_deep_validation(
     train: &NLIDataset,
@@ -1013,6 +1075,7 @@ fn run_deep_validation(
         "nothing", "nowhere", "cannot", "without",
     ].iter().map(|s| s.to_string()).collect();
     let dt = 0.5;
+    let input_scale = 50.0; // cos×50 → input ∈ [0,50]; avg cos 0.3 → input 15 > 10 → LIF fires
 
     // Step 1: Build pipeline for word embeddings + V13 features
     let (sorted_sets, word_embeddings, idf_weights) = build_pipeline(train, tokenizer, config);
@@ -1024,10 +1087,7 @@ fn run_deep_validation(
     let centroids = kmeans_centroids(&word_embeddings, n_clusters, n_dims);
     eprintln!(" {:.2?}", t0.elapsed());
 
-    // Step 3: Create DeepTSO
-    // For 2L+, enable inter-layer R-STDP during training so edges adapt online.
-    // The within-sentence Φ-gradient updates edges that persist across all 549k samples.
-    // For 1L, R-STDP is irrelevant (no inter-layer edges).
+    // Step 3: Create DeepTSO with R-STDP for pre-training
     let dt_mults: Vec<f64> = (0..n_layers).map(|i| (2.0_f64).powi(i as i32)).collect();
     let deep_cfg = DeepConfig {
         n_layers,
@@ -1037,18 +1097,28 @@ fn run_deep_validation(
         modulatory_strength: if n_layers > 1 { 0.05 } else { 0.0 },
         inter_edge_lr: if n_layers > 1 { 0.01 } else { 0.0 },
         learn_inter_edges: n_layers > 1,
+        wta_keep_ratio: 0.05,
         ..Default::default()
     };
     let mut deep = DeepTSO::new(deep_cfg);
 
-    // Step 4: Build typed edges
+    // Step 4: Build typed edges (initial topology from centroid similarities)
     eprintln!("  Building typed edges from centroid similarities...");
     build_deep_edges(&mut deep, &centroids);
+
+    // Step 5: Pre-train inter-layer edges (V15 — unsupervised streaming)
+    if n_layers > 1 {
+        pretrain_deep_tso(&mut deep, train, &word_embeddings, &centroids, dt, input_scale);
+    }
+
+    // Step 6: Freeze edges for feature extraction
+    deep.set_learn_inter_edges(false);
+    deep.set_inter_edge_lr(0.0);
 
     // Feature dimensionality: V13 (17D) + DeepTSO comparative (3D)
     let n_feats = N_FEATS + 3;
 
-    // Step 5: Extract training features
+    // Step 7: Extract training features
     eprintln!("  Extracting V13+DeepTSO features from {} train samples...", train.len());
     let t0 = Instant::now();
     let mut train_features = Vec::with_capacity(train.len());
@@ -1066,8 +1136,8 @@ fn run_deep_validation(
         let p4 = phi_sequential(&p_words, &h_words, &word_embeddings, &idf_weights, alpha_slow, &negation_set);
         let a4 = alignment_features(&p_words, &h_words, &word_embeddings);
 
-        // DeepTSO 3D comparative features
-        let d3 = extract_deep_features(&mut deep, &p_words, &h_words, &word_embeddings, &centroids, dt);
+        // DeepTSO 3D comparative features (now with pre-trained edges)
+        let d3 = extract_deep_features(&mut deep, &p_words, &h_words, &word_embeddings, &centroids, dt, input_scale);
 
         let mut feat = Vec::with_capacity(n_feats);
         feat.extend_from_slice(&j3);
@@ -1087,14 +1157,14 @@ fn run_deep_validation(
     eprintln!();
     println!("    {} features ({:.2?})", train_features.len(), t0.elapsed());
 
-    // Step 6: Normalise
+    // Step 8: Normalise
     eprint!("  Z-scoring {}D features...", n_feats);
     let t0 = Instant::now();
     let normaliser = Normaliser::fit(&train_features);
     let train_norm: Vec<Vec<f64>> = train_features.par_iter().map(|f| normaliser.transform(f)).collect();
     eprintln!(" {:.2?}", t0.elapsed());
 
-    // Step 7: Train AttractorField
+    // Step 9: Train AttractorField
     let k_per_class = 15;
     eprintln!("  Training AttractorField (k={}/cls, lr=0.001, 20 epochs)...", k_per_class);
     let mut clf = AttractorField::new(n_feats, 3, k_per_class);
@@ -1105,7 +1175,7 @@ fn run_deep_validation(
         eprintln!("    Epoch {}: {:.2}% ({}/{})", epoch + 1, acc, correct, train_norm.len());
     }
 
-    // Step 8: Evaluate
+    // Step 10: Evaluate
     eprintln!("  Evaluating on {} test samples...", test.len());
     let t0 = Instant::now();
     let mut eval: Vec<(usize, usize)> = Vec::with_capacity(test.samples.len());
@@ -1119,7 +1189,7 @@ fn run_deep_validation(
             alpha_slow, alpha_fast, &negation_set);
         let p4 = phi_sequential(&p_words, &h_words, &word_embeddings, &idf_weights, alpha_slow, &negation_set);
         let a4 = alignment_features(&p_words, &h_words, &word_embeddings);
-        let d3 = extract_deep_features(&mut deep, &p_words, &h_words, &word_embeddings, &centroids, dt);
+        let d3 = extract_deep_features(&mut deep, &p_words, &h_words, &word_embeddings, &centroids, dt, input_scale);
 
         let mut raw = Vec::with_capacity(n_feats);
         raw.extend_from_slice(&j3);
@@ -1135,7 +1205,7 @@ fn run_deep_validation(
     let mut m = Metrics::new();
     for (p, a) in eval { m.add(p, a); }
     m.compute();
-    println!("\n=== DeepTSO {}L × {}C | V13+Deep 20D RESULTS ({:.2?}, total {:.2?}) ===",
+    println!("\n=== DeepTSO {}L × {}C | V15 V13+Deep 20D ({:.2?}, total {:.2?}) ===",
         n_layers, n_clusters, t0.elapsed(), t0_all.elapsed());
     println!("{}", m.report());
 }

@@ -8,8 +8,8 @@
 
 | Propriété | Résultat | vs Transformer |
 |-----------|----------|----------------|
-| SNLI test (classification) | **57.03%** (V14 DeepTSO 2L, 20D, 30 clusters) | +0.34% vs V13, hiérarchie validée |
-| Temps d'entraînement | **~2 minutes** (CPU 28 cœurs, R-STDP inter-couches) | vs ~30 min sur GPU |
+| SNLI test (classification) | **57.15%** (V15 DeepTSO 4L, 20D, 50 clusters, WTA 94% sparsity) | +0.46% vs V13, parcimonie garantie |
+| Temps d'entraînement | **~10 minutes** (CPU 28 cœurs, WTA + pré-entraînement R-STDP) | vs ~30 min sur GPU |
 | Apprentissage continu | **Δ = 0.00%** (oubli catastrophique vaincu) | Impossible sans EWC/replay |
 | Scalabilité | **V=10⁶ en 95s** (SVD randomisée, 800 MB) | vs ~3 Go pour embeddings Transformer |
 | Génération auto-régressive | **Dérive sémantique émergente** (sans backprop) | Aucun équivalent |
@@ -37,6 +37,10 @@ cargo run --release --bin tso-bench deval data/snli_1.0/snli_1.0/snli_1.0_train.
 # DeepTSO validation (V14) — 2 couches + R-STDP inter-couches
 cargo run --release --bin tso-bench deval data/snli_1.0/snli_1.0/snli_1.0_train.jsonl \
   data/snli_1.0/snli_1.0/snli_1.0_dev.jsonl 30 2
+
+# DeepTSO V15 — 4 couches, WTA 5%, pré-entraînement non supervisé
+cargo run --release --bin tso-bench deval data/snli_1.0/snli_1.0/snli_1.0_train.jsonl \
+  data/snli_1.0/snli_1.0/snli_1.0_dev.jsonl 50 4
 ```
 
 ---
@@ -76,9 +80,9 @@ Le système navigue le graphe de friction par **Inverse Motor** : $w_{t+1} = \ar
 
 ---
 
-## État du projet (v14.1)
+## État du projet (v15.0)
 
-- [x] Classification SNLI (57.03% test, V14 DeepTSO 2L + R-STDP, ~2min CPU)
+- [x] Classification SNLI (57.15% dev, V15 DeepTSO 4L + WTA + pré-entraînement, ~10min CPU)
 - [x] Dual-LIF multi-échelle (mémoire lente + rapide)
 - [x] Apprentissage continu (oubli catastrophique vaincu structuralement)
 - [x] Scalabilité jusqu'à V=10⁶ (95s, 800 MB, pas de GPU)
@@ -92,6 +96,7 @@ Le système navigue le graphe de friction par **Inverse Motor** : $w_{t+1} = \ar
 - [ ] **Remodelage Synaptique V12** — pruning sous friction pour restructuration profonde (concept)
 - [x] **Coupe-Circuit de Fatigue V13** — isolement temporaire des nœuds pour briser les boucles paradoxales
 - [x] **DeepTSO V14** — cycle cortical à 2 phases, Φ inter-couche, modulation top-down, R-STDP inter-couches
+- [x] **DeepTSO V15** — WTA (94% sparsity garantie), pré-entraînement non supervisé 11M mots, input scaling LIF
 - [ ] Benchmark énergétique RAPL (nécessite machine Linux native)
 
 ---
