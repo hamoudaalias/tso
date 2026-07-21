@@ -457,6 +457,29 @@ Après 90 decays → C réveillé (fatigue < 0.1)
 
 **Contribution :** Le système ne se fige plus sur les paradoxes locaux. Au lieu de boucler à l'infini sur un sous-graphe insoluble, il abandonne l'arène, permettant au `decoder.rs` de passer au token suivant. C'est un **réflexe biologique** : un nœud qui s'épulse et s'isole temporairement, comme un muscle fatigué.
 
+#### 10.15 V14 — DeepTSO : Hiérarchie de Friction (Architecture)
+
+La V14 est le premier pas vers l'empilement hiérarchique de TSO. Là où les couches V1–V13 opèrent sur un seul niveau d'abstraction, DeepTSO introduit un **cycle cortical à deux phases** qui propage la friction verticalement entre couches.
+
+**Problème :** TSO classique est une couche unique. Pour le raisonnement abstrait, le cerveau empile des aires corticales — chaque niveau prédit l'activité du niveau inférieur. Sans cette hiérarchie, TSO ne peut pas apprendre des invariances temporelles (concepts qui s'étendent sur plusieurs tokens) ni des structures compositionnelles (phrases → thèmes → récits).
+
+**Architecture (V14) :** Chaque couche est un `TSOCore` indépendant avec son propre multiplicateur de pas de temps (`dt_multiplier`). Les couches basses (dt×1) intègrent rapidement les détails locaux ; les couches hautes (dt×2, ×4, ×8) intègrent lentement les concepts abstraits. Le cycle de traitement en deux phases imite le cycle cortical :
+
+1. **Phase 1 — Balayage Feedforward (Bottom-Up) :** Chaque couche reçoit les taux de la couche inférieure comme entrée excitatrice, plus un **biais modulateur** stocké de l'itération précédente (signal top-down). Elle effectue une intégration LIF à son propre dt et produit des taux de décharge et un Φ intra-couche.
+
+2. **Phase 2 — Modulation Top-Down (Feedback) :** Pour chaque paire de couches adjacentes (N, N+1), DeepTSO calcule le **Φ inter-couche** — la violation des arêtes typées que la couche N+1 projette vers les attracteurs de la couche N. Ce Φ est la "surprise résiduelle" du modèle de la couche haute. Ensuite, un **biais modulateur** est calculé : pour chaque arête d'implication violée (taux trop bas), un biais positif pousse la couche inférieure à augmenter son activité ; pour chaque exclusion violée (taux trop haut), un biais négatif la freine. Ce biais sera appliqué lors de la **prochaine** itération — un délai d'un pas de temps, comme le délai synaptique biologique.
+
+**Arêtes inter-couches :** Chaque paire adjacente possède sa propre liste d'arêtes typées `(i_lower, j_upper, ±1, strength)`, ajoutées via `add_inter_edge()`. L'apprentissage de ces arêtes suivra la même règle R-STDP que les arêtes intra-couche, avec pour récompense la dérivée négative du Φ total.
+
+**Couche de sortie (L5) :** Le paramètre `output_layer` désigne quelle couche est lue par l'Inverse Motor. Par défaut, c'est la couche la plus haute — celle qui possède la représentation la plus abstraite et temporellement comprimée, comme les cellules pyramidales de la couche 5 du néocortex.
+
+**Tests :**
+- `test_deep_tso_inter_layer_phi` : l'ajout d'une arête d'implication entre couches crée un Φ inter-couche positif lorsque les taux violent la contrainte.
+- `test_deep_tso_exclusion_inter_edge` : une arête d'exclusion entre couches génère un Φ inter-couche et un biais modulateur négatif après 100 pas d'intégration.
+- `test_deep_tso_top_down_modulation` : après un cycle complet, le biais modulateur pointe dans la direction correcte (positif pour implication violée).
+
+**Contribution :** DeepTSO V14 est la première architecture où la friction se propage verticalement. Chaque couche prédit l'activité de la couche inférieure via des arêtes typées ; le résidu de prédiction (Φ inter-couche) est le signal d'erreur qui remonte la hiérarchie. Le biais modulateur redescend pour corriger la couche inférieure — un cycle perception-action purement local, sans gradient global. C'est le Predictive Coding de Rao & Ballard (1999) implémenté avec des LIF clusters et de la friction topographique.
+
 ### 11. DISCUSSION
 
 TSO propose un changement de paradigme : passer d'une exécution systématique à une cybernétique de survie active. En assujettissant le calcul à une friction géométriquement calculable, TSO aligne l'efficacité computationnelle sur la complexité réelle du problème. L'implémentation en Rust fournit une base de référence rapide, portable et déterministe pour explorer cette alternative aux Transformers.
@@ -468,7 +491,7 @@ TSO propose un changement de paradigme : passer d'une exécution systématique �
 3.  **Cohérence Globale :** La réparation locale d'une arête peut théoriquement briser une contrainte voisine satisfaite. La convergence globale du système devra être formellement démontrée. (Note : le `LocalWaveCritic` V8 résout partiellement ce problème par propagation d'onde locale de profondeur $d \leq 2$, et le `Vec<Array1>` V10 supprime le padding global, mais une preuve formelle de convergence pour des graphes arbitraires reste ouverte.)
 4.  **Fossilisation (Freeze+Add) :** Le découplage features/classifieur (V5.1) immunise contre l'oubli catastrophique mais interdit la restructuration profonde des connaissances. Le Remodelage Synaptique (V12, conceptuel) pourrait résoudre ce problème par pruning sous friction.
 5.  **Capacité linguistique :** Les expériences devront démontrer que la nature événementielle du calcul ne limite pas la capacité expressive par rapport aux modèles denses.
-6.  **Friction multi-couche :** Comment empiler les couches de $\Phi$ pour obtenir une expressivité comparable à la profondeur des Transformers ?
+6.  **Friction multi-couche :** DeepTSO V14 implémente le cycle cortical à deux phases avec Φ inter-couche et modulation top-down. Reste à valider expérimentalement que cet empilement améliore la performance sur des tâches de raisonnement (p. ex. SNLI avec compositionnalité multi-phrase), et à intégrer l'apprentissage R-STDP des arêtes inter-couches.
 
 ### 13. CONCLUSION
 
@@ -486,10 +509,11 @@ Les RNN ont été remplacés par les Transformers grâce à la parallélisation 
 | V10.0 | Padding dimensionnel global | Expansion asynchrone par intersection |
 | V11.0 | Règles syntaxiques codées en dur | Instinct endogène par détection de friction |
 | V13.0 | Oscillation infinie du Critic local | Coupe-circuit de fatigue par isolement temporaire |
+| V14.0 | Absence de hiérarchie (plafond du raisonnement) | DeepTSO : cycle cortical à 2 phases, Φ inter-couche, modulation top-down |
 
 Le **Dual-LIF (α=0.9/0.5)** agit comme un équivalent neuromorphique de l'attention multi-tête, ajoutant **+0.80%** au mono-LIF et portant le gain total à **+1.84% au-delà du plafond sac-de-mots**. En apprentissage continu, TSO démontre une **immunité structurelle à l'oubli catastrophique** : les features TSO 17D sont un fixateur topologique immuable — après apprentissage d'une seconde tâche (MultiNLI), un classifieur ré-entraîné sur SNLI retrouve exactement 56.96% (Δ = 0.00%), et le mode Freeze+Add préserve 100% de la performance originale. Ces propriétés sont structurellement impossibles pour les Transformers dont la rétropropagation modifie globalement tous les poids partagés.
 
 Enfin, **la génération auto-régressive par Inverse Motor** démontre que TSO peut produire du texte cohérent par dérive sémantique topologique — sans gradient, sans softmax, sans couche de projection apprise. L'**ancrage épisodique (V7 → V9)** évolue d'une oscillation homéostatique vers une progression thématique dynamique. L'**instinct endogène (V11)** remplace les règles syntaxiques codées en dur par une découverte émergente des marqueurs de friction.
 
-La dernière frontière reste le **Remodelage Synaptique (V12)** : permettre au réseau de restructurer ses fondations par pruning sous friction, sans oubli catastrophique. Le **Coupe-Circuit de Fatigue (V13)** immunise déjà le système contre l'oscillation paradoxale — le `LocalWaveCritic` ne peut plus se figer sur un cycle A→B→C→¬A. Avec son kernel Rust comme fondation, TSO pose les bases d'une intelligence artificielle véritablement asynchrone, locale et auto-dimensionnante.
+La dernière frontière reste le **Remodelage Synaptique (V12)** : permettre au réseau de restructurer ses fondations par pruning sous friction, sans oubli catastrophique. Le **Coupe-Circuit de Fatigue (V13)** immunise déjà le système contre l'oscillation paradoxale — le `LocalWaveCritic` ne peut plus se figer sur un cycle A→B→C→¬A. Le **DeepTSO (V14)** ouvre la voie à l'empilement hiérarchique : pour la première fois, la friction se propage verticalement entre couches, et chaque niveau prédit l'activité du niveau inférieur via un cycle cortical à deux phases. Avec son kernel Rust comme fondation, TSO pose les bases d'une intelligence artificielle véritablement asynchrone, locale et auto-dimensionnante.
 
