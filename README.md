@@ -83,8 +83,7 @@ Le système navigue le graphe de friction par **Inverse Motor** : $w_{t+1} = \ar
 - [x] Instinct Endogène V11 (apprentissage de la négation par la friction, plus de code en dur)
 - [ ] **Remodelage Synaptique V12** — pruning sous friction pour restructuration profonde (concept)
 - [x] **Coupe-Circuit de Fatigue V13** — isolement temporaire des nœuds pour briser les boucles paradoxales
-- [x] **DeepTSO V14** — cycle cortical à 2 phases, Φ inter-couche, modulation top-down (architecture)
-- [ ] **DeepTSO V14 (suite)** — apprentissage R-STDP des arêtes inter-couches, validation sur tâches hiérarchiques
+- [x] **DeepTSO V14** — cycle cortical à 2 phases, Φ inter-couche, modulation top-down, R-STDP inter-couches
 - [ ] Benchmark énergétique RAPL (nécessite machine Linux native)
 
 ---

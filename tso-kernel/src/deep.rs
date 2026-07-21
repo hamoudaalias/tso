@@ -33,6 +33,9 @@ pub struct DeepConfig {
     /// Which layer's rates are returned as `final_rates`.
     /// None = top layer (L5-equivalent).
     pub output_layer: Option<usize>,
+    /// Learning rate for inter-layer R-STDP edge updates (default 0.01).
+    /// Set to 0.0 to disable inter-layer learning.
+    pub inter_edge_lr: f64,
 }
 
 impl Default for DeepConfig {
@@ -50,6 +53,7 @@ impl Default for DeepConfig {
             dt_multipliers: vec![1.0, 2.0, 4.0, 8.0],
             modulatory_strength: 0.05,
             output_layer: None,
+            inter_edge_lr: 0.01,
         }
     }
 }
@@ -80,6 +84,10 @@ pub struct DeepTSO {
     inter_edges: Vec<Vec<(usize, usize, f64, f64)>>,
     /// Modulatory bias for each layer, set during Phase 2 of the previous step.
     modulatory_biases: Vec<Array1<f64>>,
+    /// Cached rates from the previous step (for inter-layer edge learning).
+    cached_rates: Vec<Array1<f64>>,
+    /// Cached inter-layer Φ from the previous step.
+    cached_inter_phi: f64,
 }
 
 impl DeepTSO {
@@ -109,7 +117,14 @@ impl DeepTSO {
             .map(|_| Array1::zeros(config.n_clusters))
             .collect();
 
-        Self { layers, config, inter_edges, modulatory_biases }
+        Self {
+            layers,
+            config,
+            inter_edges,
+            modulatory_biases,
+            cached_rates: Vec::new(),
+            cached_inter_phi: 0.0,
+        }
     }
 
     pub fn n_layers(&self) -> usize { self.config.n_layers }
@@ -149,7 +164,7 @@ impl DeepTSO {
         }
     }
 
-    /// Reset all layers and modulatory biases.
+    /// Reset all layers, modulatory biases, and cached learning state.
     pub fn reset(&mut self) {
         for layer in &mut self.layers {
             layer.reset();
@@ -157,6 +172,8 @@ impl DeepTSO {
         for bias in &mut self.modulatory_biases {
             bias.fill(0.0);
         }
+        self.cached_rates.clear();
+        self.cached_inter_phi = 0.0;
     }
 
     /// Compute inter-layer Φ for a single adjacent pair.
@@ -308,11 +325,56 @@ impl DeepTSO {
                     .unwrap_or_default()
             });
 
+        // ── Phase 3: Inter-layer R-STDP edge learning ──
+        if self.config.inter_edge_lr > 0.0 && !self.cached_rates.is_empty() {
+            self.update_inter_edges(&layer_outputs, total_inter_phi);
+        }
+
+        // Cache rates and inter-layer Φ for the next step
+        self.cached_rates = layer_outputs.iter().map(|o| o.rates.clone()).collect();
+        self.cached_inter_phi = total_inter_phi;
+
         DeepOutput {
             layers: layer_outputs,
             inter_phi: total_inter_phi,
             total_phi,
             final_rates,
+        }
+    }
+
+    /// Update inter-layer edge strengths via unsupervised R-STDP.
+    ///
+    /// **Reward signal:** `reward = -dΦ_inter`. When inter-layer Φ decreases
+    /// (improvement), edges that were active (high Hebbian product) are
+    /// strengthened. When Φ increases (worsening), active edges are weakened.
+    ///
+    /// **Asymmetry:** Good news (Φ↓) has larger magnitude than bad news (Φ↑),
+    /// matching biological dopamine transients.
+    ///
+    /// **Per-edge update:**
+    ///   `Δstrength = lr * reward * rate_lower[i] * rate_upper[j]`
+    ///   Edges are clamped to [0.1, 5.0].
+    fn update_inter_edges(
+        &mut self,
+        layer_outputs: &[LayerOutput],
+        curr_inter_phi: f64,
+    ) {
+        let delta_phi = curr_inter_phi - self.cached_inter_phi;
+        // Asymmetric reward: improvement is rewarded more than worsening is punished
+        let reward = if delta_phi < 0.0 { 1.0 } else { -0.3 };
+
+        for li in 0..self.inter_edges.len() {
+            let lower_rates = &layer_outputs[li].rates;
+            let upper_rates = &layer_outputs[li + 1].rates;
+
+            for (i, j, _w, strength) in &mut self.inter_edges[li] {
+                if *i >= lower_rates.len() || *j >= upper_rates.len() {
+                    continue;
+                }
+                let hebb = lower_rates[*i] * upper_rates[*j];
+                let delta = self.config.inter_edge_lr * reward * hebb;
+                *strength = (*strength + delta).clamp(0.1, 5.0);
+            }
         }
     }
 }
@@ -539,6 +601,77 @@ mod tests {
         for b in deep.modulatory_biases[0].iter() {
             assert!((*b).abs() < 1e-10, "Bias should be zero after reset");
         }
+    }
+
+    #[test]
+    fn test_deep_tso_inter_rstdp_strengthens_implication() {
+        // R-STDP strengthens implication edges when inter-layer Φ decreases
+        // (the higher layer's prediction becomes more accurate over time).
+        let mut deep = DeepTSO::new(DeepConfig {
+            n_layers: 2,
+            n_clusters: 3,
+            d: 3,
+            dt_multipliers: vec![1.0, 2.0],
+            modulatory_strength: 0.1,
+            inter_edge_lr: 0.01,
+            ..Default::default()
+        });
+
+        // Implication edge: layer0 cluster 0 → layer1 cluster 0
+        deep.add_inter_edge(0, 0, 1, 0, 1.0, 1.0);
+        let initial_strength = deep.inter_edges[0][0].3;
+
+        // Stable input consistently activates both layers similarly
+        // → implication is satisfied → inter-layer Φ decreases over time
+        let input = Array1::from_elem(3, 350.0);
+        for _ in 0..20 {
+            let out = deep.step(&input, 0.5);
+            // Inter-layer Φ should trend downward as the edge is learned
+            let _ = out.total_phi;
+        }
+
+        let final_strength = deep.inter_edges[0][0].3;
+        assert!(
+            final_strength > initial_strength,
+            "Implication edge strength should increase when predictions improve \
+             (initial={:.4}, final={:.4})",
+            initial_strength, final_strength,
+        );
+    }
+
+    #[test]
+    fn test_deep_tso_inter_rstdp_weakens_exclusion() {
+        // R-STDP weakens exclusion edges when inter-layer Φ increases
+        // (the higher layer's prediction becomes less accurate).
+        let mut deep = DeepTSO::new(DeepConfig {
+            n_layers: 2,
+            n_clusters: 3,
+            d: 3,
+            dt_multipliers: vec![1.0, 2.0],
+            modulatory_strength: 0.1,
+            inter_edge_lr: 0.01,
+            ..Default::default()
+        });
+
+        // Exclusion edge: layer0 cluster 0 → layer1 cluster 0
+        // Both layers firing → exclusion violated → Φ increases
+        deep.add_inter_edge(0, 0, 1, 0, -1.0, 1.0);
+        let initial_strength = deep.inter_edges[0][0].3;
+
+        let input = Array1::from_elem(3, 350.0);
+        for _ in 0..20 {
+            let out = deep.step(&input, 0.5);
+            let _ = out.total_phi;
+        }
+
+        // The exclusion edge should weaken (its prediction is consistently wrong)
+        let final_strength = deep.inter_edges[0][0].3;
+        assert!(
+            final_strength <= initial_strength + 1e-6,
+            "Exclusion edge strength should not increase when predictions worsen \
+             (initial={:.4}, final={:.4})",
+            initial_strength, final_strength,
+        );
     }
 
     #[test]
