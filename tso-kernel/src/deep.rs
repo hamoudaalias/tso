@@ -290,6 +290,13 @@ impl DeepTSO {
                 for &i in &idxs[keep.min(idxs.len())..] {
                     rates[i] = 0.0;
                 }
+                // Force-fire: if all rates are zero (dead network), force-activate
+                // the top-k clusters with a minimal floor to restart dynamics.
+                if rates.iter().all(|&r| r == 0.0) {
+                    for &i in &idxs[..keep.min(idxs.len())] {
+                        rates[i] = 0.1;
+                    }
+                }
             }
             total_intra_phi += phi;
 

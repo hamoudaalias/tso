@@ -8,6 +8,7 @@ pub mod neurons;
 pub mod operators;
 pub mod pipeline;
 pub mod plasticity;
+pub mod projector;
 
 pub use attractor::SharpAttractorField;
 pub use core::TSOCore;
@@ -22,3 +23,4 @@ pub use neurons::{LIFCluster, LIFNeuron};
 pub use operators::TopographicOperator;
 pub use pipeline::{BatchConfig, BatchProcessor, SequenceOutput, StepOutput};
 pub use plasticity::{EligibilityTrace, RSTDPPlasticity};
+pub use projector::WordProjector;

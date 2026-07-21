@@ -1,6 +1,6 @@
 # TSO — Topographic Stabilization Operator
 
-**Une architecture neuromorphique où la friction topographique (Φ) remplace l'attention des Transformers. 100% Rust, zéro GPU, zéro gradient.**
+**Une architecture neuromorphique où la friction topographique (Φ) remplace l'attention des Transformers. 100% Rust, zéro GPU, zéro gradient, zéro SVD.**
 
 ---
 
@@ -8,7 +8,9 @@
 
 | Propriété | Résultat | vs Transformer |
 |-----------|----------|----------------|
-| SNLI test (classification) | **57.15%** (V15 DeepTSO 4L, 20D, 50 clusters, WTA 94% sparsity) | +0.46% vs V13, parcimonie garantie |
+| SNLI test (classification) | **56.31%** (V16 Cold Start — projections aléatoires, 4L DeepTSO, R-STDP pur) | Apprentissage endogène *ex nihilo* |
+| SNLI test (Warm Start SVD) | **56.50%** (V16 Warm — départ SVD, Δ=0.19% vs Cold) | Écart nul : SVD non nécessaire |
+| SNLI dev (optimal) | **57.15%** (V15 — 4L DeepTSO, WTA 94% sparsity, SVD) | +0.46% vs V13, parcimonie garantie |
 | Temps d'entraînement | **~10 minutes** (CPU 28 cœurs, WTA + pré-entraînement R-STDP) | vs ~30 min sur GPU |
 | Apprentissage continu | **Δ = 0.00%** (oubli catastrophique vaincu) | Impossible sans EWC/replay |
 | Scalabilité | **V=10⁶ en 95s** (SVD randomisée, 800 MB) | vs ~3 Go pour embeddings Transformer |
@@ -41,6 +43,10 @@ cargo run --release --bin tso-bench deval data/snli_1.0/snli_1.0/snli_1.0_train.
 # DeepTSO V15 — 4 couches, WTA 5%, pré-entraînement non supervisé
 cargo run --release --bin tso-bench deval data/snli_1.0/snli_1.0/snli_1.0_train.jsonl \
   data/snli_1.0/snli_1.0/snli_1.0_dev.jsonl 50 4
+
+# DeepTSO V16 — Cold Start : projections aléatoires, zéro SVD
+cargo run --release --bin tso-bench deval data/snli_1.0/snli_1.0/snli_1.0_train.jsonl \
+  data/snli_1.0/snli_1.0/snli_1.0_test.jsonl 50 4 --cold-start
 ```
 
 ---
@@ -70,7 +76,7 @@ Le système navigue le graphe de friction par **Inverse Motor** : $w_{t+1} = \ar
 | Multi-Head Attention | Triple-LIF (α=0.9 lent / α=0.7 moyen / α=0.5 rapide) | `decoder.rs` |
 | Backpropagation | R-STDP (plasticité locale, zéro gradient) | `plasticity.rs` |
 | Tête de classification | AttractorField (k-means + LVQ1) | `attractor.rs` |
-| Embedding / Projection | Double Mapping / Inverse Motor (intersection dot) | `operators.rs`, `decoder.rs` |
+| Embedding / Projection | Double Mapping / Inverse Motor (intersection dot) / **WordProjector (V16, R-STDP)** | `operators.rs`, `decoder.rs`, `projector.rs` |
 | Padding global de l'expansion | Expansion Asynchrone (V10, dimensions variables) | `decoder.rs` (Vec<Array1>, ensure_dim) |
 | Positional Encoding | Trace temporelle LIF | `neurons.rs` |
 | Critic (évaluation globale) | Onde de Choc Locale (V8) | `friction.rs` (LocalWaveCritic) |
@@ -80,9 +86,9 @@ Le système navigue le graphe de friction par **Inverse Motor** : $w_{t+1} = \ar
 
 ---
 
-## État du projet (v15.0)
+## État du projet (v16.0 — Tabula Rasa)
 
-- [x] Classification SNLI (57.15% dev, V15 DeepTSO 4L + WTA + pré-entraînement, ~10min CPU)
+- [x] Classification SNLI (57.15% dev V15, 56.31% test V16 Cold Start — 4L DeepTSO + WTA + pré-entraînement, ~10min CPU)
 - [x] Dual-LIF multi-échelle (mémoire lente + rapide)
 - [x] Apprentissage continu (oubli catastrophique vaincu structuralement)
 - [x] Scalabilité jusqu'à V=10⁶ (95s, 800 MB, pas de GPU)
@@ -97,6 +103,7 @@ Le système navigue le graphe de friction par **Inverse Motor** : $w_{t+1} = \ar
 - [x] **Coupe-Circuit de Fatigue V13** — isolement temporaire des nœuds pour briser les boucles paradoxales
 - [x] **DeepTSO V14** — cycle cortical à 2 phases, Φ inter-couche, modulation top-down, R-STDP inter-couches
 - [x] **DeepTSO V15** — WTA (94% sparsity garantie), pré-entraînement non supervisé 11M mots, input scaling LIF
+- [x] **V16 Tabula Rasa** — WordProjector appris par R-STDP, Cold Start 56.31% (écart 0.19% vs SVD), système 100% autonome, zéro SVD
 - [ ] Benchmark énergétique RAPL (nécessite machine Linux native)
 
 ---
