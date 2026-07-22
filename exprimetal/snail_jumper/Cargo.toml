@@ -1,0 +1,9 @@
+[package]
+name = "tso-snail-jumper"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+tso-engine = { path = "../../tso-engine" }
+ndarray = "0.16"
+rand = "0.8"

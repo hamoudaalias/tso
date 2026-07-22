@@ -26,6 +26,7 @@ exprimetal/
 | NLP | SNLI (550k train, 10k test) | **43.9%** | 33.3% (majority) |
 | Continual Learning | 3 sequential SNLI tasks | **0.8 pt forgetting** | 15-20 pts (dense nets) |
 | RL | GridWorld 8×6 (100 ep) | **73% success** | 0% (random) |
+| Neuroevolution | Snail Jumper (50 gen) | **722 score** | — |
 | Graph Resolution | 61k nodes, 1.66M edges | **0.84s** | — |
 
 ## Properties
