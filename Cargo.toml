@@ -1,0 +1,3 @@
+[workspace]
+resolver = "3"
+members = ["tso-engine", "exprimetal/nlp", "exprimetal/game"]
