@@ -56,10 +56,10 @@ impl TSOAgent {
         let state = self.encode_state(game);
         if !game.alive {
             while self.field.n_classes() <= 1 { self.field.add_class(&state); }
-            self.field.add_prototype(&state, 1);
-        } else {
-            while self.field.n_classes() == 0 { self.field.add_class(&state); }
-            self.field.add_prototype(&state, 0);
+            let (_, dist) = self.field.predict_with_distance(&state);
+            if dist > 0.3 {
+                self.field.add_prototype(&state, 1);
+            }
         }
     }
 }

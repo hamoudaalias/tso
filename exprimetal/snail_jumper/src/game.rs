@@ -70,7 +70,7 @@ impl GameState {
         if self.alive {
             self.score = self.frame / 6;
 
-        if self.frame > 10000 {
+        if self.frame > 5000 {
             self.alive = false;
         }
         }
