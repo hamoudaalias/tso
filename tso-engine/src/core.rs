@@ -109,7 +109,35 @@ impl Graph {
         id
     }
 
+    pub fn find_similar_node(&self, z: &Array1<f64>, tol: f64) -> Option<NodeId> {
+        for (i, n) in self.nodes.iter().enumerate() {
+            let d = n.dot(z);
+            let na = n.dot(n).sqrt().max(1e-12);
+            let nb = z.dot(z).sqrt().max(1e-12);
+            let sim = d / (na * nb);
+            if sim > tol {
+                return Some(i);
+            }
+        }
+        None
+    }
+
+    pub fn add_transition(&mut self, from: &Array1<f64>, to: &Array1<f64>, reward: f64) -> (NodeId, NodeId) {
+        let from_id = self.find_similar_node(from, 0.95)
+            .unwrap_or_else(|| self.add_node(from.clone()));
+        let to_id = self.find_similar_node(to, 0.95)
+            .unwrap_or_else(|| self.add_node(to.clone()));
+        let weight = if reward > 0.5 { 2 }
+                     else if reward < -0.1 { -1 }
+                     else { 1 };
+        self.add_edge(from_id, to_id, weight);
+        (from_id, to_id)
+    }
+
     pub fn add_edge(&mut self, from: NodeId, to: NodeId, weight: i8) {
+        if self.edge_map.contains_key(&(from, to)) {
+            return;
+        }
         let idx = self.edges.len();
         self.edges.push(Edge { from, to, weight });
         self.adj[from].push(idx);

@@ -1,0 +1,13 @@
+[package]
+name = "tso-pyo3"
+version = "0.1.0"
+edition = "2024"
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+tso-engine = { path = "../../tso-engine" }
+pyo3 = "0.29"
+ndarray = "0.16"
+rand = "0.8"

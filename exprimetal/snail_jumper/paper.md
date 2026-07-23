@@ -26,3 +26,12 @@ Traditional neuroevolution requires backpropagation-amenable architectures.
 TSO replaces this with geometric prototype evolution: the fittest agents
 are those whose LVQ1 prototypes best separate safe states from dangerous
 states in cosine distance space.
+
+### Cross-Reference: MiniGrid One-Shot
+
+The LVQ1 prototype mechanism used in Snail Jumper is the same primitive
+that drives **geometric binding** in the MiniGrid one-shot matching task
+(see `exprimetal/game/paper.md`, Section 3). In both cases, the agent
+stores a prototypical state-action vector — whether evolved over
+generations (Snail Jumper) or learned in a single trial via
+WorkingMemory (OneShot-v0; NORMAL 100% vs AMNÉSIQUE 0%). This demonstrates that TSO's prototype mechanism supports both evolutionary and instant learning within the same geometric framework.
