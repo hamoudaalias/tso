@@ -20,17 +20,52 @@ exprimetal/
 └── minigrid_py/   # MiniGrid agent & OneShot-v0 environment
 ```
 
-## Key Results
+## Validation Report
 
-| Domain | Benchmark | Result | vs Baseline |
-|--------|-----------|--------|-------------|
-| NLP | SNLI (550k train, 10k test) | **43.9%** | 33.3% (majority) |
-| Continual Learning | 3 sequential SNLI tasks | **0.8 pt forgetting** | 15-20 pts (dense nets) |
-| RL | GridWorld 8×6 (100 ep) | **73% success** | 0% (random) |
-| RL | MiniGrid MemoryS7 (100 ep) | **47% navigation** | — |
-| **One-Shot** | **OneShot-v0 (50 ep)** | **100% discrimination** | **sim=1.0 vs sim≈0.0** |
-| Neuroevolution | Snail Jumper (50 gen) | **722 score** | — |
-| Graph Resolution | 61k nodes, 1.66M edges | **0.84s** | — |
+### ✅ Cognitive Proofs (Memory & One-Shot)
+
+| Test | NORMAL | AMNÉSIQUE | Δ | Status |
+|------|--------|-----------|---|--------|
+| **OneShot-v0** — object matching via AssociativeMemory | **100%** | 0% | **+100%** | Definitive |
+| **T-Maze** — episodic recall via EpisodicMemory | **100%** | 0% | **+100%** | Definitive |
+| **Procgen Heist** — working memory + exploration | **87%** | 50% | **+37%** | Strong |
+| **Recursive Maze** — procedural maze episodic recall | **59%** | 22% | **+37%** | Validated |
+
+### ⚙️ RL & Motor Learning
+
+| Benchmark | Result | Baseline | Status |
+|-----------|--------|----------|--------|
+| SNLI (NLP without backprop) | **43.9%** | 33.3% (majority) | Functional |
+| Continual Learning (3 tasks) | **0.8 pt forgetting** | 15-20 pts (dense nets) | Functional |
+| GridWorld 8×6 | **73% success** | 0% (random) | Functional |
+| Procgen 16-env (V2) | **6/16 wins** | 0/16 (random) | Partial |
+| Procgen 16-env (V3) | **1/16 wins** | 0/16 (random) | Partial |
+| MiniGrid MemoryS7 | **14% success** | — | Weak |
+| Atari Pong/Breakout | ≤ Random | — | Chain valid |
+| Snail Jumper (neuroevolution) | **722 score** | — | Functional |
+
+### Architecture
+
+```
+tso-engine/        # Cognitive engine (modality-independent)
+├── core           # Graph, Φ, Critic, Actor, resolve
+├── neurons        # LIF, Dual-LIF reservoirs
+├── attractor      # LVQ1 attractor field (one-shot capable)
+├── episodic       # Episodic memory (suffix-prefix matching)
+├── memory         # Associative memory (k-NN cosine)
+├── working_memory # DualLIF + AssociativeMemory
+├── action         # ActionMotor (alignment-based selection)
+└── cerebellum     # Reward-modulated Hebbian learning
+
+exprimetal/
+├── nlp/           # NLP implementation (SNLI)
+├── game/          # RL — GridWorld
+├── snail_jumper/  # Neuroevolution
+├── tso_pyo3/      # Python bindings (maturin + PyO3)
+├── minigrid_py/   # MiniGrid agents & OneShot-v0
+├── procgen/       # Procgen 16-env benchmark
+└── atari_py/      # Atari Pong/Breakout validation
+```
 
 ## Properties
 

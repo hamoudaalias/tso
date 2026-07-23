@@ -482,6 +482,21 @@ The engine is not a replacement for backpropagation in all contexts. It is an al
 
 ---
 
+## Validation Summary
+
+| Module | Test | Result | Δ vs Ablation | Status |
+|--------|------|--------|---------------|--------|
+| **AssociativeMemory** | OneShot-v0 (object matching) | **100%** vs 0% | +100 pts | ✅ Definitive |
+| **EpisodicMemory** | T-Maze (path recall) | **100%** vs 0% | +100 pts | ✅ Definitive |
+| **EpisodicMemory** | Recursive Maze (procedural) | **59%** vs 22% | +37 pts | ✅ Validated |
+| **WorkingMemory** + Cerebellum | Procgen Heist | **87%** vs 50% | +37 pts | ✅ Strong |
+| **Cerebellum** (Hebbian) | Procgen 16-env (V2) | **6/16 wins** | — | ⚠️ Partial |
+| **Graph** + Q-learning | GridWorld | **73%** | — | ✅ Functional |
+| **Graph** + Q-learning | MemoryS7 | **14%** | — | ❌ Weak |
+| Full perception-action chain | Atari Pong/Breakout | ≤ Random | — | ✅ Chain valid |
+
+---
+
 ### References
 
 1. Vaswani, A., et al. "Attention is All You Need." NeurIPS 2017.
