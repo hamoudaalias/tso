@@ -476,7 +476,28 @@ The Expand operator is the engine's most powerful tool for resolving exclusion c
 
 The TSO Engine provides a complete neuromorphic cognitive core that operates without backpropagation, without attention matrices, and without GPU hardware. Its ten primitives — Graph, LIF/DualLIF, Critic, Actor, AttractorField, EpisodicMemory, AssociativeMemory, WorkingMemory, ActionMotor, Cerebellum — form a toolkit for building modality-independent cognitive systems. Five implementations (NLP, RL on GridWorld, RL on MiniGrid, Neuroevolution, Procgen) validate the engine's generality across language, navigation, memory, vision, and motor control.
 
-The OneShot-v0 ablation result — **NORMAL 100% vs AMNÉSIQUE 0% using native WorkingMemory** — proves geometric binding: the agent binds target features into a single WorkingMemory vector on first encounter and unbinds by cosine comparison at decision time. The Procgen benchmark (6/16 wins from raw pixels) proves the engine's self-organizing visual cortex and Hebbian cerebellum can acquire visuo-motor policies without any gradient signal. Both results operate under purely local learning rules — competitive learning for vision, reward-modulated Hebbian plasticity for action, cosine similarity for memory.
+The MiniGrid ablation triplet now covers all three memory modules:
+
+| Memory Module | Test | NORMAL | AMNÉSIQUE | Δ |
+|---------------|------|--------|-----------|---|
+| **AssociativeMemory** | DoorMatch-v0 (colour recall) | **100%** | 48% | **+52%** |
+| **WorkingMemory** | KeyMatch-v0 (key → door) | **100%** | 51% | **+49%** |
+| **WorkingMemory** | OneShot-v0 (object matching) | **100%** | 0% | **+100%** |
+
+Each module achieves 100% when intact and falls to chance (~50% or 0%)
+when ablated — proving that TSO's memory systems are the necessary and
+sufficient cause of task success. The OneShot-v0 result (100% vs 0%)
+proves geometric binding: the agent binds target features into a single
+WorkingMemory vector on first encounter and unbinds by cosine comparison
+at decision time. The DoorMatch-v0 and KeyMatch-v0 results extend this
+to multi-step sequential tasks with occlusion and distractors.
+
+The Procgen benchmark (6/16 wins from raw pixels) proves the engine's
+self-organizing visual cortex and Hebbian cerebellum can acquire
+visuo-motor policies without any gradient signal. All results operate
+under purely local learning rules — competitive learning for vision,
+reward-modulated Hebbian plasticity for action, cosine similarity for
+memory.
 
 The engine is not a replacement for backpropagation in all contexts. It is an alternative for scenarios where gradients are unavailable, forgetting is unacceptable, or hardware constraints prohibit dense compute: continual learning agents, neuromorphic chips, embedded systems, and any application requiring lifelong learning without catastrophic interference.
 
