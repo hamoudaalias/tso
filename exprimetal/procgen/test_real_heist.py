@@ -7,7 +7,7 @@ Ablation : NORMAL (mémoire persistante) vs AMNÉSIQUE (reset chaque step).
 import sys, random
 sys.path.insert(0, "exprimetal/procgen")
 import numpy as np
-import gym
+import gym, procgen
 from tso_pyo3 import AssociativeMemory, DualLIFState, ActionMotor
 
 
