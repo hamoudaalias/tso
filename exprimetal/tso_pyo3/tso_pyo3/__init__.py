@@ -8,6 +8,7 @@ from ._core import (
     AssociativeMemory,
     WorkingMemory,
     ActionMotor,
+    Cerebellum,
 )
 
 __all__ = [
@@ -20,4 +21,5 @@ __all__ = [
     "AssociativeMemory",
     "WorkingMemory",
     "ActionMotor",
+    "Cerebellum",
 ]

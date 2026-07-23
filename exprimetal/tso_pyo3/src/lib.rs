@@ -6,6 +6,7 @@ use tso_engine::episodic::{ContextBuffer, EpisodicMemory};
 use tso_engine::memory::AssociativeMemory;
 use tso_engine::neurons::{DualLIFState, LIFState};
 use tso_engine::working_memory::WorkingMemory;
+use tso_engine::cerebellum::Cerebellum;
 
 fn vec_to_array(v: Vec<f64>) -> Array1<f64> {
     Array1::from_vec(v)
@@ -314,6 +315,41 @@ impl PyActionMotor {
     }
 }
 
+#[pyclass(name = "Cerebellum", module = "tso_pyo3")]
+struct PyCerebellum {
+    inner: Cerebellum,
+}
+
+#[pymethods]
+impl PyCerebellum {
+    #[new]
+    fn new(dim: usize, n_actions: usize, lr: f64, noise_std: f64) -> Self {
+        PyCerebellum {
+            inner: Cerebellum::new(dim, n_actions, lr, noise_std),
+        }
+    }
+
+    fn forward(&self, concept: Vec<f64>) -> usize {
+        self.inner.forward(&vec_to_array(concept))
+    }
+
+    fn learn(&mut self, concept: Vec<f64>, action: usize, reward: f64) {
+        self.inner.learn(&vec_to_array(concept), action, reward);
+    }
+
+    fn reset(&mut self) {
+        self.inner.reset();
+    }
+
+    fn get_weight(&self, i: usize, a: usize) -> f64 {
+        if i < self.inner.w.len() && a < self.inner.w[0].len() {
+            self.inner.w[i][a]
+        } else {
+            0.0
+        }
+    }
+}
+
 #[pymodule]
 fn _core(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<PyLIFState>()?;
@@ -325,5 +361,6 @@ fn _core(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<PyAssociativeMemory>()?;
     m.add_class::<PyWorkingMemory>()?;
     m.add_class::<PyActionMotor>()?;
+    m.add_class::<PyCerebellum>()?;
     Ok(())
 }
