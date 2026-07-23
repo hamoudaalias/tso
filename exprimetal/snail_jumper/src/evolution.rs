@@ -4,7 +4,7 @@ use crate::game::GameState;
 
 const POP_SIZE: usize = 100;
 const EMBED_DIM: usize = 8;
-const GENERATIONS: usize = 10;
+const GENERATIONS: usize = 20;
 
 pub struct Evolution {
     pub agents: Vec<TSOAgent>,

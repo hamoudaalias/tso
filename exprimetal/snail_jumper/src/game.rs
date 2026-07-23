@@ -4,6 +4,7 @@ use rand::Rng;
 pub struct Obstacle {
     pub x: f64,
     pub y: f64,
+    pub width: f64,
 }
 
 pub struct GameState {
@@ -38,18 +39,24 @@ impl GameState {
         self.frame += 1;
 
         if action_left {
-            self.player_x = (self.player_x - 4.0).max(10.0);
+            self.player_x = (self.player_x - 5.0).max(10.0);
         } else {
-            self.player_x = (self.player_x + 4.0).min(self.screen_w - 10.0);
+            self.player_x = (self.player_x + 5.0).min(self.screen_w - 10.0);
         }
 
-        self.spawn_timer += 1;
+        self.speed = 3.0 + self.frame as f64 * 0.002;
+
         let mut rng = rand::thread_rng();
-        if self.spawn_timer > 20 + rng.gen_range(0..20) {
+        let spawn_interval = (40.0 - self.speed * 2.0).max(8.0) as u64;
+        self.spawn_timer += 1;
+        if self.spawn_timer >= spawn_interval {
             self.spawn_timer = 0;
+            let mut ox = self.player_x + rng.gen_range(-80.0..80.0);
+            ox = ox.clamp(10.0, self.screen_w - 10.0);
             self.obstacles.push(Obstacle {
-                x: rng.gen_range(10.0..self.screen_w - 10.0),
+                x: ox,
                 y: -20.0,
+                width: 22.0,
             });
         }
 
@@ -58,10 +65,11 @@ impl GameState {
         }
         self.obstacles.retain(|o| o.y < self.screen_h + 20.0);
 
+        let player_w = 20.0;
         for obs in &self.obstacles {
-            let dx = self.player_x - obs.x;
-            let dy = self.screen_h - 50.0 - obs.y;
-            if dx.abs() < 15.0 && dy.abs() < 20.0 {
+            let dx = (self.player_x - obs.x).abs();
+            let dy = (self.screen_h - 55.0 - obs.y).abs();
+            if dx < (player_w + obs.width) / 2.0 && dy < 22.0 {
                 self.alive = false;
                 break;
             }
@@ -69,10 +77,10 @@ impl GameState {
 
         if self.alive {
             self.score = self.frame / 6;
-
-        if self.frame > 5000 {
-            self.alive = false;
         }
+
+        if self.frame > 8000 {
+            self.alive = false;
         }
     }
 
