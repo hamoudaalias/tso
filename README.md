@@ -28,6 +28,8 @@ exprimetal/
 |------|--------|-----------|---|--------|
 | **OneShot-v0** — object matching via AssociativeMemory | **100%** | 0% | **+100%** | Definitive |
 | **T-Maze** — episodic recall via EpisodicMemory | **100%** | 0% | **+100%** | Definitive |
+| **DoorMatch-v0** — color recall via AssociativeMemory | **100%** | 48% | **+52%** | Definitive |
+| **KeyMatch-v0** — key→door via WorkingMemory | **100%** | 51% | **+49%** | Definitive |
 | **Procgen Heist** — working memory + exploration | **87%** | 50% | **+37%** | Strong |
 | **Recursive Maze** — procedural maze episodic recall | **59%** | 22% | **+37%** | Validated |
 

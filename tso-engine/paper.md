@@ -464,7 +464,7 @@ The Expand operator is the engine's most powerful tool for resolving exclusion c
 3. **Multi-timescale memory:** Generalize Dual-LIF to $N$ reservoirs with distinct timescales for hierarchical temporal processing.
 4. **Structured edges:** Extend edge weights to vectors or tensors representing complex relations beyond binary implication/exclusion.
 5. **Hardware mapping:** Map the engine's primitives to event-driven neuromorphic chips (e.g., Intel Loihi, IBM TrueNorth), leveraging the zero-backpropagation and event-driven properties.
-6. **Graph-based multi-step planning:** Extend the Graph and AssociativeMemory to plan multi-step sequences (key → door → goal) for environments like MiniGrid KeyCorridor and RedBlueDoors, encoding subtask transitions as implication edges.
+6. **Graph-based multi-step planning:** Extend the Graph and AssociativeMemory to plan multi-step sequences (key → door → goal) for environments like MiniGrid KeyCorridor and RedBlueDoors, encoding subtask transitions as implication edges. [Note 2026-07: AssociativeMemory and WorkingMemory now validated by ablation on DoorMatch-v0 and KeyMatch-v0 — 100% vs ~50%.]
 7. **Episodic memory replay:** Store successful navigation sequences and replay them during exploration to accelerate learning on sparse-reward tasks.
 8. **OneShot-v0 as standard benchmark:** Release the custom MiniGrid environment as a standard benchmark for one-shot visual working memory in reinforcement learning.
 9.  **Deepened Cerebellum:** Extend the Hebbian Cerebellum with multi-layer or recurrent connectivity to handle nonlinear action separations, replacing the current linear associator with a shallow plastic network.
