@@ -12,9 +12,7 @@ impl AttractorField {
         for _ in 0..n_classes {
             let mut class_ps = Vec::new();
             for _ in 0..k {
-                let mut v: Array1<f64> = (0..dim).map(|_| rand::random::<f64>() * 2.0 - 1.0).collect();
-                let n = v.dot(&v).sqrt().max(1e-12);
-                v /= n;
+                let v: Array1<f64> = (0..dim).map(|_| rand::random::<f64>() * 0.5).collect();
                 class_ps.push(v);
             }
             prototypes.push(class_ps);
@@ -22,11 +20,8 @@ impl AttractorField {
         AttractorField { prototypes, lr }
     }
 
-    fn cosine_dist(a: &Array1<f64>, b: &Array1<f64>) -> f64 {
-        let dot = a.dot(b);
-        let na = a.dot(a).sqrt().max(1e-12);
-        let nb = b.dot(b).sqrt().max(1e-12);
-        1.0 - (dot / (na * nb))
+    fn euclidean_dist(a: &Array1<f64>, b: &Array1<f64>) -> f64 {
+        (a - b).dot(&(a - b)).sqrt()
     }
 
     pub fn predict(&self, state: &Array1<f64>) -> usize {
@@ -34,7 +29,7 @@ impl AttractorField {
         let mut best_dist = f64::MAX;
         for (c, protos) in self.prototypes.iter().enumerate() {
             for p in protos {
-                let d = Self::cosine_dist(state, p);
+                let d = Self::euclidean_dist(state, p);
                 if d < best_dist {
                     best_dist = d;
                     best_class = c;
@@ -48,7 +43,7 @@ impl AttractorField {
         let mut dists: Vec<(f64, usize, usize)> = Vec::new();
         for (c, protos) in self.prototypes.iter().enumerate() {
             for (i, p) in protos.iter().enumerate() {
-                let d = Self::cosine_dist(state, p);
+                let d = Self::euclidean_dist(state, p);
                 dists.push((d, c, i));
             }
         }
@@ -62,32 +57,29 @@ impl AttractorField {
             let dir_repel = state - &self.prototypes[best_c][best_k];
             self.prototypes[best_c][best_k] = &self.prototypes[best_c][best_k] - self.lr * dir_repel;
 
-            for &(_, c, k) in &dists[..2] {
-                if c == true_label {
-                    let dir = state - &self.prototypes[c][k];
-                    self.prototypes[c][k] = &self.prototypes[c][k] + self.lr * dir;
-                    break;
+            let mut best_true_dist = f64::MAX;
+            let mut best_true_k = 0;
+            for (k, p) in self.prototypes[true_label].iter().enumerate() {
+                let d = Self::euclidean_dist(state, p);
+                if d < best_true_dist {
+                    best_true_dist = d;
+                    best_true_k = k;
                 }
             }
+            let dir = state - &self.prototypes[true_label][best_true_k];
+            self.prototypes[true_label][best_true_k] = &self.prototypes[true_label][best_true_k] + self.lr * dir;
         }
     }
 
-    /// One-shot: add a prototype from a single example.
-    /// Returns the new class index.
     pub fn add_class(&mut self, example: &Array1<f64>) -> usize {
-        let mut v = example.clone();
-        let n = v.dot(&v).sqrt().max(1e-12);
-        v /= n;
+        let v = example.clone();
         let c = self.prototypes.len();
         self.prototypes.push(vec![v]);
         c
     }
 
-    /// Add a prototype to an existing class (for multi-prototype refinement).
     pub fn add_prototype(&mut self, example: &Array1<f64>, class: usize) {
-        let mut v = example.clone();
-        let n = v.dot(&v).sqrt().max(1e-12);
-        v /= n;
+        let v = example.clone();
         while self.prototypes.len() <= class {
             self.prototypes.push(Vec::new());
         }
@@ -103,7 +95,7 @@ impl AttractorField {
         let mut best_dist = f64::MAX;
         for (c, protos) in self.prototypes.iter().enumerate() {
             for p in protos {
-                let d = Self::cosine_dist(state, p);
+                let d = Self::euclidean_dist(state, p);
                 if d < best_dist {
                     best_dist = d;
                     best_class = c;

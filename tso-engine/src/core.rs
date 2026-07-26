@@ -1,9 +1,6 @@
 use ndarray::Array1;
 use std::collections::{HashMap, HashSet};
 
-pub const GAMMA: f64 = 0.7;
-pub const EPSILON: f64 = 0.0;
-
 pub type NodeId = usize;
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -31,7 +28,6 @@ impl ConflictType {
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum Action {
     Invert(NodeId),
-    Expand(NodeId, NodeId),
     Align(NodeId, NodeId),
 }
 
@@ -39,43 +35,25 @@ impl Action {
     pub fn index(&self) -> usize {
         match self {
             Action::Invert(_) => 0,
-            Action::Expand(_, _) => 1,
-            Action::Align(_, _) => 2,
+            Action::Align(_, _) => 1,
         }
     }
 
     pub fn apply_to_graph(&self, graph: &mut Graph) {
-        match *self {
-            Action::Invert(id) => graph.nodes[id].mapv_inplace(|x| -x),
-            Action::Expand(a, b) => {
-                let d = graph.nodes[a].len();
-                for i in 0..graph.nodes.len() {
-                    let z = std::mem::replace(&mut graph.nodes[i], Array1::zeros(2 * d));
-                    if i == a {
-                        let mut extended = Array1::zeros(2 * d);
-                        extended.slice_mut(ndarray::s![..d]).assign(&z);
-                        graph.nodes[i] = extended;
-                    } else if i == b {
-                        let mut extended = Array1::zeros(2 * d);
-                        extended.slice_mut(ndarray::s![d..]).assign(&z);
-                        graph.nodes[i] = extended;
-                    } else {
-                        let mut extended = Array1::zeros(2 * d);
-                        extended.slice_mut(ndarray::s![..d]).assign(&z);
-                        graph.nodes[i] = extended;
-                    }
-                }
+        match self {
+            Action::Invert(id) => {
+                graph.nodes[*id].mapv_inplace(|x| -x);
             }
             Action::Align(a, b) => {
-                let sum = &graph.nodes[a] + &graph.nodes[b];
+                let sum = &graph.nodes[*a] + &graph.nodes[*b];
                 let norm = sum.dot(&sum).sqrt();
                 if norm > 1e-12 {
-                    graph.nodes[a] = &sum / norm;
-                    graph.nodes[b] = &sum / norm;
+                    graph.nodes[*a] = &sum / norm;
+                    graph.nodes[*b] = &sum / norm;
                 } else {
-                    let unit = &graph.nodes[a] / graph.nodes[a].dot(&graph.nodes[a]).sqrt().max(1e-12);
-                    graph.nodes[a] = unit.clone();
-                    graph.nodes[b] = unit;
+                    let unit = &graph.nodes[*a] / graph.nodes[*a].dot(&graph.nodes[*a]).sqrt().max(1e-12);
+                    graph.nodes[*a] = unit.clone();
+                    graph.nodes[*b] = unit;
                 }
             }
         }
@@ -95,11 +73,31 @@ pub struct Graph {
     pub edges: Vec<Edge>,
     edge_map: HashMap<(NodeId, NodeId), i8>,
     adj: Vec<Vec<usize>>,
+    pub gamma: f64,
+    pub epsilon: f64,
 }
 
 impl Graph {
     pub fn new() -> Self {
-        Graph { nodes: Vec::new(), edges: Vec::new(), edge_map: HashMap::new(), adj: Vec::new() }
+        Graph {
+            nodes: Vec::new(),
+            edges: Vec::new(),
+            edge_map: HashMap::new(),
+            adj: Vec::new(),
+            gamma: 0.7,
+            epsilon: 0.0,
+        }
+    }
+
+    pub fn with_params(gamma: f64, epsilon: f64) -> Self {
+        Graph {
+            nodes: Vec::new(),
+            edges: Vec::new(),
+            edge_map: HashMap::new(),
+            adj: Vec::new(),
+            gamma,
+            epsilon,
+        }
     }
 
     pub fn add_node(&mut self, z: Array1<f64>) -> NodeId {
@@ -161,8 +159,8 @@ impl Graph {
     pub fn edge_phi(&self, e: &Edge) -> f64 {
         let dot = self.nodes[e.from].dot(&self.nodes[e.to]);
         match e.weight {
-            1 => (GAMMA - dot).max(0.0),
-            -1 => (dot - EPSILON).max(0.0),
+            1 => (self.gamma - dot).max(0.0),
+            -1 => (dot - self.epsilon).max(0.0),
             _ => 0.0,
         }
     }
@@ -182,8 +180,8 @@ impl Graph {
             if activation > 1e-12 {
                 let dot = e.dot(&self.nodes[other_id]);
                 let phi = match edge.weight {
-                    1 => (GAMMA - dot).max(0.0),
-                    -1 => (dot - EPSILON).max(0.0),
+                    1 => (self.gamma - dot).max(0.0),
+                    -1 => (dot - self.epsilon).max(0.0),
                     _ => 0.0,
                 };
                 total += activation * phi;
@@ -264,17 +262,7 @@ impl Critic {
                     let dot = if ee.from == *id { inv.dot(&graph.nodes[ee.to]) }
                               else if ee.to == *id { graph.nodes[ee.from].dot(&inv) }
                               else { graph.nodes[ee.from].dot(&graph.nodes[ee.to]) };
-                    match ee.weight { 1 => (GAMMA - dot).max(0.0), -1 => (dot - EPSILON).max(0.0), _ => 0.0 }
-                }).sum()
-            }
-            Action::Expand(_a, b) => {
-                incident.iter().map(|&idx| {
-                    let ee = &graph.edges[idx];
-                    if ee.from == *b || ee.to == *b {
-                        match ee.weight { 1 => GAMMA, -1 => 0.0, _ => 0.0 }
-                    } else {
-                        graph.edge_phi(ee)
-                    }
+                    match ee.weight { 1 => (graph.gamma - dot).max(0.0), -1 => (dot - graph.epsilon).max(0.0), _ => 0.0 }
                 }).sum()
             }
             Action::Align(a, b) => {
@@ -296,7 +284,7 @@ impl Critic {
                               else if ee.from == *b { nv.dot(&graph.nodes[ee.to]) }
                               else if ee.to == *b { graph.nodes[ee.from].dot(&nv) }
                               else { graph.nodes[ee.from].dot(&graph.nodes[ee.to]) };
-                    match ee.weight { 1 => (GAMMA - dot).max(0.0), -1 => (dot - EPSILON).max(0.0), _ => 0.0 }
+                    match ee.weight { 1 => (graph.gamma - dot).max(0.0), -1 => (dot - graph.epsilon).max(0.0), _ => 0.0 }
                 }).sum()
             }
         };
@@ -304,9 +292,9 @@ impl Critic {
         phi_after - phi_before
     }
 
-    pub fn evaluate_all(graph: &Graph, conflict_edge_idx: usize, a: NodeId, b: NodeId) -> ([f64; 3], usize) {
-        let actions = [Action::Invert(b), Action::Expand(a, b), Action::Align(a, b)];
-        let mut deltas = [0.0; 3];
+    pub fn evaluate_all(graph: &Graph, conflict_edge_idx: usize, a: NodeId, b: NodeId) -> ([f64; 2], usize) {
+        let actions = [Action::Invert(b), Action::Align(a, b)];
+        let mut deltas = [0.0; 2];
         let mut best_idx = 0;
         for (i, act) in actions.iter().enumerate() {
             deltas[i] = Critic::evaluate(graph, conflict_edge_idx, act);
@@ -322,14 +310,14 @@ impl Critic {
 // Actor
 // ---------------------------------------------------------------------------
 pub struct Actor {
-    q: [[f64; 3]; 2],
+    q: [[f64; 2]; 2],
     epsilon: f64,
     eta: f64,
 }
 
 impl Actor {
     pub fn new(epsilon: f64, eta: f64) -> Self {
-        Actor { q: [[0.0; 3]; 2], epsilon, eta }
+        Actor { q: [[0.0; 2]; 2], epsilon, eta }
     }
 
     pub fn reinforce(&mut self, conflict: ConflictType, action: &Action, reward: f64) {
@@ -338,6 +326,15 @@ impl Actor {
 
     pub fn decay_epsilon(&mut self, factor: f64) {
         self.epsilon = (self.epsilon * factor).max(0.05);
+    }
+
+    pub fn propose(&self, conflict: ConflictType) -> usize {
+        if rand::random::<f64>() < self.epsilon {
+            rand::random::<usize>() % 2
+        } else {
+            let q_values = &self.q[conflict.index()];
+            if q_values[0] >= q_values[1] { 0 } else { 1 }
+        }
     }
 }
 
@@ -349,13 +346,6 @@ pub struct ResolveResult {
     pub phi_trace: Vec<f64>,
     pub actions_taken: usize,
     pub converged: bool,
-}
-
-#[derive(Clone, Copy)]
-struct EvaluatedAction {
-    edge_idx: usize,
-    action: Action,
-    delta: f64,
 }
 
 fn select_independent_edges(violated: &[(usize, f64)], edges: &[Edge]) -> Vec<usize> {
@@ -375,7 +365,6 @@ fn select_independent_edges(violated: &[(usize, f64)], edges: &[Edge]) -> Vec<us
 const BATCH_LIMIT: usize = 500;
 
 pub fn resolve(graph: &mut Graph, max_iter: usize, tol: f64) -> ResolveResult {
-    let start_all = std::time::Instant::now();
     let mut actor = Actor::new(0.5, 0.15);
     let mut phi_trace = Vec::new();
     let mut actions_taken = 0;
@@ -415,96 +404,70 @@ pub fn resolve(graph: &mut Graph, max_iter: usize, tol: f64) -> ResolveResult {
             .collect();
         violated.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap());
 
-        if iter % 5 == 0 && iter > 0 {
-            eprintln!("    iter {:>3} — Φ = {:.2}, violations = {}, temps = {:.1}s",
-                iter, phi, violated.len(), start_all.elapsed().as_secs_f64());
-        }
         violated.truncate(BATCH_LIMIT);
 
         let batch = select_independent_edges(&violated, &graph.edges);
 
-        let t0 = std::time::Instant::now();
-        let mut candidates: Vec<EvaluatedAction> = Vec::new();
+        let mut applied: Vec<(usize, Action, f64, ConflictType, bool)> = Vec::new();
         for &edge_idx in &batch {
             let e = &graph.edges[edge_idx];
             let (a, b) = (e.from, e.to);
-            let (deltas, _best_idx) = Critic::evaluate_all(graph, edge_idx, a, b);
+            let conflict = ConflictType::from_weight(e.weight);
 
-            let mut best_i = 0;
-            for i in 0..3 {
-                if deltas[i] < deltas[best_i] { best_i = i; }
-                if deltas[i] < 0.0 {
-                    candidates.push(EvaluatedAction {
-                        edge_idx, delta: deltas[i],
-                        action: match i { 0 => Action::Invert(b), 1 => Action::Expand(a, b), _ => Action::Align(a, b) },
-                    });
-                }
-            }
-            if candidates.last().map_or(true, |c| c.edge_idx != edge_idx) {
-                candidates.push(EvaluatedAction {
-                    edge_idx, delta: deltas[best_i],
-                    action: match best_i { 0 => Action::Invert(b), 1 => Action::Expand(a, b), _ => Action::Align(a, b) },
-                });
-            }
-        }
-        if iter == 0 {
-            eprintln!("    eval {} edges — {:.3}s", batch.len(), t0.elapsed().as_secs_f64());
-        }
+            let action_idx = actor.propose(conflict);
+            let proposed = if action_idx == 0 { Action::Invert(b) } else { Action::Align(a, b) };
 
-        let mut best_per_edge: std::collections::HashMap<usize, EvaluatedAction> = std::collections::HashMap::new();
-        for ca in &candidates {
-            let entry = best_per_edge.entry(ca.edge_idx).or_insert(*ca);
-            if ca.delta < entry.delta {
-                *entry = *ca;
+            let delta = Critic::evaluate(graph, edge_idx, &proposed);
+
+            if delta < 0.0 {
+                applied.push((edge_idx, proposed, delta, conflict, true));
+            } else {
+                let (deltas, best_idx) = Critic::evaluate_all(graph, edge_idx, a, b);
+                let best_action = if best_idx == 0 { Action::Invert(b) } else { Action::Align(a, b) };
+                applied.push((edge_idx, best_action, deltas[best_idx], conflict, false));
             }
         }
 
-        let mut sorted_actions: Vec<EvaluatedAction> = best_per_edge.into_values().collect();
-        sorted_actions.sort_by(|a, b| a.delta.partial_cmp(&b.delta).unwrap());
+        applied.sort_by(|a, b| a.2.partial_cmp(&b.2).unwrap());
 
         let mut any_applied = false;
-        for ca in &sorted_actions {
-            if matches!(ca.action, Action::Expand(_, _)) {
-                continue;
-            }
-            let e = &graph.edges[ca.edge_idx];
-            let conflict = ConflictType::from_weight(e.weight);
-            ca.action.apply_to_graph(graph);
-            if ca.delta < 0.0 {
-                actor.reinforce(conflict, &ca.action, 1.0);
+        for (_edge_idx, action, _delta, conflict, was_actor) in &applied {
+            action.apply_to_graph(graph);
+            if *was_actor {
+                actor.reinforce(*conflict, action, 1.0);
             } else {
-                actor.reinforce(conflict, &ca.action, -0.3);
+                actor.reinforce(*conflict, action, -0.3);
             }
             actions_taken += 1;
             any_applied = true;
         }
 
         if !any_applied {
-            let mut best_delta = f64::MAX;
-            let mut best_edge_idx = 0;
-            let mut best_action = Action::Invert(0);
-
-            for &(edge_idx, _) in &violated {
-                let e = &graph.edges[edge_idx];
-                let (a, b) = (e.from, e.to);
-                let (deltas, _) = Critic::evaluate_all(graph, edge_idx, a, b);
-                for (i, &d) in deltas.iter().enumerate() {
-                    if d < best_delta {
-                        best_delta = d;
-                        best_edge_idx = edge_idx;
-                        best_action = match i {
-                            0 => Action::Invert(b),
-                            1 => Action::Expand(a, b),
-                            _ => Action::Align(a, b),
-                        };
-                    }
-                }
-            }
-
-            let e = &graph.edges[best_edge_idx];
+            if violated.is_empty() { break; }
+            let (edge_idx, _) = violated[0];
+            let e = &graph.edges[edge_idx];
+            let (a, b) = (e.from, e.to);
             let conflict = ConflictType::from_weight(e.weight);
+
+            let action_idx = actor.propose(conflict);
+            let proposed = if action_idx == 0 { Action::Invert(b) } else { Action::Align(a, b) };
+
+            let delta = Critic::evaluate(graph, edge_idx, &proposed);
+
+            let (best_action, was_actor) = if delta < 0.0 {
+                (proposed, true)
+            } else {
+                let (_deltas, best_idx) = Critic::evaluate_all(graph, edge_idx, a, b);
+                let best_action = if best_idx == 0 { Action::Invert(b) } else { Action::Align(a, b) };
+                (best_action, false)
+            };
+
             best_action.apply_to_graph(graph);
-            actor.reinforce(conflict, &best_action, -0.3);
+            if was_actor {
+                actor.reinforce(conflict, &best_action, 1.0);
+            } else {
+                actor.reinforce(conflict, &best_action, -0.3);
+            }
             actions_taken += 1;
         }
 

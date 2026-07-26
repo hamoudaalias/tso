@@ -7,6 +7,7 @@ pub struct WorkingMemory {
     pub assoc: AssociativeMemory,
     dim: usize,
     locked: bool,
+    pub cue_latch: f64,
 }
 
 impl WorkingMemory {
@@ -16,12 +17,23 @@ impl WorkingMemory {
             assoc: AssociativeMemory::new(),
             dim,
             locked: false,
+            cue_latch: 0.0,
         }
     }
 
     pub fn observe(&mut self, objects: &[Array1<f64>]) -> Option<(usize, f64)> {
         for obj in objects {
             self.lif.step(obj, false);
+        }
+        // Latch the cue from the first perception for POMDP tasks.
+        // Le cue (non-nul dans la première observation) est maintenu artificiellement
+        // dans cue_latch pour que le cervelet puisse le voir à chaque pas.
+        if self.cue_latch == 0.0 {
+            if let Some(first) = objects.first() {
+                if first.len() > 4 {
+                    self.cue_latch = first[4];
+                }
+            }
         }
         if let Some(first) = objects.first() {
             if self.assoc.size() == 0 {
@@ -49,6 +61,7 @@ impl WorkingMemory {
         self.lif = DualLIFState::new(self.dim, 0.99, 0.5);
         self.assoc = AssociativeMemory::new();
         self.locked = false;
+        self.cue_latch = 0.0;
     }
 
     pub fn store(&mut self, vector: &Array1<f64>, data: usize) {

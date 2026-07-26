@@ -6,3 +6,5 @@ pub mod memory;
 pub mod working_memory;
 pub mod action;
 pub mod cerebellum;
+pub mod tso_engine;
+pub mod grid_world;

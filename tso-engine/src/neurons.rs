@@ -14,6 +14,10 @@ impl LIFState {
         let e = if negate { -embedding } else { embedding.clone() };
         self.state = self.alpha * &self.state + (1.0 - self.alpha) * e;
     }
+
+    pub fn reset(&mut self) {
+        self.state = Array1::zeros(self.state.len());
+    }
 }
 
 pub struct DualLIFState {
@@ -36,5 +40,10 @@ impl DualLIFState {
 
     pub fn alignment(&self, embedding: &Array1<f64>, beta: f64) -> f64 {
         beta * self.slow.state.dot(embedding) + (1.0 - beta) * self.fast.state.dot(embedding)
+    }
+
+    pub fn reset(&mut self) {
+        self.slow.reset();
+        self.fast.reset();
     }
 }
