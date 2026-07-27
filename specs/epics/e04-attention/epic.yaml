@@ -1,0 +1,17 @@
+epic_id: e04
+title: "Attention spatiale — validation expérimentale"
+priority: 2
+wsjf: 20
+bcp: 8
+status: planned
+dependencies: []
+stories:
+  - id: e04s01
+    title: "Tests unitaires du module d'attention spatiale"
+    verify: "cd tso-engine && cargo test --test attention_unit 2>&1 | grep PASS"
+  - id: e04s02
+    title: "Benchmark Zigzag 10×10 avec/sans attention"
+    verify: "cd tso-engine && cargo run --bin bench_attention 2>&1 | grep -E 'attention.*[0-9]+%'"
+  - id: e04s03
+    title: "Benchmark Terrarium 7×7 avec/sans attention"
+    verify: "cd tso-engine && cargo run --bin terrarium_test 2>&1 | grep -E 'success.*[0-9]+'"

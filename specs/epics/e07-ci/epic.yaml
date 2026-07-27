@@ -1,0 +1,17 @@
+epic_id: e07
+title: "CI, nettoyage et durcissement du code"
+priority: 5
+wsjf: 12
+bcp: 5
+status: planned
+dependencies: []
+stories:
+  - id: e07s01
+    title: "Configurer GitHub Actions (build, test, clippy)"
+    verify: "test -f .github/workflows/rust.yml"
+  - id: e07s02
+    title: "Corriger tous les warnings de compilation"
+    verify: "cd tso-engine && cargo check --bins 2>&1 | grep -c warning; test $? -eq 1"
+  - id: e07s03
+    title: "Verrouiller master avec guard-git"
+    verify: "test -f .git/hooks/pre-push"

@@ -1,0 +1,76 @@
+# Release Plan — TSO v2.0
+
+## Version cible
+v2.0 — « Stationary Reward »
+
+## Epics
+
+```yaml
+epics:
+  - id: e03
+    title: "Stabiliser le signal de bien-être"
+    description: >
+      Résoudre le problème #1 de la Phase 1 : le well-being non-stationnaire
+      qui fait passer le TSO complet de 98%→20%. Explorer normalisation,
+      baseline, séparation critic interne/externe.
+    bcp: 13
+    wsjf: 30
+    priority: 1
+    dependencies: []
+
+  - id: e04
+    title: "Attention spatiale — validation expérimentale"
+    description: >
+      Valider que le module d'attention spatiale (gain multiplicatif par
+      erreur de prédiction) améliore la navigation. Tests sur Zigzag 10×10
+      et Terrarium 7×7 avec/sans attention.
+    bcp: 8
+    wsjf: 20
+    priority: 2
+    dependencies: []
+
+  - id: e05
+    title: "Sommeil et consolidation — Phase 2"
+    description: >
+      Améliorer le sommeil : rejeu bruité efficace, neurogenèse contrôlée,
+      résolution profonde du graphe. Valider que Φ converge après chaque cycle.
+    bcp: 10
+    wsjf: 18
+    priority: 3
+    dependencies: [e03]
+
+  - id: e06
+    title: "Observabilité et logging structuré"
+    description: >
+      Ajouter tracing/logging pour visualiser Φ, bien-être, pulsions en
+      temps réel. Remplacer les eprintln! par du logging structuré (tracing crate).
+    bcp: 5
+    wsjf: 15
+    priority: 4
+    dependencies: []
+
+  - id: e07
+    title: "CI, nettoyage et durcissement du code"
+    description: >
+      Ajouter GitHub Actions (cargo build/test/clippy), corriger les warnings,
+      nettoyer les binaires expérimentaux, verrouiller master.
+    bcp: 5
+    wsjf: 12
+    priority: 5
+    dependencies: []
+
+  - id: e08
+    title: "Nettoyage des exprimetal/"
+    description: >
+      Supprimer définitivement les dossiers exprimetal/ de l'historique git,
+      mettre à jour .gitignore, archiver ce qui est utile dans specs/archive/.
+    bcp: 3
+    wsjf: 8
+    priority: 6
+    dependencies: []
+
+release:
+  target_date: "2025-08-30"
+  bcp_total: 44
+  velocity_estimate: 5 BCP/semaine
+  estimated_weeks: 9

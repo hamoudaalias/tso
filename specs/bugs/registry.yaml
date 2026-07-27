@@ -1,0 +1,7 @@
+- bug_id: "2025-01-15T103000"
+  date: "2025-01-15"
+  severity: Medium
+  priority: Medium
+  scope: cerebellum
+  summary: "Actor-critic TD(λ) online collapse in S1 — |δ|-based updates destroy policy before replay can correct"
+  file: "specs/bugs/BUG-2025-01-15T103000-actor-collapse-td-online.md"

@@ -13,27 +13,30 @@ git:
   status: "98 fichiers modifiés/supprimés non commités — refactoring en cours"
 
 phasemap:
-  current: execute
+  current: plan
   history:
     - discover
     - elaborate
-    - plan
-    - execute  # actuel — post-Phase 1, correctifs intégrés au moteur
+    - plan  # actuel — 6 epics planifiés, release-plan.yaml créé
+    - execute
 
 handoff:
-  next_skill: commit-message
-  note: "Commiter le refactoring en cours (découper les 98 fichiers en commits logiques)"
-  blockers:
-    - "Pas de specs/release-plan.yaml — les prochains epics ne sont pas ordonnancés"
-    - "Les binaires phase1b_fix*.rs et experiment_a.rs ont des warnings (variables inutilisées)"
+  next_skill: build-epic
+  note: "Phase 3 PLAN terminée — 6 epics dans release-plan.yaml, prêt à builder e03 en priorité"
+  blockers: []
 
 epics:
   completed:
     - e01: "Phase 1 — Cerebellum seul (98% sur 5×5, 66.5% sur 7×7)"
     - e02: "Weakness Game / Démineur (PROOF SCORE = 100.0)"
-  in_progress:
-    - e03: "Post-Phase 1 fixes — replay buffer, stationary reward, attention"
-  planned: []
+  in_progress: []
+  planned:
+    - e03: "Stabiliser le signal de bien-être (BCP:13, WSJF:30)"
+    - e04: "Attention spatiale — validation (BCP:8, WSJF:20)"
+    - e05: "Sommeil et consolidation Phase 2 (BCP:10, WSJF:18)"
+    - e06: "Observabilité et logging (BCP:5, WSJF:15)"
+    - e07: "CI et durcissement (BCP:5, WSJF:12)"
+    - e08: "Nettoyage exprimetal/ (BCP:3, WSJF:8)"
 
 metrics:
   source_files: 19 (lib.rs + 18 modules + binaires)

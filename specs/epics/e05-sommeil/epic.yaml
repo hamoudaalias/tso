@@ -1,0 +1,17 @@
+epic_id: e05
+title: "Sommeil et consolidation — Phase 2"
+priority: 3
+wsjf: 18
+bcp: 10
+status: planned
+dependencies: [e03]
+stories:
+  - id: e05s01
+    title: "Valider la convergence de Φ après sommeil"
+    verify: "cd tso-engine && cargo test --test sleep_phi_convergence 2>&1 | grep PASS"
+  - id: e05s02
+    title: "Améliorer le rejeu bruité avec échantillonnage pondéré"
+    verify: "cd tso-engine && cargo test --test replay_weighted 2>&1 | grep PASS"
+  - id: e05s03
+    title: "Ajouter des métriques de consolidation"
+    verify: "cd tso-engine && cargo test --test consolidation_metrics 2>&1 | grep PASS"

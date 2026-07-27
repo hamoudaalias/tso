@@ -1,0 +1,27 @@
+# VISION — TSO (Tension-Solving Organism)
+
+## Résumé
+Architecture cognitive bio-inspirée implémentée en Rust : un agent autonome doté de pulsions homéostatiques, de mémoire épisodique et sémantique, d'exploration motivée par la curiosité, et d'un mécanisme de tension cognitive (Φ) ancré dans la satisfaction de contraintes.
+
+## Objectif ultime
+Créer un agent artificiel qui :
+- Survit dans un environnement partiellement observable en gérant ses besoins (énergie, hydratation, température)
+- Apprend des concepts à partir de flux sensoriels continus (AttractorField)
+- Développe un modèle interne du monde (graphe sémantique) dont les contradictions produisent une « anxiété » (Φ)
+- Résout activement les conflits de son modèle interne par satisfaction de contraintes
+- Maximise un signal composite de bien-être combinant récompenses externes et pulsions internes
+- Consolide ses apprentissages pendant des phases de sommeil
+
+## Problème résolu
+Les agents RL classiques n'ont pas de pulsions internes — ils ne font qu'optimiser une récompense externe. TSO modélise un organisme complet avec curiosité, anxiété, homéostasie et sommeil.
+
+## Critères de succès
+- L'agent atteint >90% de succès en exploitation pure sur des environnements complexes (Zigzag 10×10, Terrarium 7×7)
+- Φ (tension cognitive) se résorbe après chaque conflit (démineur, sommeil)
+- Le système compile sans erreur avec cargo check --bins
+- Les expériences sont reproductibles (seed RNG, rapports dans specs/experiments/)
+
+## Cas d'usage
+- Recherche en neuroscience computationnelle
+- Démonstrateur d'architecture cognitive intégrée
+- Base pour des expériences d'agent intrinsèquement motivé

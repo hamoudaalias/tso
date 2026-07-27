@@ -1,0 +1,42 @@
+# SCOPE — TSO Phase 2
+
+## In scope (actif, prioritaire)
+- Moteur TSO complet : cycle cognitif 4 étapes (Perception → Catégorisation → Évaluation → Action)
+- Graphe sémantique avec Φ computation, arêtes d'implication/exclusion, résolution par recuit simulé
+- AttractorField avec prototypes, seuils adaptatifs, élagage des concepts inactifs
+- Cervelet Actor-Critic MLP avec TD(λ), replay buffer, apprentissage asymétrique
+- Hypothalamus : régulation homéostatique (énergie, hydratation, température), gated reward, sleep pressure
+- Mémoire épisodique avec appariement suffixe-préfixe et prédiction
+- Mémoire de travail DualLIF + mémoire associative
+- Attention spatiale (gain multiplicatif par erreur de prédiction)
+- Sommeil : rejeu bruité, résolution profonde, neurogenèse, élagage synaptique
+- Environnements : GridWorld (5×5, 7×7, Couloir, Zigzag, Aléatoire), Terrarium, Sokoban
+- Binaires de test : debug_rl, weakness_game, ablation, experiments A/B/C, phase1*, terrarium_test
+
+## In scope (à stabiliser)
+- Résolution parallèle du graphe (resolve_parallel)
+- Démineur (flag_edge, demineur_sweep, demineur_sweep_trace)
+- GridCells multi-modules
+- Élagage massif des arêtes (prune_exclusion_edges)
+
+## Out of scope (pour le moment)
+- Interface Python (tso_pyo3) — exprimetal/
+- Procgen integration (procgen/) — exprimetal/
+- Snail Jumper (snail_jumper/) — exprimetal/
+- NLP / SNLI — exprimetal/
+- Atari / Minigrid Python — exprimetal/
+- Binding web ou API REST
+- Interface graphique temps réel
+- Entraînement distribué
+
+## Dépendances
+- Rust 2024 edition
+- ndarray 0.16 (features: serde)
+- serde + bincode (sérialisation du modèle)
+- rand 0.8
+- ctrlc 3.4 (gestion du signal d'arrêt)
+
+## Risques
+- Non-stationnarité du signal de bien-être (le cycle cognitif casse l'apprentissage RL — 20% vs 98%)
+- Complexité O(|E|) du graphe sémantique pour les grands nombres de concepts
+- Accumulation de binaires expérimentaux difficile à maintenir (18 binaires)

@@ -1,0 +1,17 @@
+epic_id: e06
+title: "Observabilité et logging structuré"
+priority: 4
+wsjf: 15
+bcp: 5
+status: planned
+dependencies: []
+stories:
+  - id: e06s01
+    title: "Remplacer eprintln! par tracing"
+    verify: "cd tso-engine && cargo check --lib 2>&1 | grep -v eprintln"
+  - id: e06s02
+    title: "Ajouter un span tracing par heartbeat"
+    verify: "cd tso-engine && cargo run --bin debug_rl -- --trace 2>&1 | head -20"
+  - id: e06s03
+    title: "Exporter les métriques Φ, pulsions, bien-être en JSON"
+    verify: "cd tso-engine && cargo run --bin debug_rl -- --metrics 2>&1 | grep -E 'phi|well_being|deficit'"

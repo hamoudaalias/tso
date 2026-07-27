@@ -45,6 +45,9 @@ pub struct Cerebellum {
     /// Si true, désactive le TD en ligne (reinforce_td).
     /// L'apprentissage se fait uniquement via replay_train().
     pub replay_only: bool,
+    /// Clip le |δ| utilisé dans step_a = lr * min(|δ|, delta_clip).
+    /// 0.0 = pas de clip (comportement original).
+    pub delta_clip: f64,
 }
 
 fn tanh(x: f64) -> f64 { x.tanh() }
@@ -97,7 +100,7 @@ impl Cerebellum {
 
         Cerebellum { lr, noise_std, epsilon, dim, n_actions, hidden_dim: hd, is_linear,
             w_lin, e_lin, w1, b1, w2, b2, h, e1, e2, w_v, b_v, lr_critic: lr, v_prev: 0.0,
-            replay: ReplayBuffer::new(10000), replay_lr: 0.05, replay_only: false }
+            replay: ReplayBuffer::new(10000), replay_lr: 0.05, replay_only: false, delta_clip: 0.0 }
     }
 
     /// Set a different learning rate for the critic (default: same as actor).
@@ -279,7 +282,8 @@ impl Cerebellum {
         if delta.abs() < 1e-8 { return; }
 
         // --- Actor update with δ ---
-        let step_a = self.lr * delta.abs();
+        let clipped_delta = if self.delta_clip > 0.0 { delta.abs().min(self.delta_clip) } else { delta.abs() };
+        let step_a = self.lr * clipped_delta;
         let sign_a = if delta > 0.0 { 1.0 } else { -1.0 };
 
         for a in 0..self.n_actions {

@@ -1,5 +1,25 @@
+# Rust build artifacts
 target/
-.DS_Store
-__MACOSX
+**/target/
+
+# Model files (sauvegardes du moteur TSO)
 tso_model.bin
 tso_state.bin
+**/tso_model.bin
+**/tso_state.bin
+
+# MacOS
+.DS_Store
+__MACOSX
+
+# Agent caches
+.opencode/
+.opencode
+
+# Python
+__pycache__/
+*.pyc
+
+# Editor files
+*.swp
+*.swo
