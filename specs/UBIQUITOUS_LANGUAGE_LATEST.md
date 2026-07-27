@@ -31,12 +31,15 @@
 | **Seuil de nouveauté** | Distance maximale au prototype le plus proche avant création d'un nouveau concept (seuil adaptatif par concept, clampé [0.05, 0.5]) | Novelty threshold, seuil de création |
 | **Élagage conceptuel** | Suppression des concepts inactifs depuis >500 pas, avec réindexation complète | Concept pruning, nettoyage |
 
-## Attention
+## Attention et diagnostic
 
 | Terme | Définition | Alias à éviter |
 |-------|-----------|----------------|
 | **Attention spatiale** | Gain multiplicatif sur chaque moustache basé sur l'erreur de prédiction : amplifie les dimensions surprenantes, atténue les prévisibles | Spatial attention, gain attentionnel |
 | **Température du softmax** (T) | Contrôle la sélectivité de l'attention ; T=0.5 dans TSO | Attention temperature |
+| **δ-clip** | Clip de |δ| dans la mise à jour de l'acteur TD : `step_a = lr · min(|δ|, delta_clip_max)`. Résout l'instabilité du TD en ligne (cf. ADR-006). | Delta clipping, gradient clipping |
+| **delta_clip_max** | Seuil du δ-clip ; 5.0 par défaut dans CognitiveConfig. 0.0 = pas de clip. | delta_clip |
+| **CognitiveConfig** | Struct Rust à 6 flags binant les sous-systèmes cognitifs (attractor, graph_phi, attention, episodic_curiosity, metabolic_cost, hypothalamus) + delta_clip_max. Défaut tout-à-true, zéro régression. | Config cognitif, brain config |
 
 ## Mémoire
 
