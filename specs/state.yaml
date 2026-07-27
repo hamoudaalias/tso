@@ -1,45 +1,51 @@
 # specs/state.yaml — État de session TSO
-# Généré par survey-context
+# Généré par session-state (03/08/2025)
 
-session:
-  project: tso
-  active_flow: build_epic
-  description: "Post-Phase 1 : refactoring du moteur en cours (replay buffer, attention, stationary reward)"
+active_flow: build_epic
+active_epic_id: e03
+active_story_id: null
+active_bug_id: null
+
+release:
+  target_version: null
+  last_tag: v16.0-tabula-rasa
+  last_publish: null
+
+epic_cycle:
+  current_step: develop-tdd
+  next_skill: verify-work
+  completed_steps:
+    - kickoff-branch
+    - survey-context
+    - develop-tdd # e03s01, e03s02, e03s03 committed
+
+bug_cycle:
+  current_step: null
+  completed_steps: []
 
 git:
-  branch: master
-  commit_hash: 451b105335d4b44b968d42d35ffbb1a5bbce3d24
-  commit_message: "feat: solve Zigzag 10×10 (70% test) — Euclidean distance, BFS priors, ε-decay"
-  status: "98 fichiers modifiés/supprimés non commités — refactoring en cours"
-
-phasemap:
-  current: plan
-  history:
-    - discover
-    - elaborate
-    - plan  # actuel — 6 epics planifiés, release-plan.yaml créé
-    - execute
+  branch: feat/e03-stationary-reward
+  hash: 059b873
+  head_commit: "test(tso_engine): add dual critic (interne/externe) tests (e03s03)"
+  working_tree:
+    modified:
+      - specs/epics/e03-stationary-reward/epic.yaml
+      - tso-engine/src/bin/multi_seed.rs
+    untracked:
+      - .pi-subagents/
+      - tso-engine/src/bin/experiment_e03.rs
 
 handoff:
-  next_skill: build-epic
-  note: "Phase 3 PLAN terminée — 6 epics dans release-plan.yaml, prêt à builder e03 en priorité"
-  blockers: []
+  last_step_completed: "e03s03 — dual critic tests committed"
+  open_decisions:
+    - "e03s04 est une expérience binaire (experiment_a → experiment_e03) — pas encore écrite ni commitée"
+    - "epic.yaml status: 'planned' alors qu'on est en plein build — faut le passer à 'in_progress'"
+    - "multi_seed.rs modifié (unstaged) — probablement pour les benchmarks e03"
+    - ".pi-subagents/ non tracké — artefact des sessions agent, à gitignorer"
+  next_skill: survey-context
 
-epics:
-  completed:
-    - e01: "Phase 1 — Cerebellum seul (98% sur 5×5, 66.5% sur 7×7)"
-    - e02: "Weakness Game / Démineur (PROOF SCORE = 100.0)"
-  in_progress: []
-  planned:
-    - e03: "Stabiliser le signal de bien-être (BCP:13, WSJF:30)"
-    - e04: "Attention spatiale — validation (BCP:8, WSJF:20)"
-    - e05: "Sommeil et consolidation Phase 2 (BCP:10, WSJF:18)"
-    - e06: "Observabilité et logging (BCP:5, WSJF:15)"
-    - e07: "CI et durcissement (BCP:5, WSJF:12)"
-    - e08: "Nettoyage exprimetal/ (BCP:3, WSJF:8)"
-
-metrics:
-  source_files: 19 (lib.rs + 18 modules + binaires)
-  binaries: 18
-  compilation: "cargo check --bins : 0 erreurs, ~8 warnings"
-  paper_pages: 55
+workspace_facts:
+  - "Le projet TSO mixe lib + 18 binaires dans tso-engine/src/bin/"
+  - "Les tests d'intégration sont dans tso-engine/tests/"
+  - "E03 a 4 stories : diagnostic → normalisation → dual critic → expérience comparative"
+  - "Master est plusieurs commits derrière feat/e03-stationary-reward"

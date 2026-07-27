@@ -3,12 +3,25 @@ title: "Stabiliser le signal de bien-être"
 priority: 1
 wsjf: 30
 bcp: 13
-status: planned
+status: in_progress
 dependencies: []
 stories:
   - id: e03s01
     title: "Diagnostic approfondi du well-being"
     verify: "cd tso-engine && cargo test --test well_being_diagnostic 2>&1 | grep PASS"
+    tasks:
+      - id: e03s01t01
+        title: "Créer le fichier tests/well_being_diagnostic.rs avec un test qui loggue chaque terme du well-being sur 100 épisodes"
+        verify: "cd tso-engine && cargo test --test well_being_diagnostic -- --nocapture 2>&1 | grep -E 'gated_reward|consummatory|curiosity|shaping|phi_delta|chronic_tension|deficit|metabolic|parsimony'"
+      - id: e03s01t02
+        title: "Ajouter un test de stationnarité : calculer la variance du well-being sur une fenêtre glissante de 50 pas"
+        verify: "cd tso-engine && cargo test --test well_being_diagnostic -- --nocapture 2>&1 | grep -E 'variance|std|stationnarite'"
+      - id: e03s01t03
+        title: "Comparer le well-being avec/sans cycle cognitif (TSO complet vs Cerebellum seul)"
+        verify: "cd tso-engine && cargo test --test well_being_diagnostic -- --nocapture 2>&1 | grep -E 'cerebellum_only|tso_full|delta'"
+      - id: e03s01t04
+        title: "Produire un rapport de diagnostic dans specs/experiments/well_being_diagnostic.md"
+        verify: "test -f specs/experiments/well_being_diagnostic.md"
   - id: e03s02
     title: "Implémenter la normalisation glissante du well-being"
     verify: "cd tso-engine && cargo test --test well_being_normalized 2>&1 | grep PASS"
