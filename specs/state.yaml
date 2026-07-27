@@ -33,11 +33,11 @@ git:
   preflight: cargo check --bins passed (0 errors, warnings only)
 
 handoff:
-  last_step_completed: "e03s00 — CognitiveConfig + δ-clip fix, multi-seed bisection validée"
+  last_step_completed: "e03s00 validé — 8/8 tests passent (e03s01-03 toujours verts)"
   open_decisions:
-    - "e03s04 — experiment_e03.rs commité mais Configs A-D en single seed, résultats 17-32% (normal, pas un problème de δ)"
-    - "Les Configs A-D utilisent replay (lr=0.05) qui peut corrompre — le fix δ-clip est validé par multi_seed_bisect (sans replay)"
-    - "Prochains steps : vérifier e03s01, e03s02, e03s03 passent toujours, puis débloquer e03s04 en mode δ-clip + replay_clean"
+    - "e03s04 — Configs A-D utilisent replay (lr=0.05, δ non-clippé) → 17-32%. δ-clip (multi_seed_bisect sans replay) = 98%"
+    - "Prochain step e03s04 : refaire experiment_e03 avec replay_lr=0 (TD online seul) ou clipper le δ dans replay_train"
+    - "Réconcilier les deux diagnostics : l'instabilité TD était la cause unique, l'interférence cognitive n'en était qu'une manifestation"
   next_skill: develop-tdd
 
 workspace_facts:

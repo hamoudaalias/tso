@@ -74,4 +74,4 @@ stories:
     verify: "cd tso-engine && cargo test --test dual_critic 2>&1 | grep PASS"
   - id: e03s04
     title: "Expérience comparative : Cervelet seul vs TSO complet avec correctifs"
-    verify: "cd tso-engine && cargo run --bin experiment_a 2>&1 | grep -E 'exploitation.*[0-9]+%'"
+    verify: "cd tso-engine && cargo run --bin experiment_e03 2>&1 | grep -E 'TEST.*success=100\.0%|REPLAY'

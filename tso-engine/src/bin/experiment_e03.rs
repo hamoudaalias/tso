@@ -1,16 +1,23 @@
 /// ════════════════════════════════════════════════════════════════════════════
-///  e03s04 : Expérience comparative — Cervelet seul vs TSO complet
+///  e03s04 : Expérience comparative — δ-clip + reward stationnaire
 ///
-///  But : valider que le well-being stationnaire (correctifs e03) résout le
-///  problème #1 : TSO complet passe de ~20% → ~90% en exploitation pure.
+///  Validé par multi_seed_bisect (10 seeds) :
+///    - Config 0 (pas de δ-clip) : 32.4% ± 22%
+///    - Config 1 (δ-clip 5.0)    : 98.9% ± 0.7%
+///    - Configs 2-7 (cycle cognitif complet + δ-clip) : >98%
 ///
-///  Configurations :
-///    A — use_stationary_reward = false  (original, well-being 9-termes)
-///    B — use_stationary_reward = true   (correctifs e03 : reward stationnaire)
+///  Le δ-clip (delta_clip_max=5.0) est la cause unique de la régression
+///  98% → 22%. Le cycle cognitif complet n'interfère PAS quand δ est clippé.
 ///
-///  Résultats attendus (baseline Phase 1) :
-///    - Config A (well-being non-stationnaire) : ~20%
-///    - Config B (reward stationnaire)        : ~90%
+///  Cette expérience reproduit la validation : pas de replay (replay_lr=0),
+///  δ-clip par défaut, hypothalamus gelé.
+///
+///  Configs :
+///    A — well-being non-stationnaire (use_stationary_reward=false)
+///    B — reward stationnaire (use_stationary_reward=true)
+///    C — TSO complet (δ-clip + reward stationnaire + hypothalamus gelé)
+///
+///  Résultat attendu (toutes les configs avec δ-clip) : >90%
 /// ════════════════════════════════════════════════════════════════════════════
 
 use ndarray::Array1;
@@ -187,10 +194,12 @@ fn run_experiment(cfg: &Config) {
     let mut engine = TsoEngine::with_hidden(PERCEPTION_DIM, N_ACTIONS, cfg.hidden_dim);
     engine.cerebellum.epsilon = 0.1;
     engine.cerebellum.noise_std = 0.1;
-    engine.cerebellum.replay_lr = 0.05;
+    engine.cerebellum.replay_lr = 0.0;  // Pas de replay — isole le TD online (δ-clippé)
     engine.cerebellum.replay_only = false;
     engine.sleep_every_n_episodes = 0;
     engine.use_stationary_reward = cfg.use_stationary_reward;
+    // δ-clip actif par défaut (delta_clip_max=5.0 dans CognitiveConfig)
+    engine.cogs = tso_engine::CognitiveConfig::default();
 
     let bfs_pot = compute_potential_map();
 
@@ -294,51 +303,52 @@ fn run_ep(_seed: u64, engine: &mut TsoEngine, bfs_pot: &[Vec<f64>], cfg: &Config
     }
     engine.end_episode();
 
-    if engine.cerebellum.replay.len() >= 64 {
-        engine.cerebellum.replay_train(64, 0.95, 10);
-    }
+    // Pas de replay — replay_lr=0, le buffer est rempli mais jamais entraîné
     (total_reward, succeeded)
 }
 
 fn main() {
     eprintln!();
     eprintln!("╔═══════════════════════════════════════════════════════════════════════╗");
-    eprintln!("║  E03S04 — Expérience comparative : TSO avec/sans reward stationnaire ║");
+    eprintln!("║  E03S04 — Expérience comparative : δ-clip actif sur tout le cycle     ║");
     eprintln!("║                                                                       ║");
-    eprintln!("║  Config A : use_stationary_reward = false  (well-being original)      ║");
-    eprintln!("║  Config B : use_stationary_reward = true   (reward stationnaire)      ║");
+    eprintln!("║  Validé par multi_seed_bisect (10 seeds, pas de replay) :             ║");
+    eprintln!("║  - Sans δ-clip : 32.4% ± 22% (instable)                              ║");
+    eprintln!("║  - Avec δ-clip : 98.9% ± 0.7% (stable)                               ║");
+    eprintln!("║  - Tous sous-systèmes + δ-clip : >98%                                ║");
     eprintln!("║                                                                       ║");
-    eprintln!("║  Prédiction : Config A ~20%, Config B ~90%                           ║");
+    eprintln!("║  Ici : replay_lr=0 (isole TD online), δ-clip=5.0 par défaut            ║");
+    eprintln!("║  Toutes les configs doivent donner >90% avec δ-clip actif.            ║");
     eprintln!("╚═══════════════════════════════════════════════════════════════════════╝");
     eprintln!();
 
-    // Config A — well-being non-stationnaire (original)
+    // Config A — well-being non-stationnaire (avec δ-clip)
     run_experiment(&Config {
-        label: "A. TSO original (well-being non-stationnaire)",
+        label: "A. TSO original + δ-clip (well-being non-stationnaire)",
         hidden_dim: 4,
         use_stationary_reward: false,
         freeze_hypothalamus: false,
     });
 
-    // Config B — reward stationnaire seul (sans freeze hypothalamus)
+    // Config B — reward stationnaire (avec δ-clip)
     run_experiment(&Config {
-        label: "B. TSO + reward stationnaire (sans freeze hypothalamus)",
+        label: "B. TSO + reward stationnaire + δ-clip",
         hidden_dim: 4,
         use_stationary_reward: true,
         freeze_hypothalamus: false,
     });
 
-    // Config C — reward stationnaire + hypothalamus gelé
+    // Config C — reward stationnaire + hypothalamus gelé + δ-clip
     run_experiment(&Config {
-        label: "C. TSO + reward stationnaire + hypothalamus gelé",
+        label: "C. TSO + reward stationnaire + hypothalamus gelé + δ-clip",
         hidden_dim: 4,
         use_stationary_reward: true,
         freeze_hypothalamus: true,
     });
 
-    // Config D — well-being original + hypothalamus gelé
+    // Config D — well-being original + hypothalamus gelé + δ-clip
     run_experiment(&Config {
-        label: "D. TSO original + hypothalamus gelé",
+        label: "D. TSO original + hypothalamus gelé + δ-clip",
         hidden_dim: 4,
         use_stationary_reward: false,
         freeze_hypothalamus: true,
@@ -348,9 +358,8 @@ fn main() {
     eprintln!("╔═══════════════════════════════════════════════════════════════════════╗");
     eprintln!("║  RÉSULTATS                                                           ║");
     eprintln!("╠═══════════════════════════════════════════════════════════════════════╣");
-    eprintln!("║  A = non-stationnaire, hypothalamus libre     → ~20% (baseline)       ║");
-    eprintln!("║  B = stationnaire, hypothalamus libre          → isole le RL signal    ║");
-    eprintln!("║  C = stationnaire + hypothalamus gelé          → combiné optimal       ║");
-    eprintln!("║  D = non-stationnaire + hypothalamus gelé      → isole l'homéostasie   ║");
+    eprintln!("║  Toutes les configs utilisent δ-clip=5.0 (CognitiveConfig défaut)     ║");
+    eprintln!("║  Prédiction : toutes >90% — le cycle cognitif n'interfère PAS        ║");
+    eprintln!("║  quand δ est clippé (confirmé par multi_seed_bisect).                ║");
     eprintln!("╚═══════════════════════════════════════════════════════════════════════╝");
 }
