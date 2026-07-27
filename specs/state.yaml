@@ -1,0 +1,42 @@
+# specs/state.yaml — État de session TSO
+# Généré par survey-context
+
+session:
+  project: tso
+  active_flow: build_epic
+  description: "Post-Phase 1 : refactoring du moteur en cours (replay buffer, attention, stationary reward)"
+
+git:
+  branch: master
+  commit_hash: 451b105335d4b44b968d42d35ffbb1a5bbce3d24
+  commit_message: "feat: solve Zigzag 10×10 (70% test) — Euclidean distance, BFS priors, ε-decay"
+  status: "98 fichiers modifiés/supprimés non commités — refactoring en cours"
+
+phasemap:
+  current: execute
+  history:
+    - discover
+    - elaborate
+    - plan
+    - execute  # actuel — post-Phase 1, correctifs intégrés au moteur
+
+handoff:
+  next_skill: commit-message
+  note: "Commiter le refactoring en cours (découper les 98 fichiers en commits logiques)"
+  blockers:
+    - "Pas de specs/release-plan.yaml — les prochains epics ne sont pas ordonnancés"
+    - "Les binaires phase1b_fix*.rs et experiment_a.rs ont des warnings (variables inutilisées)"
+
+epics:
+  completed:
+    - e01: "Phase 1 — Cerebellum seul (98% sur 5×5, 66.5% sur 7×7)"
+    - e02: "Weakness Game / Démineur (PROOF SCORE = 100.0)"
+  in_progress:
+    - e03: "Post-Phase 1 fixes — replay buffer, stationary reward, attention"
+  planned: []
+
+metrics:
+  source_files: 19 (lib.rs + 18 modules + binaires)
+  binaries: 18
+  compilation: "cargo check --bins : 0 erreurs, ~8 warnings"
+  paper_pages: 55
