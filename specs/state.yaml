@@ -33,11 +33,12 @@ git:
   preflight: cargo check --bins passed (0 errors, warnings only)
 
 handoff:
-  last_step_completed: "e03s00 validé — 8/8 tests passent (e03s01-03 toujours verts)"
+  last_step_completed: "e03s04 — 100% test sur toutes les configs avec δ-clip"
   open_decisions:
-    - "e03s04 — Configs A-D utilisent replay (lr=0.05, δ non-clippé) → 17-32%. δ-clip (multi_seed_bisect sans replay) = 98%"
-    - "Prochain step e03s04 : refaire experiment_e03 avec replay_lr=0 (TD online seul) ou clipper le δ dans replay_train"
-    - "Réconcilier les deux diagnostics : l'instabilité TD était la cause unique, l'interférence cognitive n'en était qu'une manifestation"
+    - "Le δ-clip résout la régression 98% → 22% (cause unique)"
+    - "Tous les sous-systèmes cognitifs (attractor, graph/Φ, attention, curiosity, métabolisme, hypothalamus) sont compatibles"
+    - "Le replay buffer a encore un δ non-clippé (replay_lr=0.05 × δ) — chantier e04 ou e05"
+    - "Prochain epic : e04 — Attention spatiale validation expérimentale (WSJF:20)"
   next_skill: develop-tdd
 
 workspace_facts:
