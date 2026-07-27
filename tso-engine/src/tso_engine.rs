@@ -23,6 +23,44 @@ pub struct SleepReport {
     pub phi_after: f64,
 }
 
+/// Configuration fine des sous-systèmes cognitifs activés dans step() / heartbeat().
+/// Chaque flag contrôle un sous-système indépendant pour bissection.
+/// Défaut : tout-à-true (comportement actuel inchangé).
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct CognitiveConfig {
+    /// Catégorisation (attractor) : création de concepts prototypes, pruning,
+    /// seuil de nouveauté. Si désactivé, step() utilise un concept factice (id=0).
+    pub attractor: bool,
+    /// Graphe sémantique + Φ : transitions, résolution avec recuit, Φ, chronic_tension.
+    pub graph_phi: bool,
+    /// Attention spatiale : gating des moustaches par erreur de prédiction épisodique.
+    /// Si désactivé, step() utilise la perception brute.
+    pub attention: bool,
+    /// Mémoire épisodique + curiosité intrinsèque : rappel de contexte, surprise.
+    pub episodic_curiosity: bool,
+    /// Coût métabolique : consommation d'énergie par le calcul cognitif.
+    pub metabolic_cost: bool,
+    /// Hypothalamus : dérive homéostatique (énergie, hydratation, température, sleep_debt).
+    pub hypothalamus: bool,
+    /// Clip de |δ| dans reinforce_td : step_a = lr * min(|δ|, delta_clip_max).
+    /// 0.0 = pas de clip (comportement actuel).
+    pub delta_clip_max: f64,
+}
+
+impl Default for CognitiveConfig {
+    fn default() -> Self {
+        CognitiveConfig {
+            attractor: true,
+            graph_phi: true,
+            attention: true,
+            episodic_curiosity: true,
+            metabolic_cost: true,
+            hypothalamus: true,
+            delta_clip_max: 5.0,
+        }
+    }
+}
+
 /// Métrique de preuve — proof metrics tracking the system's performance
 /// on the Weakness Game §8 (Démineur / Minesweeper mode).
 /// Measures resolution efficiency, edge count stability, and Φ evolution.
@@ -152,6 +190,11 @@ pub struct TsoEngine {
     /// from the current input (anomaly-driven attention).
     pub attention: Attention,
 
+    /// Configuration fine des sous-systèmes cognitifs actifs.
+    /// Permet la bissection pour isoler l'interférence du cycle cognitif
+    /// sur l'apprentissage du Cerebellum (cf. BUG-2025-08-03T120000).
+    pub cogs: CognitiveConfig,
+
     /// Debug : si true, dump le rl_signal et la récompense à chaque step.
     pub debug_step_dump: bool,
 
@@ -210,6 +253,7 @@ impl TsoEngine {
             total_steps: 0,
             attention: Attention::new(0.5),
             grid_cells: GridCells::new(0, 0),
+            cogs: CognitiveConfig::default(),
             prev_gated: None,
             prev_action: None,
             use_stationary_reward: false,
@@ -281,6 +325,16 @@ impl TsoEngine {
             self.concept_novelty_thresholds[concept_id].clamp(0.05, 0.5);
     }
 
+    /// Retourne le concept précédent depuis episode_trace, ou None.
+    /// Utile pour trans_log même en mode attractor=false où l'ID factice 0 est poussé.
+    fn previous_concept(&self) -> Option<usize> {
+        if self.episode_trace.len() >= 2 {
+            Some(self.episode_trace[self.episode_trace.len() - 2])
+        } else {
+            None
+        }
+    }
+
     fn compute_habit_efficiency(&self) -> f64 {
         if self.episode_trace.len() >= 2 {
             let prev = self.episode_trace[self.episode_trace.len() - 2];
@@ -303,108 +357,160 @@ impl TsoEngine {
     pub fn step(&mut self, perception: &Array1<f64>, reward: f64, bfs_value: Option<f64>, bfs_bias: &[f64]) -> usize {
         self.step_count += 1;
         self.total_steps += 1;
+        // Copier CognitiveConfig — évite les soucis de borrow checker
+        let cc = self.cogs.clone();
+        // Propager le delta_clip de CognitiveConfig vers Cerebellum
+        self.cerebellum.delta_clip = cc.delta_clip_max;
 
-        // 0. HOMEOSTATIC DRIFT
-        self.hypothalamus.step();
-
-        // 0b. SPATIAL ATTENTION — gate whiskers toward predicted anomaly direction.
-        //     The organism "turns its head" where episodic memory predicts mismatch,
-        //     boosting surprising whisker dimensions and suppressing predictable ones.
-        //     Raw perception is preserved for curiosity computation so the surprise
-        //     signal reflects genuine prediction error, not attention-distorted input.
-        let predicted_proto = self.predicted_concept_id
-            .and_then(|id| self.attractor.get_prototype(id));
-        let gated = self.attention.attend(perception, predicted_proto);
-
-        // 1. PERCEPTION & WORKING MEMORY
-        self.working_mem.observe(&[gated.clone()]);
-
-        // 2. CATEGORIZATION (on attention-gated perception)
-        let (concept_id, dist) = self.attractor.predict_with_distance(&gated);
-        let threshold = self.concept_novelty_thresholds.get(concept_id).copied().unwrap_or(self.novelty_threshold);
-        let is_new = dist > threshold;
-        let concept_id = if is_new { self.attractor.add_class(&gated) } else { concept_id };
-
-        self.adapt_novelty_threshold(concept_id, dist, is_new);
-        self.attractor.train_step(&gated, concept_id);
-
-        // 3. INTRINSIC REWARD — curiosity from episodic prediction mismatch
-        let intrinsic = self.compute_surprise(perception, concept_id, is_new);
-
-        // 4. UPDATE EPISODIC PREDICTION FOR NEXT STEP
-        self.context.push(concept_id);
-        self.predicted_concept_id = self.episodic.recall(&self.context.as_slice());
-
-        // 5. RECORD TRANSITION + SHAPING REWARD
-        let prev_concept = self.current_concept_id;
-        self.current_concept_id = Some(concept_id);
-        self.episode_trace.push(concept_id);
-
-        // Grow concept_values; initialize new concepts with BFS value
-        while self.concept_values.len() <= concept_id {
-            self.concept_values.push(0.0);
-        }
-        if is_new {
-            if let Some(bv) = bfs_value {
-                self.concept_values[concept_id] = bv;
-            }
+        // ── 0. HYPOTHALAMUS DRIFT ─────────────────────────────────────────
+        if cc.hypothalamus {
+            self.hypothalamus.step();
         }
 
-        let shaping = match prev_concept {
-            Some(p) if p < self.concept_values.len() && concept_id < self.concept_values.len() => {
-                self.concept_values[concept_id] - self.concept_values[p]
-            }
-            _ => 0.0,
+        // ── 0b. SPATIAL ATTENTION ────────────────────────────────────────
+        let (gated, used_raw) = if cc.attention {
+            let predicted_proto = self.predicted_concept_id
+                .and_then(|id| self.attractor.get_prototype(id));
+            (self.attention.attend(perception, predicted_proto), false)
+        } else {
+            (perception.clone(), true)
         };
 
-        // Suppress curiosity on terminal transitions to avoid goal avoidance.
-        let is_terminal = reward.abs() >= 10.0;
-        let r_curiosity = if is_terminal { 0.0 } else { intrinsic };
+        // ── 1. WORKING MEMORY ────────────────────────────────────────────
+        self.working_mem.observe(&[gated.clone()]);
 
-        // HOMEOSTATIC REWARD GATING & Φ
-        let gated_reward = self.hypothalamus.gate_reward(reward);
-        let consummatory = self.hypothalamus.consummatory_value(reward);
-        self.current_phi = self.graph.phi();
+        // ── 2. CATEGORIZATION (attractor / concepts) ─────────────────────
+        let (concept_id, _is_new, intrinsic, shaping) = if cc.attractor {
+            let (cid, dist) = self.attractor.predict_with_distance(&gated);
+            let threshold = self.concept_novelty_thresholds.get(cid).copied().unwrap_or(self.novelty_threshold);
+            let new_flag = dist > threshold;
+            let cid = if new_flag { self.attractor.add_class(&gated) } else { cid };
+
+            self.adapt_novelty_threshold(cid, dist, new_flag);
+            self.attractor.train_step(&gated, cid);
+
+            // Episode trace for concept values
+            let prev_concept = self.current_concept_id;
+            self.current_concept_id = Some(cid);
+            self.episode_trace.push(cid);
+
+            // Grow concept_values
+            while self.concept_values.len() <= cid {
+                self.concept_values.push(0.0);
+            }
+            if new_flag {
+                if let Some(bv) = bfs_value {
+                    self.concept_values[cid] = bv;
+                }
+            }
+
+            let shp = match prev_concept {
+                Some(p) if p < self.concept_values.len() && cid < self.concept_values.len() => {
+                    self.concept_values[cid] - self.concept_values[p]
+                }
+                _ => 0.0,
+            };
+
+            // Curiosity (needs episodic memory)
+            let surp = if cc.episodic_curiosity {
+                self.compute_surprise(if used_raw { &gated } else { perception }, cid, new_flag)
+            } else {
+                0.0
+            };
+
+            (cid, new_flag, surp, shp)
+        } else {
+            // Pas de catégorisation : concept factice 0, pas de shaping
+            let cid = 0usize;
+            self.current_concept_id = Some(cid);
+            self.episode_trace.push(cid);
+            let surp = 0.0;
+            let shp = 0.0;
+            (cid, false, surp, shp)
+        };
+
+        // ── 3. EPISODIC PREDICTION (même sans attracteur) ────────────────
+        if cc.episodic_curiosity {
+            self.context.push(concept_id);
+            self.predicted_concept_id = self.episodic.recall(&self.context.as_slice());
+        }
+
+        // ── 4. HOMEOSTATIC GATING & Φ ────────────────────────────────────
+        let gated_reward = if cc.hypothalamus {
+            self.hypothalamus.gate_reward(reward)
+        } else {
+            reward
+        };
+        let consummatory = if cc.hypothalamus && reward > 0.0 {
+            self.hypothalamus.consummatory_value(reward)
+        } else {
+            0.0
+        };
+
+        // Φ computation
+        self.current_phi = if cc.graph_phi {
+            self.graph.phi()
+        } else {
+            0.0
+        };
         let phi_delta = self.current_phi - self.phi_prev;
-        self.anxious = self.current_phi > self.phi_threshold;
-        self.hypothalamus.set_phi(self.current_phi);
-        if reward > 0.0 {
+        self.anxious = cc.graph_phi && self.current_phi > self.phi_threshold;
+        if cc.hypothalamus {
+            self.hypothalamus.set_phi(self.current_phi);
+        }
+        if cc.hypothalamus && reward > 0.0 {
             self.hypothalamus.consume(reward);
         }
 
-        // Graph resolve periodically (20 iterations with aggressive annealing)
-        if self.step_count % 50 == 0 {
+        // Periodic graph resolve
+        if cc.graph_phi && self.step_count % 50 == 0 {
             let result = resolve_with_anneal(&mut self.graph, 20, 0.05, 0.15);
             self.oscillation_breaks += result.oscillation_breaks;
         }
 
-        let resolved_phi = self.graph.phi();
-        let chronic_tension = -(resolved_phi * resolved_phi) * 0.001;
+        let resolved_phi = if cc.graph_phi { self.graph.phi() } else { 0.0 };
+        let chronic_tension = if cc.graph_phi {
+            -(resolved_phi * resolved_phi) * 0.001
+        } else {
+            0.0
+        };
         self.phi_prev = resolved_phi;
         self.current_phi = resolved_phi;
-        self.anxious = resolved_phi > self.phi_threshold;
-        self.hypothalamus.set_phi(resolved_phi);
+        self.anxious = cc.graph_phi && resolved_phi > self.phi_threshold;
+        if cc.hypothalamus {
+            self.hypothalamus.set_phi(resolved_phi);
+        }
 
         // Apply metabolic cost before well-being
-        self.apply_metabolic_costs();
+        if cc.metabolic_cost {
+            self.apply_metabolic_costs();
+        } else {
+            self.hypothalamus.total_cost = 0.0;
+        }
         let metabolic_penalty = -self.hypothalamus.total_cost * 20.0;
 
-        let parsimony = -(self.attractor.prototypes.len() as f64) * 0.001;
+        let parsimony = if cc.attractor {
+            -(self.attractor.prototypes.len() as f64) * 0.001
+        } else {
+            0.0
+        };
+        let is_terminal = reward.abs() >= 10.0;
+        let r_curiosity = if is_terminal { 0.0 } else { intrinsic };
         let total_reward = gated_reward + consummatory + r_curiosity + shaping - phi_delta + chronic_tension + metabolic_penalty + parsimony;
 
         // Value iteration trans log uses extrinsic reward only.
-        if let Some(p) = prev_concept {
+        if let Some(p) = self.previous_concept() {
             let step_r = if reward >= 20.0 { -0.05 } else { reward };
             self.trans_log.push((p, concept_id, step_r));
         }
 
         // Set goal value when found
-        if reward >= 20.0 && concept_id < self.concept_values.len() {
+        if cc.attractor && reward >= 20.0 && concept_id < self.concept_values.len() {
             self.concept_values[concept_id] = 20.0;
         }
 
         // GRAPH: add transition edge between concept prototypes
-        if self.episode_trace.len() >= 2 {
+        if cc.graph_phi && self.episode_trace.len() >= 2 {
             let p = self.episode_trace[self.episode_trace.len() - 2];
             let a = &self.attractor.prototypes[p][0];
             let b = &self.attractor.prototypes[concept_id][0];
@@ -415,7 +521,7 @@ impl TsoEngine {
         }
 
         // Periodic inline pruning — can accumulate many concepts in one episode.
-        if self.concept_prune_threshold > 0 && self.step_count % self.concept_prune_threshold == 0 {
+        if cc.attractor && self.concept_prune_threshold > 0 && self.step_count % self.concept_prune_threshold == 0 {
             self.prune_concepts();
         }
 
