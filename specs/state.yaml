@@ -25,20 +25,19 @@ bug_cycle:
 
 git:
   branch: feat/e03-stationary-reward
-  hash: 5ac63ce
-  head_commit: "chore(e03): update epic status to in_progress and gitignore .pi-subagents/"
+  hash: 4d984c8
+  head_commit: "fix(tso_engine): add CognitiveConfig bissection + δ-clip par défaut (5.0)"
   working_tree:
     modified: []
-    untracked:
-      - tso-engine/src/bin/experiment_e03.rs
+    untracked: []
   preflight: cargo check --bins passed (0 errors, warnings only)
 
 handoff:
-  last_step_completed: "e03s03 — dual critic tests committed"
+  last_step_completed: "e03s00 — CognitiveConfig + δ-clip fix, multi-seed bisection validée"
   open_decisions:
-    - "e03s04 — experiment_e03.rs untracké, binaire d'expérience comparative à finaliser"
-    - "multi_seed.rs stashé (e03-worktree-cleanup) — unstaged source changes mis de côté"
-    - "Prochain step : développer experiment_e03.rs et valider e03s04"
+    - "e03s04 — experiment_e03.rs commité mais Configs A-D en single seed, résultats 17-32% (normal, pas un problème de δ)"
+    - "Les Configs A-D utilisent replay (lr=0.05) qui peut corrompre — le fix δ-clip est validé par multi_seed_bisect (sans replay)"
+    - "Prochains steps : vérifier e03s01, e03s02, e03s03 passent toujours, puis débloquer e03s04 en mode δ-clip + replay_clean"
   next_skill: develop-tdd
 
 workspace_facts:
