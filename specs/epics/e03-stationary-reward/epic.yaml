@@ -6,6 +6,50 @@ bcp: 13
 status: in_progress
 dependencies: []
 stories:
+  - id: e03s00
+    title: "Prérequis bloquant — bissection du cycle cognitif + δ-clip + oracle multi-seeds"
+    description: >
+      E03 est bloqué : le cycle cognitif TSO complet interfère avec l'apprentissage du Cerebellum
+      (régression mesurée : phase1b_fix3 98% → 22% après abd3bf0). Cette story construit
+      l'infrastructure de diagnostic (CognitiveConfig, δ-clip, multi-seed oracle), identifie
+      la(les) cause(s) racine par bissection, et les corrige. Une fois validé, les correctifs
+      e03 (normalisation, dual critic, reward stationnaire) redeviennent testables.
+    verify: "cd tso-engine && cargo run --bin multi_seed 2>&1 | grep -E 'phase1b_fix3.*9[0-9]\.[0-9]%'"
+    tasks:
+      - id: e03s00t01
+        title: >
+          Ajouter CognitiveConfig à TsoEngine — struct de flags par sous-système
+          (attractor, graph_phi, attention, episodic_curiosity, metabolic_cost,
+          hypothalamus, delta_clip). Défaut tout-à-true, comportement inchangé.
+          Utiliser CognitiveConfig dans step() et heartbeat() pour skipper
+          les sous-systèmes désactivés.
+        verify: "cd tso-engine && cargo check --lib 2>&1 | grep -E '^$|warning' ; test $? -eq 0 -o $? -eq 1"
+      - id: e03s00t02
+        title: >
+          Implémenter le δ-clip dans Cerebellum : remplacer step_a = lr * |δ| par
+          step_a = lr * min(|δ|, delta_clip_max). Valeur par défaut dans CognitiveConfig.
+          Permet de tester l'instabilité TD indépendamment du cycle cognitif.
+        verify: "cd tso-engine && cargo check --lib 2>&1 | grep -E '^$|warning' ; test $? -eq 0 -o $? -eq 1"
+      - id: e03s00t03
+        title: >
+          Créer le binaire multi_seed_bisect.rs — matrice 8 configs × 10 seeds sur 5×5
+          à signal stationnaire (perception brute + reward + bfs_shaping). Mesure succès
+          exploitation ε=0. Configs : (0) Cerebellum seul, (1) +δ-clip, (2) +attractor,
+          (3) +graph/Φ, (4) +episodic/attention/curiosity, (5) +metabolic_cost,
+          (6) +hypothalamus, (7) TSO complet.
+        verify: "cd tso-engine && cargo run --bin multi_seed_bisect 2>&1 | grep -E 'seed.*[0-9]'"
+      - id: e03s00t04
+        title: >
+          Analyser la matrice multi-seeds : identifier le(s) step(s) où le succès
+          chute significativement (<80%). Appliquer le fix correspondant (δ-clip
+          si step1, désactivation attractor si step2, etc.). Commit du fix.
+        verify: "cd tso-engine && cargo run --bin multi_seed_bisect 2>&1 | grep -E 'phase1b_fix3.*9[0-9]\.[0-9]%'"
+      - id: e03s00t05
+        title: >
+          Valider que le fix ne régresse pas : cargo check --bins, tous les binaires
+          existants compilent, run experiment_e03 pour confirmer que e03s01-s03
+          sont testables.
+        verify: "cargo check --bins 2>&1 | tail -1 | grep -v error"
   - id: e03s01
     title: "Diagnostic approfondi du well-being"
     verify: "cd tso-engine && cargo test --test well_being_diagnostic 2>&1 | grep PASS"
