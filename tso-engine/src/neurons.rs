@@ -1,5 +1,7 @@
 use ndarray::Array1;
+use serde::{Serialize, Deserialize};
 
+#[derive(Serialize, Deserialize)]
 pub struct LIFState {
     pub state: Array1<f64>,
     pub alpha: f64,
@@ -20,6 +22,7 @@ impl LIFState {
     }
 }
 
+#[derive(Serialize, Deserialize)]
 pub struct DualLIFState {
     pub slow: LIFState,
     pub fast: LIFState,

@@ -1,7 +1,9 @@
 use ndarray::Array1;
+use serde::{Serialize, Deserialize};
 use crate::neurons::DualLIFState;
 use crate::memory::AssociativeMemory;
 
+#[derive(Serialize, Deserialize)]
 pub struct WorkingMemory {
     pub lif: DualLIFState,
     pub assoc: AssociativeMemory,

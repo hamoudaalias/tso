@@ -1,6 +1,7 @@
 use ndarray::Array1;
+use serde::{Serialize, Deserialize};
 
-#[derive(Clone)]
+#[derive(Clone, Serialize, Deserialize)]
 pub struct AttractorField {
     pub prototypes: Vec<Vec<Array1<f64>>>,
     pub lr: f64,
@@ -86,6 +87,28 @@ impl AttractorField {
         self.prototypes[class].push(v);
     }
 
+    /// Remove redundant prototypes within each class.
+    /// Two prototypes closer than `threshold` are merged: the second is removed.
+    /// Each class keeps at least one prototype.
+    /// Returns the number of prototypes removed.
+    pub fn prune_redundant(&mut self, threshold: f64) -> usize {
+        let mut total_removed = 0;
+        for class_protos in self.prototypes.iter_mut() {
+            if class_protos.len() <= 1 { continue; }
+            let mut kept: Vec<Array1<f64>> = Vec::new();
+            for proto in class_protos.drain(..) {
+                let redundant = kept.iter().any(|kp| Self::euclidean_dist(kp, &proto) < threshold);
+                if !redundant || kept.is_empty() {
+                    kept.push(proto);
+                } else {
+                    total_removed += 1;
+                }
+            }
+            *class_protos = kept;
+        }
+        total_removed
+    }
+
     pub fn n_classes(&self) -> usize {
         self.prototypes.len()
     }
@@ -103,6 +126,10 @@ impl AttractorField {
             }
         }
         (best_class, best_dist)
+    }
+
+    pub fn get_prototype(&self, class_id: usize) -> Option<&Array1<f64>> {
+        self.prototypes.get(class_id).and_then(|protos| protos.first())
     }
 
     pub fn accuracy(&self, data: &[(Array1<f64>, usize)]) -> f64 {

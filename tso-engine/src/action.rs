@@ -1,6 +1,8 @@
 use ndarray::Array1;
+use serde::{Serialize, Deserialize};
 use crate::neurons::DualLIFState;
 
+#[derive(Serialize, Deserialize)]
 pub struct ActionMotor {
     pub beta: f64,
 }

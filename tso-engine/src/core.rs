@@ -1,9 +1,10 @@
 use ndarray::Array1;
+use serde::{Serialize, Deserialize};
 use std::collections::{HashMap, HashSet};
 
 pub type NodeId = usize;
 
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
 pub enum ConflictType {
     Exclusion,
     Implication,
@@ -25,10 +26,13 @@ impl ConflictType {
     }
 }
 
-#[derive(Clone, Copy, Debug, PartialEq)]
+const REPEL_STRIDE: f64 = 0.25;
+
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
 pub enum Action {
     Invert(NodeId),
     Align(NodeId, NodeId),
+    Repel(NodeId, NodeId),
 }
 
 impl Action {
@@ -36,6 +40,7 @@ impl Action {
         match self {
             Action::Invert(_) => 0,
             Action::Align(_, _) => 1,
+            Action::Repel(_, _) => 2,
         }
     }
 
@@ -56,18 +61,43 @@ impl Action {
                     graph.nodes[*b] = unit;
                 }
             }
+            Action::Repel(a, b) => {
+                let va = graph.nodes[*a].clone();
+                let vb = graph.nodes[*b].clone();
+                let dot_ab = va.dot(&vb);
+                let grad_a = -&vb + dot_ab * &va;
+                let na = grad_a.dot(&grad_a).sqrt();
+                if na > 1e-12 {
+                    let moved = &va + &(grad_a / na * REPEL_STRIDE);
+                    graph.nodes[*a] = moved.clone() / moved.dot(&moved).sqrt().max(1e-12);
+                } else {
+                    graph.nodes[*a] = -&va;
+                }
+                if na < 1e-12 && (va.dot(&vb).abs() - 1.0).abs() < 1e-9 {
+                    graph.nodes[*b] = vb.clone();
+                } else {
+                    let grad_b = -&va + dot_ab * &vb;
+                    let nb = grad_b.dot(&grad_b).sqrt();
+                    if nb > 1e-12 {
+                        let moved = &vb + &(grad_b / nb * REPEL_STRIDE);
+                        graph.nodes[*b] = moved.clone() / moved.dot(&moved).sqrt().max(1e-12);
+                    } else {
+                        graph.nodes[*b] = vb.clone();
+                    }
+                }
+            }
         }
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Edge {
     pub from: NodeId,
     pub to: NodeId,
     pub weight: i8,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Graph {
     pub nodes: Vec<Array1<f64>>,
     pub edges: Vec<Edge>,
@@ -160,6 +190,7 @@ impl Graph {
         let dot = self.nodes[e.from].dot(&self.nodes[e.to]);
         match e.weight {
             1 => (self.gamma - dot).max(0.0),
+            2 => (self.gamma - dot).max(0.0) * 2.0,
             -1 => (dot - self.epsilon).max(0.0),
             _ => 0.0,
         }
@@ -208,6 +239,122 @@ impl Graph {
             frontier = next;
         }
         set.into_iter().collect()
+    }
+
+    /// Remove edges whose phi contribution is below `min_phi`.
+    /// Returns the number of edges removed.
+    /// Remove an edge by its endpoints. Returns the phi contribution that was removed.
+    pub fn remove_edge(&mut self, from: NodeId, to: NodeId) -> f64 {
+        let pos = self.edges.iter().position(|e| (e.from == from && e.to == to) || (e.from == to && e.to == from));
+        match pos {
+            Some(idx) => {
+                let e = &self.edges[idx];
+                let saved = self.edge_phi(e);
+                self.edges.swap_remove(idx);
+                self.edge_map.remove(&(from, to));
+                self.edge_map.remove(&(to, from));
+                self.adj[from].retain(|&i| i != idx);
+                self.adj[to].retain(|&i| i != idx);
+                saved
+            }
+            None => 0.0,
+        }
+    }
+
+    /// Flag an edge as resolved: remove it and return the amount of Φ eliminated.
+    /// Φ drops immediately when a conflicting edge is "flagged" (removed).
+    pub fn flag_edge(&mut self, from: NodeId, to: NodeId) -> f64 {
+        self.remove_edge(from, to)
+    }
+
+    /// Bulk-prune exclusion edges whose phi contribution is below `min_phi`.
+    /// Returns (exclusion_removed, implication_removed, total_phi_saved).
+    pub fn prune_exclusion_edges(&mut self, min_phi: f64) -> (usize, usize, f64) {
+        // Compute phi for each edge before draining
+        let phis: Vec<f64> = self.edges.iter().map(|e| self.edge_phi(e)).collect();
+        let mut kept = Vec::new();
+        let mut excl_removed = 0usize;
+        let mut impl_removed = 0usize;
+        let mut phi_saved = 0.0;
+        for (e, phi) in self.edges.drain(..).zip(phis) {
+            if phi < min_phi {
+                phi_saved += phi;
+                match e.weight {
+                    -1 => excl_removed += 1,
+                    _ => impl_removed += 1,
+                }
+            } else {
+                kept.push(e);
+            }
+        }
+        let removed = excl_removed + impl_removed;
+        self.edges = kept;
+        if removed > 0 {
+            self.edge_map.clear();
+            self.adj = vec![Vec::new(); self.nodes.len()];
+            for (idx, e) in self.edges.iter().enumerate() {
+                self.edge_map.insert((e.from, e.to), e.weight);
+                self.edge_map.insert((e.to, e.from), e.weight);
+                self.adj[e.from].push(idx);
+                self.adj[e.to].push(idx);
+            }
+        }
+        (excl_removed, impl_removed, phi_saved)
+    }
+
+    /// Inject many random exclusion edges between random node pairs.
+    /// Used to stress-test the resolution and pruning machinery.
+    /// Returns the number of edges added.
+    pub fn inject_exclusion_edges(&mut self, count: usize) -> usize {
+        use rand::Rng;
+        let mut rng = rand::thread_rng();
+        let mut added = 0usize;
+        for _ in 0..count {
+            if self.nodes.len() < 2 { break; }
+            let a = rng.gen_range(0..self.nodes.len());
+            let b = rng.gen_range(0..self.nodes.len());
+            if a == b { continue; }
+            if self.edge_map.contains_key(&(a, b)) { continue; }
+            self.add_edge(a, b, -1);
+            added += 1;
+        }
+        added
+    }
+
+    pub fn remove_low_phi_edges(&mut self, min_phi: f64) -> usize {
+        let before = self.edges.len();
+        let keep: Vec<bool> = self.edges.iter().map(|e| self.edge_phi(e) >= min_phi).collect();
+        self.edges = self.edges.drain(..).enumerate()
+            .filter(|(i, _)| keep[*i])
+            .map(|(_, e)| e)
+            .collect();
+        let removed = before - self.edges.len();
+        if removed > 0 {
+            self.edge_map.clear();
+            self.adj = vec![Vec::new(); self.nodes.len()];
+            for (idx, e) in self.edges.iter().enumerate() {
+                self.edge_map.insert((e.from, e.to), e.weight);
+                self.edge_map.insert((e.to, e.from), e.weight);
+                self.adj[e.from].push(idx);
+                self.adj[e.to].push(idx);
+            }
+        }
+        removed
+    }
+
+    /// Remove all edges while keeping nodes intact.
+    /// Used by concept pruning to rebuild edges after reindexing nodes.
+    pub fn clear_edges(&mut self) {
+        self.edges.clear();
+        self.edge_map.clear();
+        self.adj = vec![Vec::new(); self.nodes.len()];
+    }
+
+    /// Metabolic cost per tick.
+    /// Proportional to graph size — more edges means more computation
+    /// for phi() and resolve(). Each edge and node incurs a small cost.
+    pub fn compute_cost(&self) -> f64 {
+        self.edges.len() as f64 * 0.1 + self.nodes.len() as f64 * 0.05
     }
 
     pub fn local_edge_indices(&self, node_set: &[NodeId]) -> Vec<usize> {
@@ -262,7 +409,7 @@ impl Critic {
                     let dot = if ee.from == *id { inv.dot(&graph.nodes[ee.to]) }
                               else if ee.to == *id { graph.nodes[ee.from].dot(&inv) }
                               else { graph.nodes[ee.from].dot(&graph.nodes[ee.to]) };
-                    match ee.weight { 1 => (graph.gamma - dot).max(0.0), -1 => (dot - graph.epsilon).max(0.0), _ => 0.0 }
+                    match ee.weight { 1 => (graph.gamma - dot).max(0.0), 2 => (graph.gamma - dot).max(0.0) * 2.0, -1 => (dot - graph.epsilon).max(0.0), _ => 0.0 }
                 }).sum()
             }
             Action::Align(a, b) => {
@@ -284,7 +431,38 @@ impl Critic {
                               else if ee.from == *b { nv.dot(&graph.nodes[ee.to]) }
                               else if ee.to == *b { graph.nodes[ee.from].dot(&nv) }
                               else { graph.nodes[ee.from].dot(&graph.nodes[ee.to]) };
-                    match ee.weight { 1 => (graph.gamma - dot).max(0.0), -1 => (dot - graph.epsilon).max(0.0), _ => 0.0 }
+                    match ee.weight { 1 => (graph.gamma - dot).max(0.0), 2 => (graph.gamma - dot).max(0.0) * 2.0, -1 => (dot - graph.epsilon).max(0.0), _ => 0.0 }
+                }).sum()
+            }
+            Action::Repel(a, b) => {
+                let u = &graph.nodes[*a];
+                let v = &graph.nodes[*b];
+                let dot_uv = u.dot(v);
+                let grad_a = &(-v + dot_uv * u);
+                let na = grad_a.dot(grad_a).sqrt();
+                let nu = if na > 1e-12 {
+                    let moved = u + &(grad_a / na * REPEL_STRIDE);
+                    moved.clone() / moved.dot(&moved).sqrt().max(1e-12)
+                } else {
+                    -u / u.dot(u).sqrt().max(1e-12)
+                };
+                let grad_b = &(-u + dot_uv * v);
+                let nb = grad_b.dot(grad_b).sqrt();
+                let nv = if nb > 1e-12 {
+                    let moved = v + &(grad_b / nb * REPEL_STRIDE);
+                    moved.clone() / moved.dot(&moved).sqrt().max(1e-12)
+                } else {
+                    -v / v.dot(v).sqrt().max(1e-12)
+                };
+                incident.iter().map(|&idx| {
+                    let ee = &graph.edges[idx];
+                    let dot = if ee.from == *a && ee.to == *b { nu.dot(&nv) }
+                              else if ee.from == *a { nu.dot(&graph.nodes[ee.to]) }
+                              else if ee.to == *a { graph.nodes[ee.from].dot(&nu) }
+                              else if ee.from == *b { nv.dot(&graph.nodes[ee.to]) }
+                              else if ee.to == *b { graph.nodes[ee.from].dot(&nv) }
+                              else { graph.nodes[ee.from].dot(&graph.nodes[ee.to]) };
+                    match ee.weight { 1 => (graph.gamma - dot).max(0.0), 2 => (graph.gamma - dot).max(0.0) * 2.0, -1 => (dot - graph.epsilon).max(0.0), _ => 0.0 }
                 }).sum()
             }
         };
@@ -292,9 +470,9 @@ impl Critic {
         phi_after - phi_before
     }
 
-    pub fn evaluate_all(graph: &Graph, conflict_edge_idx: usize, a: NodeId, b: NodeId) -> ([f64; 2], usize) {
-        let actions = [Action::Invert(b), Action::Align(a, b)];
-        let mut deltas = [0.0; 2];
+    pub fn evaluate_all(graph: &Graph, conflict_edge_idx: usize, a: NodeId, b: NodeId) -> ([f64; 3], usize) {
+        let actions = [Action::Invert(b), Action::Align(a, b), Action::Repel(a, b)];
+        let mut deltas = [0.0; 3];
         let mut best_idx = 0;
         for (i, act) in actions.iter().enumerate() {
             deltas[i] = Critic::evaluate(graph, conflict_edge_idx, act);
@@ -310,14 +488,14 @@ impl Critic {
 // Actor
 // ---------------------------------------------------------------------------
 pub struct Actor {
-    q: [[f64; 2]; 2],
+    q: [[f64; 3]; 2],
     epsilon: f64,
     eta: f64,
 }
 
 impl Actor {
     pub fn new(epsilon: f64, eta: f64) -> Self {
-        Actor { q: [[0.0; 2]; 2], epsilon, eta }
+        Actor { q: [[0.0; 3]; 2], epsilon, eta }
     }
 
     pub fn reinforce(&mut self, conflict: ConflictType, action: &Action, reward: f64) {
@@ -330,11 +508,21 @@ impl Actor {
 
     pub fn propose(&self, conflict: ConflictType) -> usize {
         if rand::random::<f64>() < self.epsilon {
-            rand::random::<usize>() % 2
+            rand::random::<usize>() % 3
         } else {
             let q_values = &self.q[conflict.index()];
-            if q_values[0] >= q_values[1] { 0 } else { 1 }
+            let mut best = 0;
+            for i in 1..3 { if q_values[i] > q_values[best] { best = i; } }
+            best
         }
+    }
+}
+
+fn action_from_idx(idx: usize, a: NodeId, b: NodeId) -> Action {
+    match idx {
+        0 => Action::Invert(b),
+        1 => Action::Align(a, b),
+        _ => Action::Repel(a, b),
     }
 }
 
@@ -346,6 +534,7 @@ pub struct ResolveResult {
     pub phi_trace: Vec<f64>,
     pub actions_taken: usize,
     pub converged: bool,
+    pub oscillation_breaks: usize,
 }
 
 fn select_independent_edges(violated: &[(usize, f64)], edges: &[Edge]) -> Vec<usize> {
@@ -365,6 +554,35 @@ fn select_independent_edges(violated: &[(usize, f64)], edges: &[Edge]) -> Vec<us
 const BATCH_LIMIT: usize = 500;
 
 pub fn resolve(graph: &mut Graph, max_iter: usize, tol: f64) -> ResolveResult {
+    resolve_with_anneal(graph, max_iter, tol, 0.0)
+}
+
+fn boltzmann_select(deltas: &[f64; 3], temperature: f64) -> usize {
+    if temperature <= 0.0 { return 0; }
+    let min_d = deltas[0].min(deltas[1]).min(deltas[2]);
+    let weights: Vec<f64> = deltas.iter()
+        .map(|d| (-(d - min_d) / temperature).exp()).collect();
+    let total: f64 = weights.iter().sum();
+    if total <= 0.0 { return 0; }
+    let r = rand::random::<f64>() * total;
+    let mut acc = 0.0;
+    for (i, w) in weights.iter().enumerate() {
+        acc += w;
+        if r < acc { return i; }
+    }
+    2
+}
+
+fn select_best_or_actor(deltas: &[f64; 3], best_idx: usize, actor: &Actor, conflict: ConflictType) -> (usize, bool) {
+    let action_idx = actor.propose(conflict);
+    if deltas[action_idx] < 0.0 {
+        (action_idx, true)
+    } else {
+        (best_idx, false)
+    }
+}
+
+pub fn resolve_with_anneal(graph: &mut Graph, max_iter: usize, tol: f64, mut temperature: f64) -> ResolveResult {
     let mut actor = Actor::new(0.5, 0.15);
     let mut phi_trace = Vec::new();
     let mut actions_taken = 0;
@@ -373,6 +591,7 @@ pub fn resolve(graph: &mut Graph, max_iter: usize, tol: f64) -> ResolveResult {
     let mut best_nodes = graph.nodes.clone();
     let mut stall_count = 0;
     const STALL_LIMIT: usize = 20;
+    let mut osc_count = 0usize;
 
     for iter in 0..max_iter {
         let phi = graph.phi();
@@ -386,6 +605,22 @@ pub fn resolve(graph: &mut Graph, max_iter: usize, tol: f64) -> ResolveResult {
             stall_count += 1;
         }
 
+        // Detect oscillation: if phi alternates direction ≥3 times in last 6 iters
+        // while stalled, force greedy mode to break the Repel↔Align cycle.
+        if temperature > 0.0 && stall_count >= 3 && phi_trace.len() >= 6 {
+            let window = &phi_trace[phi_trace.len()-6..];
+            let mut sign_flips = 0;
+            for i in 2..window.len() {
+                let d1 = window[i-1] - window[i-2];
+                let d2 = window[i] - window[i-1];
+                if d1 * d2 < 0.0 { sign_flips += 1; }
+            }
+            if sign_flips >= 3 {
+                temperature = 0.0;
+                osc_count += 1;
+            }
+        }
+
         if phi < tol || stall_count >= STALL_LIMIT {
             graph.nodes = best_nodes;
             let final_phi = graph.phi();
@@ -395,6 +630,7 @@ pub fn resolve(graph: &mut Graph, max_iter: usize, tol: f64) -> ResolveResult {
                 phi_trace,
                 actions_taken,
                 converged: true,
+                oscillation_breaks: osc_count,
             };
         }
 
@@ -414,18 +650,16 @@ pub fn resolve(graph: &mut Graph, max_iter: usize, tol: f64) -> ResolveResult {
             let (a, b) = (e.from, e.to);
             let conflict = ConflictType::from_weight(e.weight);
 
-            let action_idx = actor.propose(conflict);
-            let proposed = if action_idx == 0 { Action::Invert(b) } else { Action::Align(a, b) };
+            let (deltas, best_idx) = Critic::evaluate_all(graph, edge_idx, a, b);
 
-            let delta = Critic::evaluate(graph, edge_idx, &proposed);
-
-            if delta < 0.0 {
-                applied.push((edge_idx, proposed, delta, conflict, true));
+            let (select_idx, was_actor) = if temperature > 0.0 {
+                (boltzmann_select(&deltas, temperature), false)
             } else {
-                let (deltas, best_idx) = Critic::evaluate_all(graph, edge_idx, a, b);
-                let best_action = if best_idx == 0 { Action::Invert(b) } else { Action::Align(a, b) };
-                applied.push((edge_idx, best_action, deltas[best_idx], conflict, false));
-            }
+                select_best_or_actor(&deltas, best_idx, &actor, conflict)
+            };
+
+            let selected_action = action_from_idx(select_idx, a, b);
+            applied.push((edge_idx, selected_action, deltas[select_idx], conflict, was_actor));
         }
 
         applied.sort_by(|a, b| a.2.partial_cmp(&b.2).unwrap());
@@ -433,10 +667,12 @@ pub fn resolve(graph: &mut Graph, max_iter: usize, tol: f64) -> ResolveResult {
         let mut any_applied = false;
         for (_edge_idx, action, _delta, conflict, was_actor) in &applied {
             action.apply_to_graph(graph);
-            if *was_actor {
-                actor.reinforce(*conflict, action, 1.0);
-            } else {
-                actor.reinforce(*conflict, action, -0.3);
+            if temperature <= 0.0 {
+                if *was_actor {
+                    actor.reinforce(*conflict, action, 1.0);
+                } else {
+                    actor.reinforce(*conflict, action, -0.3);
+                }
             }
             actions_taken += 1;
             any_applied = true;
@@ -447,30 +683,19 @@ pub fn resolve(graph: &mut Graph, max_iter: usize, tol: f64) -> ResolveResult {
             let (edge_idx, _) = violated[0];
             let e = &graph.edges[edge_idx];
             let (a, b) = (e.from, e.to);
-            let conflict = ConflictType::from_weight(e.weight);
-
-            let action_idx = actor.propose(conflict);
-            let proposed = if action_idx == 0 { Action::Invert(b) } else { Action::Align(a, b) };
-
-            let delta = Critic::evaluate(graph, edge_idx, &proposed);
-
-            let (best_action, was_actor) = if delta < 0.0 {
-                (proposed, true)
+            let (deltas, _) = Critic::evaluate_all(graph, edge_idx, a, b);
+            let select_idx = if temperature > 0.0 {
+                boltzmann_select(&deltas, temperature)
             } else {
-                let (_deltas, best_idx) = Critic::evaluate_all(graph, edge_idx, a, b);
-                let best_action = if best_idx == 0 { Action::Invert(b) } else { Action::Align(a, b) };
-                (best_action, false)
+                0
             };
-
+            let best_action = action_from_idx(select_idx, a, b);
             best_action.apply_to_graph(graph);
-            if was_actor {
-                actor.reinforce(conflict, &best_action, 1.0);
-            } else {
-                actor.reinforce(conflict, &best_action, -0.3);
-            }
             actions_taken += 1;
         }
 
+        temperature *= 0.85;
+        if temperature <= 0.0 { temperature = 0.0; }
         actor.decay_epsilon(0.997);
     }
 
@@ -481,5 +706,206 @@ pub fn resolve(graph: &mut Graph, max_iter: usize, tol: f64) -> ResolveResult {
         phi_trace,
         actions_taken,
         converged: true,
+        oscillation_breaks: osc_count,
     }
+}
+
+/// Parallel resolution using scoped threads.
+/// Independent edge batches are processed concurrently on node copies,
+/// then the best result is merged back. Scales with available cores.
+/// Falls back to sequential resolve if num_threads <= 1.
+pub fn resolve_parallel(graph: &mut Graph, max_iter: usize, tol: f64, mut temperature: f64, num_threads: usize) -> ResolveResult {
+    if num_threads <= 1 {
+        return resolve_with_anneal(graph, max_iter, tol, temperature);
+    }
+
+    let mut actor = Actor::new(0.5, 0.15);
+    let mut phi_trace = Vec::new();
+    let mut actions_taken = 0;
+    let mut best_phi = graph.phi();
+    let mut best_nodes = graph.nodes.clone();
+    let mut stall_count = 0;
+    let mut osc_count = 0usize;
+
+    for iter in 0..max_iter {
+        let phi = graph.phi();
+        phi_trace.push(phi);
+
+        if phi < best_phi - 1e-9 {
+            best_phi = phi;
+            best_nodes = graph.nodes.clone();
+            stall_count = 0;
+        } else {
+            stall_count += 1;
+        }
+
+        if temperature > 0.0 && stall_count >= 3 && phi_trace.len() >= 6 {
+            let window = &phi_trace[phi_trace.len()-6..];
+            let mut sign_flips = 0;
+            for i in 2..window.len() {
+                let d1 = window[i-1] - window[i-2];
+                let d2 = window[i] - window[i-1];
+                if d1 * d2 < 0.0 { sign_flips += 1; }
+            }
+            if sign_flips >= 3 {
+                temperature = 0.0;
+                osc_count += 1;
+            }
+        }
+
+        if phi < tol || stall_count >= 20 {
+            graph.nodes = best_nodes;
+            phi_trace.push(graph.phi());
+            return ResolveResult { iterations: iter, phi_trace, actions_taken, converged: true, oscillation_breaks: osc_count };
+        }
+
+        let violated: Vec<(usize, f64)> = graph.edges.iter().enumerate()
+            .map(|(idx, e)| (idx, graph.edge_phi(e)))
+            .filter(|(_, p)| *p > tol)
+            .collect();
+        if violated.is_empty() { break; }
+
+        // Split violated edges into batches for parallel processing
+        let batch_size = (violated.len() / num_threads).max(1);
+        let chunks: Vec<&[(usize, f64)]> = violated.chunks(batch_size).collect();
+
+        let results = std::thread::scope(|s| {
+            let mut handles = Vec::new();
+            for chunk in &chunks {
+                if chunk.is_empty() { continue; }
+                let nodes_snapshot = graph.nodes.clone();
+                let n_nodes = nodes_snapshot.len();
+                let edges_snapshot = graph.edges.clone();
+                let gamma = graph.gamma;
+                let epsilon = graph.epsilon;
+                let temp = temperature;
+                let handle = s.spawn(move || {
+                    let mut local_graph = Graph { nodes: nodes_snapshot, edges: edges_snapshot, edge_map: std::collections::HashMap::new(), adj: vec![Vec::new(); n_nodes], gamma, epsilon };
+                    // Rebuild adj for local copy
+                    for (idx, e) in local_graph.edges.iter().enumerate() {
+                        local_graph.adj[e.from].push(idx);
+                        local_graph.adj[e.to].push(idx);
+                    }
+
+                    let mut local_actions = 0usize;
+                    let mut local_best_phi = local_graph.phi();
+                    let mut changed = false;
+
+                    let batch = select_independent_edges(chunk, &local_graph.edges);
+                    let mut applied: Vec<(Action, f64)> = Vec::new();
+                    for &edge_idx in &batch {
+                        let e = &local_graph.edges[edge_idx];
+                        let (a, b) = (e.from, e.to);
+                        let (deltas, best_idx) = Critic::evaluate_all(&local_graph, edge_idx, a, b);
+                        let select_idx = if temp > 0.0 { boltzmann_select(&deltas, temp) } else { best_idx };
+                        let action = action_from_idx(select_idx, a, b);
+                        let delta = deltas[select_idx];
+                        if delta < 0.0 {
+                            applied.push((action, delta));
+                        }
+                    }
+                    applied.sort_by(|a, b| a.1.partial_cmp(&b.1).unwrap());
+                    for (action, _) in &applied {
+                        action.apply_to_graph(&mut local_graph);
+                        local_actions += 1;
+                        changed = true;
+                    }
+                    let final_local_phi = local_graph.phi();
+                    if final_local_phi < local_best_phi { local_best_phi = final_local_phi; }
+                    (local_graph.nodes, local_actions, local_best_phi, changed)
+                });
+                handles.push(handle);
+            }
+            handles.into_iter().map(|h| h.join().unwrap()).collect::<Vec<_>>()
+        });
+
+        // Merge: apply the best node arrangement from all batches
+        let mut any_applied = false;
+        for (batch_nodes, batch_actions, batch_best_phi, changed) in &results {
+            if *changed {
+                any_applied = true;
+                actions_taken += batch_actions;
+                if *batch_best_phi < best_phi {
+                    best_phi = *batch_best_phi;
+                    graph.nodes = batch_nodes.clone();
+                }
+            }
+        }
+
+        if !any_applied { break; }
+
+        temperature *= 0.85;
+        if temperature <= 0.0 { temperature = 0.0; }
+        actor.decay_epsilon(0.997);
+    }
+
+    graph.nodes = best_nodes;
+    phi_trace.push(graph.phi());
+    ResolveResult { iterations: max_iter, phi_trace, actions_taken, converged: true, oscillation_breaks: osc_count }
+}
+
+/// Démineur mode: systematically "flag" all violated edges in a graph,
+/// removing them one by one and tracking the Φ drop per flag.
+/// Returns (flags_planted, phi_dropped, final_phi).
+pub fn demineur_sweep(graph: &mut Graph, tol: f64) -> (usize, f64, f64) {
+    let mut flags = 0usize;
+    let mut phi_dropped = 0.0;
+    if graph.phi() < tol { return (0, 0.0, graph.phi()); }
+
+    loop {
+        let violated: Vec<(usize, f64)> = graph.edges.iter().enumerate()
+            .map(|(idx, e)| (idx, graph.edge_phi(e)))
+            .filter(|(_, p)| *p > tol)
+            .collect();
+        if violated.is_empty() { break; }
+
+        let &(worst_idx, _) = violated.iter().max_by(|a, b| a.1.partial_cmp(&b.1).unwrap()).unwrap();
+        let (from, to) = {
+            let e = &graph.edges[worst_idx];
+            (e.from, e.to)
+        };
+        let saved = graph.flag_edge(from, to);
+        phi_dropped += saved;
+        flags += 1;
+    }
+
+    (flags, phi_dropped, graph.phi())
+}
+
+/// Démineur avec trace détaillée de chaque drapeau.
+/// Affiche Φ après chaque flag pour montrer "Φ chute à chaque drapeau".
+/// Retourne (flags, phi_dropped, final_phi, vec![(phi_avant, phi_après)]).
+pub fn demineur_sweep_trace(graph: &mut Graph, tol: f64) -> (usize, f64, f64, Vec<(f64, f64, i8)>) {
+    let mut flags = 0usize;
+    let mut phi_dropped = 0.0;
+    let mut trace = Vec::new();
+
+    loop {
+        let phi_before_flag = graph.phi();
+        if phi_before_flag < tol {
+            if flags > 0 {
+                trace.push((phi_before_flag, phi_before_flag, 0));
+            }
+            break;
+        }
+
+        let violated: Vec<(usize, f64)> = graph.edges.iter().enumerate()
+            .map(|(idx, e)| (idx, graph.edge_phi(e)))
+            .filter(|(_, p)| *p > tol)
+            .collect();
+        if violated.is_empty() { break; }
+
+        let &(worst_idx, _) = violated.iter().max_by(|a, b| a.1.partial_cmp(&b.1).unwrap()).unwrap();
+        let (from, to, weight) = {
+            let e = &graph.edges[worst_idx];
+            (e.from, e.to, e.weight)
+        };
+        graph.flag_edge(from, to);
+        let phi_after_flag = graph.phi();
+        phi_dropped += phi_before_flag - phi_after_flag;
+        flags += 1;
+        trace.push((phi_before_flag, phi_after_flag, weight));
+    }
+
+    (flags, phi_dropped, graph.phi(), trace)
 }

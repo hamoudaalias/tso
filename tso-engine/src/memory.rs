@@ -1,12 +1,13 @@
 use ndarray::Array1;
+use serde::{Serialize, Deserialize};
 
-#[derive(Clone)]
+#[derive(Clone, Serialize, Deserialize)]
 pub struct Entry {
     pub vector: Array1<f64>,
     pub data: usize,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Serialize, Deserialize)]
 pub struct AssociativeMemory {
     pub entries: Vec<Entry>,
 }
