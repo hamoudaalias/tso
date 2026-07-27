@@ -16,6 +16,9 @@ __MACOSX
 .opencode/
 .opencode
 
+# Subagent artefacts
+.pi-subagents/
+
 # Python
 __pycache__/
 *.pyc

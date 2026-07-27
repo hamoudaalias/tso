@@ -5,3 +5,10 @@
   scope: cerebellum
   summary: "Actor-critic TD(λ) online collapse in S1 — |δ|-based updates destroy policy before replay can correct"
   file: "specs/bugs/BUG-2025-01-15T103000-actor-collapse-td-online.md"
+- bug_id: "2025-08-03T120000"
+  date: "2025-08-03"
+  severity: High
+  priority: High
+  scope: tso_engine
+  summary: "Cognitive cycle TSO interfere avec l'apprentissage du Cerebellum en 5×5 — regression du refactoring abd3bf0"
+  file: "specs/bugs/BUG-2025-08-03T120000-cognitive-cycle-interference.md"
