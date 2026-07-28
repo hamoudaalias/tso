@@ -1,0 +1,43 @@
+epic_id: e10
+title: "Sommeil Phase 3 — Neurogenèse structurelle"
+description: >
+  Ajouter la création de NOUVELLES CLASSES de concepts pendant le cycle
+  sommeil, avec période critique de maturation, homéostasie par remplacement,
+  scaling synaptique, et protection anti-pruning. Bio-inspiré de la
+  neurogenèse adulte du gyrus denté hippocampal.
+status: planned
+priority: 4
+wsjf: 16
+bcp: 10
+dependencies: [e05]
+stories:
+  - id: e10s01
+    title: "Phase 1.5 — Neurogenèse : naissance de nouveaux concepts"
+    bcps: 3
+    risk: P0
+    status: failing
+    verify: "cd tso-engine && cargo test -- test_neurogenesis_birth 2>&1 | grep 'ok\\|PASS'"
+  - id: e10s02
+    title: "Période critique — protection et hyperplasticité des nouveau-nés"
+    bcps: 2
+    risk: P1
+    status: failing
+    verify: "cd tso-engine && cargo test -- test_neurogenesis_critical_period 2>&1 | grep 'ok\\|PASS'"
+  - id: e10s03
+    title: "Homéostasie — remplacement du concept le moins actif"
+    bcps: 2
+    risk: P1
+    status: failing
+    verify: "cd tso-engine && cargo test -- test_neurogenesis_replacement 2>&1 | grep 'ok\\|PASS'"
+  - id: e10s04
+    title: "Scaling synaptique — normalisation des arêtes après neurogenèse"
+    bcps: 1
+    risk: P2
+    status: failing
+    verify: "cd tso-engine && cargo test -- test_neurogenesis_synaptic_scaling 2>&1 | grep 'ok\\|PASS'"
+  - id: e10s05
+    title: "Validation — diversité, Φ borné, non-régression benchmarks"
+    bcps: 2
+    risk: P2
+    status: failing
+    verify: "cd tso-engine && cargo test -- test_neurogenesis_integration 2>&1 | grep 'ok\\|PASS'"

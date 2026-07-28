@@ -66,6 +66,18 @@ pub struct CognitiveConfig {
     /// Clip de |δ| dans reinforce_td : step_a = lr * min(|δ|, delta_clip_max).
     /// 0.0 = pas de clip (comportement actuel).
     pub delta_clip_max: f64,
+    /// Neurogenèse : probabilité qu'un prototype existant génère un nouveau concept
+    /// pendant le cycle sommeil (Phase 1.5). 0.0 = pas de neurogenèse.
+    pub sleep_neurogenesis_rate: f64,
+    /// Neurogenèse : nombre maximum de concepts (prototypes + graphe). Au-delà,
+    /// le concept le moins actif est remplacé (homéostasie).
+    pub sleep_max_concepts: usize,
+    /// Neurogenèse : nombre de cycles sommeil pendant lesquels un nouveau concept
+    /// est en période critique (protection anti-pruning, lr boosté).
+    pub sleep_maturation_cycles: usize,
+    /// Scaling synaptique : normaliser les poids d'arêtes après chaque neurogenèse
+    /// pour éviter l'emballement des connexions (Phase 3.5).
+    pub sleep_synaptic_scaling: bool,
 }
 
 impl Default for CognitiveConfig {
@@ -78,6 +90,10 @@ impl Default for CognitiveConfig {
             metabolic_cost: true,
             hypothalamus: true,
             delta_clip_max: 5.0,
+            sleep_neurogenesis_rate: 0.2,
+            sleep_max_concepts: 50,
+            sleep_maturation_cycles: 3,
+            sleep_synaptic_scaling: true,
         }
     }
 }

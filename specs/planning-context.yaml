@@ -1,0 +1,40 @@
+# specs/planning-context.yaml — produit par elaborate-spec
+# Sommeil Phase 3 : Neurogenèse structurelle
+
+feature_name: "Sommeil Phase 3 — Neurogenèse structurelle"
+
+problem_statement: >
+  Le cycle sommeil actuel (`sleep_cycle()`) ne crée que des prototypes
+  supplémentaires dans des classes existantes — il n'émerge jamais de
+  NOUVEAUX concepts. La diversité des représentations stagne, le graphe
+  sémantique reste structuré autour des classes initiales, et le système
+  ne peut pas explorer de nouvelles hypothèses conceptuelles.
+  Bio-inspiration : la neurogenèse adulte du gyrus denté hippocampal
+  fait naître de nouveaux neurones granulaires avec une période critique
+  de haute plasticité, intégration synaptique progressive, et remplacement
+  des neurones obsolètes.
+
+constraints:
+  - "Doit s'intégrer dans le cycle sommeil existant (5 phases actuelles) sans réécriture"
+  - "Le nombre total de concepts doit rester borné (max_concepts paramétrable)"
+  - "La neurogenèse NE doit PAS dégrader Φ (la tension cognitive doit rester ≤ seuil)"
+  - "Les nouveaux concepts doivent être protégés du pruning pendant leur période critique"
+  - "Champ de prototypes (AttractorField) inchangé dans son API publique"
+
+out_of_scope:
+  - "Réécriture du cervelet (Cerebellum) — ADR-002 acté"
+  - "Deep RL (PPO/DQN) — projet différent"
+  - "Mort neuronale programmée (apoptose) — version simplifiée : remplacement par inactivité"
+  - "Migration des épisodes stockés contenant des IDs de concepts supprimés"
+
+key_decisions:
+  - decision: "Neurogenèse = création de nouvelles CLASSES (pas juste prototypes)"
+    rationale: "Sans nouvelle classe, le système ne peut pas émerger de nouvelles catégories conceptuelles. Le prototype dans une classe existante affine mais n'innove pas."
+  - decision: "Période critique = compteur de maturation (3 cycles sommeil)"
+    rationale: "Simulation simple de la fenêtre de haute plasticité du DG. Pendant cette période : lr 3×, seuil de nouveauté 0.5×, pas de pruning."
+  - decision: "Connexion initiale aléatoire faible au graphe existant"
+    rationale: "Bio : les nouveaux neurones DG étendent des dendrites et reçoivent des inputs de l'EC (cortex entorhinal). En TSO : 2-3 arêtes faibles vers des nœuds existants aléatoires, renforcées par l'usage."
+  - decision: "Remplacement : quand max_concepts atteint, remplacer le concept le moins actif"
+    rationale: "Bio : ~700 nouveaux neurones/jour dans le DG humain, remplacement continu. En TSO : budget de concepts fixe, le moins actif est sacrifié."
+  - decision: "Paramètre unique sleep_neurogenesis_rate (défaut 0.2) contrôlant la probabilité de naissance"
+    rationale: "Évite l'explosion paramétrique. Un seul curseur : 0 = pas de neurogenèse, 1 = naissance sur chaque dist > seuil."

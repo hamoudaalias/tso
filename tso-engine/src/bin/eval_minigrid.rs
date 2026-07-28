@@ -1,4 +1,10 @@
 /// TSO × Minigrid via PyO3 — Évaluation réelle
+
+#[cfg(not(feature = "interop"))]
+fn main() { eprintln!("interop feature required: cargo run --features interop --bin eval_minigrid"); }
+
+#[cfg(feature = "interop")]
+mod impl_ {
 use std::time::Instant;
 use tso_engine::tso_engine::TsoEngine;
 use tso_engine::environment::{Environment, StepResult};
@@ -9,6 +15,7 @@ struct MinigridTrait {
     inner: Py<PyAny>,
     act_space: usize, obs_dim: usize,
 }
+
 impl Environment for MinigridTrait {
     fn reset(&mut self) -> Array1<f64> {
         Python::attach(|py| {
@@ -35,7 +42,7 @@ impl Environment for MinigridTrait {
     fn observation_dim(&self) -> usize { self.obs_dim }
 }
 
-fn main() {
+pub fn main() {
     eprintln!("╔══════════════════════════════════════════════════════════════╗");
     eprintln!("║  TSO × Minigrid — EmptyEnv-8×8 via PyO3                   ║");
     eprintln!("╚══════════════════════════════════════════════════════════════╝");
@@ -95,4 +102,5 @@ fn main() {
 
     let rate = successes as f64 / EP as f64 * 100.0;
     eprintln!("  Total: {successes}/{EP} = {rate:.1}% en {:.1?}", t0.elapsed());
+}
 }

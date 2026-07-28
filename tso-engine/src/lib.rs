@@ -20,3 +20,4 @@ pub mod encoder;
 pub mod environment;
 pub mod vae;
 pub mod constraint_redirection;
+pub mod zigzag_grid;
