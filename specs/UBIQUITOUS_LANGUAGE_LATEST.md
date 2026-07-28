@@ -85,6 +85,15 @@
 | **GridWorld** | Environnement en grille avec murs infranchissables ; partiellement observable (moustaches seulement) | Maze, labyrinthe, grille |
 | **Configuration** | Topologie du monde : Salle vide, Couloir droit, Zigzag (L), Aléatoire (~35% murs) | Map, maze layout, config |
 
+## Métriques et observabilité
+
+| Terme | Définition | Alias à éviter |
+|-------|-----------|----------------|
+| **MetricsSnapshot** | Struct sérialisable (serde + JSON) capturant Φ, bien-être, énergie, hydratation, température, pression de sommeil, concepts, arêtes, épisodes, steps, cycles de sommeil. Exportable via `--metrics` ou `JSON_METRICS=1`. | Métriques, snapshot |
+| **tracing** | Crate de logging structuré (niveaux DEBUG/INFO/ERROR, events avec champs typés). Remplace `eprintln!` dans le code de production. Activé via `--trace` ou `TRACE=1`. | Logging, debug |
+| **DEBUG step** | Event tracing émis à chaque heartbeat quand `debug_step_dump=true`. Inclut rl_signal, reward_ext, bfs_value, use_stationary_reward. | Step debug, RL trace |
+| **JSON_METRICS** | Variable d'environnement activant l'export JSON des MetricsSnapshot via `serde_json::to_string()`. | JSON export |
+
 ## Relations
 
 - Un **Heartbeat** exécute 4 étapes : Perception → Catégorisation → Évaluation (Φ) → Action

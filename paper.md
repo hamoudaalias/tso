@@ -362,6 +362,8 @@ Cette expérience (epic e03) adresse le problème de **l'instabilité du TD en l
 
 TSO est écrit en Rust utilisant `ndarray` pour les opérations vectorielles, `serde` + `bincode` pour la sérialisation, et `rand` pour le bruit d'exploration. L'architecture entière est sérialisable pour le checkpointing. Le moteur fonctionne à 10 Hz avec un affichage temps réel (labyrinthe, barres homéostatiques, Φ, pression de sommeil, métriques métaboliques). Cycle de vie : 1 heartbeat (0.1 s) = 1 cycle cognitif complet ; 1 épisode = N heartbeats jusqu'au but ou timeout ; sommeil déclenché entre épisodes par pression homéostatique ou intervalle fixe.
 
+L'observabilité est assurée par le crate `tracing` : chaque heartbeat émet un event DEBUG structuré (rl_signal, reward_ext, bfs_value, flag stationnaire) quand `debug_step_dump=true`. Une struct `MetricsSnapshot` (serde + `serde_json`) capture les métriques clés (Φ, bien-être, énergie, hydratation, température, pression de sommeil, concepts, arêtes, épisodes, steps, cycles de sommeil) pour export en temps réel ou batch JSON. Le binaire `debug_rl` supporte les flags `--trace` (active `tracing_subscriber` au niveau DEBUG) et `--metrics` (affiche les métriques en fin d'épisode). La variable `JSON_METRICS=1` active l'export JSON pour ingestion externe.
+
 ## 8. Limites et travaux futurs
 
 **Aliasing perceptuel.** Les 4 moustaches ne permettent pas de désambiguïser toutes les positions dans le zigzag 10×10. Une position donne la même lecture de moustaches à différents endroits du labyrinthe. L'attracteur crée un seul concept pour toutes les positions partageant le même vecteur de moustaches, empêchant l'apprentissage de valeurs différentes pour des positions distinctes mais perceptuellement identiques.
@@ -452,6 +454,10 @@ L'architecture supporte l'apprentissage moteur linéaire et MLP avec **replay bu
 | 2026-08 | `tso_engine.rs` | Gating par sous-système dans `step()` : attention, attracteur, graphe, épisodique, métabolisme, hypothalamus | Chaque flag dans `CognitiveConfig` désactive son sous-système |
 | 2026-08 | `bin/multi_seed_bisect.rs` | Matrice 8 configs × 10 seeds sur 5×5 | Validation que δ-clip est nécessaire et suffisant ; cycle cognitif compatible |
 | 2026-08 | `bin/experiment_e03.rs` | Mise à jour avec δ-clip par défaut + pas de replay | 100% exploitation pure sur toutes les configs |
+| 2026-08 | `tso_engine.rs` | Ajout `MetricsSnapshot` (Φ, bien-être, énergie, hydratation, température, pression sommeil, concepts, arêtes) avec sérialisation JSON | Export temps réel des métriques clés |
+| 2026-08 | `tso_engine.rs` | Remplacement `eprintln!` → `tracing::event!` dans le debug_step_dump | Logging structuré : niveaux DEBUG/INFO, champs typés, désactivable |
+| 2026-08 | `debug_rl.rs` | Ajout flags `--trace`, `--metrics`, support `TRACE=1`/`METRICS=1`/`JSON_METRICS=1` | Interface CLI pour tracing et export JSON |
+| 2026-08 | `Cargo.toml` | Ajout `tracing`, `tracing-subscriber` (json+env-filter), `serde_json` | Dépendances pour l'observabilité structurée |
 
 ## Références
 
