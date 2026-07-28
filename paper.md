@@ -17,6 +17,7 @@ Les organismes biologiques n'apprennent pas uniquement par récompense. Ils sont
 - **Apprentissage actor-critic** (Cervelet) maximisant un signal composite de bien-être combinant récompense filtrée, curiosité, shaping, et Φ négatif ;
 - **Curiosité intrinsèque** motivant l'exploration d'états surprenants ou nouveaux ;
 - **Attention spatiale** orientant les moustaches vers les directions où la prédiction épisodique anticipe une anomalie, amplifiant les dimensions surprenantes du champ perceptuel.
+- **Encodeur interchangeable** (`Encoder` trait) unifiant la catégorisation discrète (AttractorField) et l'encodage continu (Variational Auto-Encoder) sous une même interface.
 
 Il en résulte un agent qui non seulement poursuit des objectifs externes mais manifeste aussi des pulsions intrinsèques : il devient « anxieux » quand son modèle interne du monde contient des contradictions, et il agit pour les résoudre. Périodiquement, l'agent entre dans une phase de **sommeil** où il consolide ses mémoires épisodiques hors ligne, rejoue les traces vécues pour stabiliser les prototypes corticaux, résout en profondeur les conflits du graphe sémantique, et élimine les connexions redondantes — un processus de neurogenèse et d'élagage synaptique dynamique [6, 7]. Un mécanisme d'**élagage conceptuel** élimine les concepts « zombies » inactifs depuis plus de 500 pas, et une pression de **parcimonie** (−0.001/concept/pas) pénalise l'ontologie gonflée, prévenant les boucles de rétroaction positive entre surprise, création de concepts et inflation de Φ.
 
@@ -61,6 +62,32 @@ La perception brute est catégorisée par le AttractorField, un classifieur à p
 - L'attracteur apprend par mises à jour hebbiennes compétitives : attraction du prototype gagnant vers l'entrée (si même classe) ou répulsion (si classe différente).
 - Les seuils sont **adaptatifs par concept** : chaque concept maintient une EMA de son erreur de prédiction locale et ajuste son seuil via un contrôleur proportionnel (gain 0.05, consigne erreur/seuil = 0.6). Un seuil bas affine la discrimination dans les régions à haute surprise ; un seuil haut regroupe les perceptions similaires. Le seuil est clampé entre 0.05 (évite la création de concepts pour tout bruit) et 0.5.
 - Les concepts inactifs depuis plus de 500 pas sont **élagués** (suppression + réindexation complète de toutes les structures : attracteur, graphe, vecteurs de suivi, mémoire épisodique, tampon de contexte, journal de transitions). L'élagage s'exécute automatiquement en fin d'épisode et périodiquement (tous les 500 pas) en continu.
+
+### 3.2.5 Encodeur interchangeable (Encoder trait)
+
+La catégorisation est unifiée sous un trait `Encoder` à une seule méthode requise :
+`encode_raw(perception) → EncodeResult { category_id, novelty, is_new }`.
+
+Deux implémentations sont fournies :
+
+- **AttractorEncoder** (défaut) : encapsule l'AttractorField existant avec création de
+  concepts par seuil de nouveauté adaptatif, apprentissage hebbien compétitif, et élagage
+  des inactifs. Comportement historique inchangé.
+- **VaeEncoder** : Variational Auto-Encoder (64→32→8→32→64) qui encode une perception
+  en distribution gaussienne latente `(µ, logσ²)`, échantillonne `z = µ + σ·ε`
+  (reparameterization trick), et mappe le latent au centroid le plus proche.
+  En mode `deterministic=true`, utilise `z = µ` pour une stabilité parfaite après
+  pré-entraînement hors ligne. En mode `freeze=true`, les centroids ne sont pas mis
+  à jour. Le VAE nécessite un pré-entraînement batch hors ligne avant l'inférence
+  dans TSO (l'entraînement en ligne strict est instable).
+
+Le trait `Encoder` est intégré à `TsoEngine` via `encoder: Option<Box<dyn Encoder>>`.
+Si présent, `step()` utilise `encode_raw()` à la place de l'appel direct à
+l'AttractorField. Le poids du VAE est sérialisable via serde.
+
+Le VAE résout la limite §8 de l'**attracteur non différentiable** : il permet la
+rétropropagation du gradient à travers l'encodeur, ouvrant la voie à un apprentissage
+perceptuel de bout en bout (pixels → latents → catégories).
 
 ### 3.3 Prédiction épisodique
 Le tampon de contexte maintient les N derniers IDs de concepts. La mémoire épisodique — stockant les traces complètes d'épisodes — effectue un appariement par suffixe le plus long pour prédire le concept suivant. L'erreur de prédiction (surprise) génère une récompense de curiosité intrinsèque.
@@ -458,6 +485,10 @@ L'architecture supporte l'apprentissage moteur linéaire et MLP avec **replay bu
 | 2026-08 | `tso_engine.rs` | Remplacement `eprintln!` → `tracing::event!` dans le debug_step_dump | Logging structuré : niveaux DEBUG/INFO, champs typés, désactivable |
 | 2026-08 | `debug_rl.rs` | Ajout flags `--trace`, `--metrics`, support `TRACE=1`/`METRICS=1`/`JSON_METRICS=1` | Interface CLI pour tracing et export JSON |
 | 2026-08 | `Cargo.toml` | Ajout `tracing`, `tracing-subscriber` (json+env-filter), `serde_json` | Dépendances pour l'observabilité structurée |
+| 2026-08 | `encoder.rs` | Création du module Encoder : trait + AttractorEncoder + VaeEncoder | Interface unifiée pour catégorisation discrète et continue |
+| 2026-08 | `vae.rs` | Création du module VAE : encodeur MLP, reparameterization, ELBO, mode déterministe | Encodeur différentiable pour vision et autres entrées continues |
+| 2026-08 | `tso_engine.rs` | Ajout `encoder: Option<Box<dyn Encoder>>`, intégration dans step() | L'encodage devient interchangeable sans modifier le cycle cognitif |
+| 2026-08 | `encoder.rs` | Ajout `deterministic` et `freeze` sur VaeEncoder | Inférence stable après pré-entraînement batch hors ligne |
 
 ## Références
 

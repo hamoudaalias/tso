@@ -85,6 +85,18 @@
 | **GridWorld** | Environnement en grille avec murs infranchissables ; partiellement observable (moustaches seulement) | Maze, labyrinthe, grille |
 | **Configuration** | Topologie du monde : Salle vide, Couloir droit, Zigzag (L), Aléatoire (~35% murs) | Map, maze layout, config |
 
+## Encodeur interchangeable
+
+| Terme | Définition | Alias à éviter |
+|-------|-----------|----------------|
+| **Encoder trait** | Interface Rust à une méthode requise `encode_raw()` retournant `EncodeResult { category_id, novelty, is_new }`. Permet de basculer entre catégorisation discrète et continue sans modifier TsoEngine::step(). | Encodeur, trait d'encodage |
+| **AttractorEncoder** | Implémentation discrète : encapsule l'AttractorField avec seuils adaptatifs, création de concepts, élagage. Comportement historique (défaut). | Attractor wrapper, classifieur discret |
+| **VaeEncoder** | Implémentation continue : VAE (64→32→8→32→64) avec centroids latents. Mappe une perception à une distribution gaussienne (µ, logσ²), échantillonne `z`, et l'assigne au centroid le plus proche. | VAE, encodeur variationnel |
+| **Déterministe** | Mode `deterministic=true` : utilise `z = µ` au lieu de `z = µ + σ·ε`. Stabilité parfaite après pré-entraînement. | Deterministic, inférence µ |
+| **Freeze** | Mode `freeze=true` : les centroids ne sont pas mis à jour. Utilisé en inférence seule après pré-entraînement. | Frozen, gelé |
+| **VAE pré-entraîné** | VAE entraîné hors ligne sur un dataset fixe (batch, 100 epochs, ~5s), puis gelé pour l'inférence dans TSO. Résout l'instabilité de l'entraînement en ligne. | Pre-trained VAE, offline VAE |
+| **centroid** | Moyenne des latents d'une catégorie. Buffer `Vec<Vec<f64>>` dans VaeEncoder. Un nouveau centroid est créé quand `distance(z, centroid) > novelty_threshold`. | Cluster, prototype latent |
+
 ## Métriques et observabilité
 
 | Terme | Définition | Alias à éviter |
