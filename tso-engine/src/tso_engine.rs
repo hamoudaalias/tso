@@ -954,6 +954,11 @@ impl TsoEngine {
     /// or create phantom edges that inflate Φ.
     fn prune_concepts(&mut self) {
         let threshold = self.concept_prune_threshold;
+
+        // Ensure concept_maturation is at least as long as the number of prototypes
+        while self.concept_maturation.len() < self.attractor.n_classes() {
+            self.concept_maturation.push(0);
+        }
         if threshold == 0 { return; }
         let n = self.attractor.prototypes.len();
         if n == 0 { return; }
@@ -970,6 +975,9 @@ impl TsoEngine {
         }
         while self.concept_values.len() < n {
             self.concept_values.push(0.0);
+        }
+        while self.concept_maturation.len() < n {
+            self.concept_maturation.push(0);
         }
 
         // Determine survivors: concepts active within the threshold window
@@ -1045,6 +1053,10 @@ impl TsoEngine {
         self.last_active_step = (0..n)
             .filter(|&i| survivors[i])
             .map(|i| self.last_active_step[i])
+            .collect();
+        self.concept_maturation = (0..n)
+            .filter(|&i| survivors[i])
+            .map(|i| self.concept_maturation[i])
             .collect();
 
         // Helper: remap an optional concept ID

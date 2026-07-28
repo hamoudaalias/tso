@@ -1,7 +1,7 @@
 // Tests d'intégration pour Sommeil Phase 3 — Neurogenèse structurelle
 // Chaque test suit le cycle RED → GREEN → REFACTOR
 
-use tso_engine::{CognitiveConfig, TsoEngine};
+use tso_engine::{CognitiveConfig, TsoEngine, attractor::AttractorField};
 
 #[test]
 fn test_neurogenesis_config_defaults() {

@@ -30,7 +30,7 @@ stories:
         description: "Synchroniser concept_maturation dans prune_concepts() — filtrer les survivants"
         verify: "cd tso-engine && cargo test --lib 2>&1 | grep -E 'ok$|FAILED' | head -5"
         risk: P0
-        status: failing
+        status: passing
         allure:
           severity: critical
           categories: ["Neurogenesis", "Pruning"]
@@ -39,7 +39,7 @@ stories:
         description: "Synchroniser concept_maturation dans le remap old_to_new de prune_concepts()"
         verify: "cd tso-engine && cargo test --lib 2>&1 | grep -E 'ok$|FAILED' | head -5"
         risk: P0
-        status: failing
+        status: passing
         allure:
           severity: critical
           categories: ["Neurogenesis", "Pruning"]
@@ -48,7 +48,7 @@ stories:
         description: "Remplir CognitiveConfig dans les tests existants qui créent un TsoEngine (éviter values fantômes)"
         verify: "cd tso-engine && cargo test --lib 2>&1 | grep -E 'ok$|FAILED'"
         risk: P1
-        status: failing
+        status: passing
         allure:
           severity: high
           categories: ["Neurogenesis", "Testing"]
