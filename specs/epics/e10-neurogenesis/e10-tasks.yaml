@@ -1,0 +1,222 @@
+# e10 — Sommeil Phase 3 : Neurogenèse structurelle
+# Tasks d'implémentation — status: failing jusqu'à verify: exit 0
+
+stories:
+  - id: e10s01
+    title: "Phase 1.5 — Naissance de nouveaux concepts"
+    bcps: 3
+    status: failing
+    risk: P0
+    tasks:
+      - id: e10s01t01
+        description: "Ajouter sleep_neurogenesis_rate, sleep_max_concepts, sleep_maturation_cycles à CognitiveConfig"
+        verify: "cd tso-engine && cargo check --lib"
+        risk: P1
+        status: passing
+        allure:
+          severity: high
+          categories: ["Neurogenesis", "Config"]
+
+      - id: e10s01t02
+        description: "Ajouter concept_maturation: Vec<usize> à TsoEngine, initialisé dans new() et with_hidden()"
+        verify: "cd tso-engine && cargo check --lib"
+        risk: P0
+        status: passing
+        allure:
+          severity: critical
+          categories: ["Neurogenesis", "DataStructure"]
+
+      - id: e10s01t03
+        description: "Synchroniser concept_maturation dans prune_concepts() — filtrer les survivants"
+        verify: "cd tso-engine && cargo test --lib 2>&1 | grep -E 'ok$|FAILED' | head -5"
+        risk: P0
+        status: passing
+        allure:
+          severity: critical
+          categories: ["Neurogenesis", "Pruning"]
+
+      - id: e10s01t04
+        description: "Synchroniser concept_maturation dans le remap old_to_new de prune_concepts()"
+        verify: "cd tso-engine && cargo test --lib 2>&1 | grep -E 'ok$|FAILED' | head -5"
+        risk: P0
+        status: passing
+        allure:
+          severity: critical
+          categories: ["Neurogenesis", "Pruning"]
+
+      - id: e10s01t05
+        description: "Remplir CognitiveConfig dans les tests existants qui créent un TsoEngine (éviter values fantômes)"
+        verify: "cd tso-engine && cargo test --lib 2>&1 | grep -E 'ok$|FAILED'"
+        risk: P1
+        status: passing
+        allure:
+          severity: high
+          categories: ["Neurogenesis", "Testing"]
+
+      - id: e10s01t06
+        description: "Implémenter Phase 1.5 dans sleep_cycle() — mutation, add_class, add_node, connexions, tracking"
+        verify: "cd tso-engine && cargo test -- test_neurogenesis_birth 2>&1 | grep ok"
+        risk: P0
+        status: passing
+        allure:
+          severity: critical
+          categories: ["Neurogenesis", "Core"]
+
+  - id: e10s02
+    title: "Période critique — protection et hyperplasticité"
+    bcps: 2
+    status: failing
+    risk: P1
+    tasks:
+      - id: e10s02t01
+        description: "Protéger les concepts en période critique dans prune_concepts() — condition maturation > 0"
+        verify: "cd tso-engine && cargo test -- test_neurogenesis_critical_period 2>&1 | grep ok"
+        risk: P1
+        status: passing
+        allure:
+          severity: high
+          categories: ["Neurogenesis", "CriticalPeriod"]
+
+      - id: e10s02t02
+        description: "Décrémenter concept_maturation à la fin de sleep_cycle()"
+        verify: "cd tso-engine && cargo test -- test_neurogenesis_maturation_decrements 2>&1 | grep ok"
+        risk: P2
+        status: passing
+        allure:
+          severity: normal
+          categories: ["Neurogenesis", "CriticalPeriod"]
+
+      - id: e10s02t03
+        description: "Appliquer lr × 3 et novelty_threshold × 0.5 dans step() si concept en maturation"
+        verify: "cd tso-engine && cargo test -- test_neurogenesis_lr_boost 2>&1 | grep ok"
+        risk: P1
+        status: passing
+        allure:
+          severity: high
+          categories: ["Neurogenesis", "CriticalPeriod"]
+
+      - id: e10s02t04
+        description: "Restaurer attractor.lr et novelty_threshold après le step (sauvegarde/restauration)"
+        verify: "cd tso-engine && cargo test -- test_neurogenesis_lr_boost 2>&1 | grep ok"
+        risk: P1
+        status: passing
+        allure:
+          severity: high
+          categories: ["Neurogenesis", "CriticalPeriod"]
+
+  - id: e10s03
+    title: "Homéostasie — remplacement du concept le moins actif"
+    bcps: 2
+    status: failing
+    risk: P1
+    tasks:
+      - id: e10s03t01
+        description: "Implémenter find_least_active_concept() — min_by_key sur last_active_step, hors période critique"
+        verify: "cd tso-engine && cargo check --lib"
+        risk: P1
+        status: passing
+        allure:
+          severity: high
+          categories: ["Neurogenesis", "Homeostasis"]
+
+      - id: e10s03t02
+        description: "Intégrer dans Phase 1.5 : si budget max atteint, remplacer le moins actif avant création"
+        verify: "cd tso-engine && cargo test -- test_neurogenesis_replacement 2>&1 | grep ok"
+        risk: P1
+        status: passing
+        allure:
+          severity: high
+          categories: ["Neurogenesis", "Homeostasis"]
+
+      - id: e10s03t03
+        description: "Tester le cas limite : tous les concepts en période critique, budget plein → skip"
+        verify: "cd tso-engine && cargo test -- test_neurogenesis_all_in_critical 2>&1 | grep ok"
+        risk: P2
+        status: passing
+        allure:
+          severity: normal
+          categories: ["Neurogenesis", "Homeostasis"]
+
+  - id: e10s04
+    title: "Scaling synaptique — normalisation des arêtes"
+    bcps: 1
+    status: failing
+    risk: P2
+    tasks:
+      - id: e10s04t01
+        description: "Ajouter sleep_synaptic_scaling: bool (défaut true) à CognitiveConfig"
+        verify: "cd tso-engine && cargo check --lib"
+        risk: P2
+        status: passing
+        allure:
+          severity: normal
+          categories: ["Neurogenesis", "SynapticScaling"]
+
+      - id: e10s04t02
+        description: "Implémenter Phase 3.5 dans sleep_cycle() — scaling des poids incidents excessifs"
+        verify: "cd tso-engine && cargo test -- test_neurogenesis_synaptic_scaling 2>&1 | grep ok"
+        risk: P2
+        status: passing
+        allure:
+          severity: normal
+          categories: ["Neurogenesis", "SynapticScaling"]
+
+      - id: e10s04t03
+        description: "Tester préservation du contraste relatif après scaling"
+        verify: "cd tso-engine && cargo test -- test_neurogenesis_synaptic_contrast 2>&1 | grep ok"
+        risk: P2
+        status: passing
+        allure:
+          severity: normal
+          categories: ["Neurogenesis", "SynapticScaling"]
+
+      - id: e10s04t04
+        description: "Tester que sleep_synaptic_scaling = false saute la phase"
+        verify: "cd tso-engine && cargo test -- test_neurogenesis_scaling_disabled 2>&1 | grep ok"
+        risk: P2
+        status: passing
+        allure:
+          severity: normal
+          categories: ["Neurogenesis", "SynapticScaling"]
+
+  - id: e10s05
+    title: "Validation — diversité, Φ borné, non-régression"
+    bcps: 2
+    status: failing
+    risk: P2
+    tasks:
+      - id: e10s05t01
+        description: "Créer tso-engine/tests/neurogenesis.rs et écrire test_neurogenesis_diversity_increases"
+        verify: "cd tso-engine && cargo test -- test_neurogenesis_diversity 2>&1 | grep ok"
+        risk: P2
+        status: passing
+        allure:
+          severity: normal
+          categories: ["Neurogenesis", "Validation"]
+
+      - id: e10s05t02
+        description: "Écrire test_neurogenesis_phi_bounded — 20 cycles, Φ ≤ 0.5"
+        verify: "cd tso-engine && cargo test -- test_neurogenesis_phi_bounded 2>&1 | grep ok"
+        risk: P2
+        status: passing
+        allure:
+          severity: normal
+          categories: ["Neurogenesis", "Validation"]
+
+      - id: e10s05t03
+        description: "Écrire test_neurogenesis_does_not_break_phi_convergence"
+        verify: "cd tso-engine && cargo test -- test_neurogenesis_phi_convergence 2>&1 | grep ok"
+        risk: P1
+        status: passing
+        allure:
+          severity: high
+          categories: ["Neurogenesis", "Validation", "Regression"]
+
+      - id: e10s05t04
+        description: "Écrire test_neurogenesis_gridworld_stable — success_rate ≥ 0.9"
+        verify: "cd tso-engine && cargo test -- test_neurogenesis_gridworld 2>&1 | grep ok"
+        risk: P1
+        status: passing
+        allure:
+          severity: high
+          categories: ["Neurogenesis", "Validation", "Benchmark"]

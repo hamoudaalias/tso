@@ -69,8 +69,35 @@ epics:
     priority: 6
     dependencies: []
 
+  - id: e09
+    title: "Apprentissage conjoint VAE + Cerebellum (end-to-end)"
+    description: >
+      Remplacer les centroids discrets du VaeEncoder par un mode continu
+      qui feed le latent z directement au cervelet. Rétropropager le gradient
+      TD dans l'encodeur VAE. Permet le scaling à >4 actions et >6D observation.
+    bcp: 15
+    wsjf: 25
+    priority: 7
+    dependencies: []
+    status: planned
+
+  - id: e10
+    title: "Sommeil Phase 3 — Neurogenèse structurelle"
+    description: >
+      Ajouter la création de NOUVELLES CLASSES de concepts pendant le cycle
+      sommeil, avec période critique de maturation, homéostasie par remplacement,
+      scaling synaptique, et protection anti-pruning.
+    bcp: 10
+    wsjf: 16
+    priority: 4
+    dependencies: [e05]
+    status: done
+
 release:
-  target_date: "2025-08-30"
-  bcp_total: 44
+  target_date: "2025-10-15"
+  bcp_total: 69
+  bcp_done: 59
   velocity_estimate: 5 BCP/semaine
-  estimated_weeks: 9
+  estimated_weeks: 2
+  remaining_epics:
+    - e09: "VAE + Cerebellum conjoint (15 BCP, planned)"

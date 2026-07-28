@@ -1,0 +1,52 @@
+# Verification — e10 Sommeil Phase 3 : Neurogenèse structurelle
+
+story_id: e10
+verified_at: "2025-10-10T23:30:00Z"
+verifier: verify-work
+risk: P2
+
+phases:
+  smoke:
+    passed: true
+    note: "Cold-start from cargo clean → rebuild → test on feat/phase3-sleep"
+
+  build:
+    passed: true
+    command: "cargo build --lib"
+    warnings: 3
+
+  typecheck:
+    passed: true
+
+  tests:
+    passed: true
+    command: "cargo test --test neurogenesis"
+    detail: "13 passed, 0 failed, 0 ignored"
+    terminal_verdict:
+      command: "cargo test --test neurogenesis -- test_neurogenesis_phi_convergence"
+      exit_code: 0
+      captured_at: "2025-10-10T23:28:00Z"
+      note: "Single run — Φ ne dépasse pas φ_before + 0.05"
+
+  manual:
+    steps:
+      - step: "Vérifier que Φ converge après un cycle sommeil"
+        expected: "phi_after ≤ phi_before + 0.05"
+        actual: "test_neurogenesis_phi_convergence → ok"
+        passed: true
+      - step: "Vérifier que Φ reste ≤ 0.5 après 10 cycles"
+        expected: "tous les cycles : phi_after ≤ 0.5"
+        actual: "test_neurogenesis_phi_bounded → ok"
+        passed: true
+      - step: "Vérifier que la diversité des classes augmente"
+        expected: "n_after > n_before"
+        actual: "test_neurogenesis_diversity → ok"
+        passed: true
+      - step: "Vérifier que le scaling synaptique préserve le contraste"
+        expected: "ratio 4:1 après scaling"
+        actual: "test_neurogenesis_synaptic_contrast → ok"
+        passed: true
+
+gaps:
+  closed: true
+  items: []

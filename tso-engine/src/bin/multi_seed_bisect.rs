@@ -184,6 +184,7 @@ fn cfg_cerebellum_only() -> CognitiveConfig {
         metabolic_cost: false,
         hypothalamus: false,
         delta_clip_max: 0.0, // pas de clip (comportement original Phase 1 #8)
+        ..CognitiveConfig::default()
     }
 }
 

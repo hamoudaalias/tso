@@ -12,6 +12,7 @@ use crate::core::{Graph, NodeId, resolve_with_anneal, resolve_parallel,
 use crate::working_memory::WorkingMemory;
 use crate::action::ActionMotor;
 use crate::constraint_redirection::{self, RedirectionConfig};
+use crate::neurogenesis::{Neurogenesis, NeurogenesisConfig};
 use crate::hypothalamus::Hypothalamus;
 use crate::attention::Attention;
 use crate::grid_cells::GridCells;
@@ -22,6 +23,7 @@ pub struct SleepReport {
     pub replay_count: usize,
     pub prototypes_pruned: usize,
     pub prototypes_added: usize,
+    pub new_concepts: usize,
     pub edges_removed: usize,
     pub concepts_pruned: usize,
     pub phi_before: f64,
@@ -66,6 +68,18 @@ pub struct CognitiveConfig {
     /// Clip de |δ| dans reinforce_td : step_a = lr * min(|δ|, delta_clip_max).
     /// 0.0 = pas de clip (comportement actuel).
     pub delta_clip_max: f64,
+    /// Neurogenèse : probabilité qu'un prototype existant génère un nouveau concept
+    /// pendant le cycle sommeil (Phase 1.5). 0.0 = pas de neurogenèse.
+    pub sleep_neurogenesis_rate: f64,
+    /// Neurogenèse : nombre maximum de concepts (prototypes + graphe). Au-delà,
+    /// le concept le moins actif est remplacé (homéostasie).
+    pub sleep_max_concepts: usize,
+    /// Neurogenèse : nombre de cycles sommeil pendant lesquels un nouveau concept
+    /// est en période critique (protection anti-pruning, lr boosté).
+    pub sleep_maturation_cycles: usize,
+    /// Scaling synaptique : normaliser les poids d'arêtes après chaque neurogenèse
+    /// pour éviter l'emballement des connexions (Phase 3.5).
+    pub sleep_synaptic_scaling: bool,
 }
 
 impl Default for CognitiveConfig {
@@ -78,6 +92,10 @@ impl Default for CognitiveConfig {
             metabolic_cost: true,
             hypothalamus: true,
             delta_clip_max: 5.0,
+            sleep_neurogenesis_rate: 0.2,
+            sleep_max_concepts: 50,
+            sleep_maturation_cycles: 3,
+            sleep_synaptic_scaling: true,
         }
     }
 }
@@ -161,6 +179,9 @@ pub struct TsoEngine {
     /// If a concept has not been activated for this many steps, it is pruned
     /// during end_episode. Set to 0 to disable pruning.
     pub concept_prune_threshold: usize,
+    /// Compteur de maturation pour chaque concept (0 = mature, >0 = période critique).
+    /// Indexé par concept_id. Initialisé à 0 pour tous les concepts.
+    pub(crate) concept_maturation: Vec<usize>,
 
     // ── Hypothalamic / Anxiety (Φ) state ──
     /// Current graph conflict energy Φ — measures cognitive tension (anxiety).
@@ -230,6 +251,8 @@ pub struct TsoEngine {
     /// Permet la bissection pour isoler l'interférence du cycle cognitif
     /// sur l'apprentissage du Cerebellum (cf. BUG-2025-08-03T120000).
     pub cogs: CognitiveConfig,
+    #[serde(skip)]
+    pub neurogenesis: Neurogenesis,
 
     /// Debug : si true, dump le rl_signal et la récompense à chaque step.
     pub debug_step_dump: bool,
@@ -276,6 +299,7 @@ impl TsoEngine {
             concept_local_error: Vec::new(),
             last_active_step: Vec::new(),
             concept_prune_threshold: 500,
+            concept_maturation: Vec::new(),
             current_phi: 0.0,
             phi_prev: 0.0,
             anxious: false,
@@ -292,6 +316,12 @@ impl TsoEngine {
             attention: Attention::new(0.5),
             grid_cells: GridCells::new(0, 0),
             cogs: CognitiveConfig::default(),
+            neurogenesis: Neurogenesis::new(NeurogenesisConfig {
+                rate: CognitiveConfig::default().sleep_neurogenesis_rate,
+                max_concepts: CognitiveConfig::default().sleep_max_concepts,
+                maturation_cycles: CognitiveConfig::default().sleep_maturation_cycles,
+                synaptic_scaling: CognitiveConfig::default().sleep_synaptic_scaling,
+            }),
             prev_gated: None,
             prev_action: None,
             use_stationary_reward: false,
@@ -464,8 +494,20 @@ impl TsoEngine {
             let new_flag = dist > threshold;
             let cid = if new_flag { self.attractor.add_class(&gated) } else { cid };
 
+            // Boost de la période critique : lr × 3 et seuil × 0.5
+            let lr_saved = self.attractor.lr;
+            let threshold_saved = self.novelty_threshold;
+            if cid < self.concept_maturation.len() && self.concept_maturation[cid] > 0 {
+                self.attractor.lr *= 3.0;
+                self.novelty_threshold *= 0.5;
+            }
+
             self.adapt_novelty_threshold(cid, dist, new_flag);
             self.attractor.train_step(&gated, cid);
+
+            // Restaurer lr et threshold
+            self.attractor.lr = lr_saved;
+            self.novelty_threshold = threshold_saved;
 
             let prev_concept = self.current_concept_id;
             self.current_concept_id = Some(cid);
@@ -934,6 +976,11 @@ impl TsoEngine {
     /// or create phantom edges that inflate Φ.
     fn prune_concepts(&mut self) {
         let threshold = self.concept_prune_threshold;
+
+        // Ensure concept_maturation is at least as long as the number of prototypes
+        while self.concept_maturation.len() < self.attractor.n_classes() {
+            self.concept_maturation.push(0);
+        }
         if threshold == 0 { return; }
         let n = self.attractor.prototypes.len();
         if n == 0 { return; }
@@ -951,10 +998,17 @@ impl TsoEngine {
         while self.concept_values.len() < n {
             self.concept_values.push(0.0);
         }
+        while self.concept_maturation.len() < n {
+            self.concept_maturation.push(0);
+        }
 
         // Determine survivors: concepts active within the threshold window
+        // Les concepts en période critique (maturation > 0) sont toujours protégés
         let survivors: Vec<bool> = (0..n)
-            .map(|i| self.step_count - self.last_active_step[i] <= threshold)
+            .map(|i| {
+                self.step_count - self.last_active_step[i] <= threshold
+                    || self.concept_maturation.get(i).copied().unwrap_or(0) > 0
+            })
             .collect();
         let survivor_count = survivors.iter().filter(|&&a| a).count();
         if survivor_count == n || survivor_count == 0 { return; }
@@ -1025,6 +1079,10 @@ impl TsoEngine {
         self.last_active_step = (0..n)
             .filter(|&i| survivors[i])
             .map(|i| self.last_active_step[i])
+            .collect();
+        self.concept_maturation = (0..n)
+            .filter(|&i| survivors[i])
+            .map(|i| self.concept_maturation[i])
             .collect();
 
         // Helper: remap an optional concept ID
@@ -1192,6 +1250,22 @@ impl TsoEngine {
             self.attractor.lr = lr_saved;
         }
 
+        // Synchroniser la config du module neurogenesis avec CognitiveConfig
+        self.neurogenesis.config.rate = self.cogs.sleep_neurogenesis_rate;
+        self.neurogenesis.config.max_concepts = self.cogs.sleep_max_concepts;
+        self.neurogenesis.config.maturation_cycles = self.cogs.sleep_maturation_cycles;
+        self.neurogenesis.config.synaptic_scaling = self.cogs.sleep_synaptic_scaling;
+
+        // ── Phase 1.5: Neurogenèse — délégation au module dédié ──
+        let neuro_outcome = self.neurogenesis.cycle(
+            &mut self.attractor,
+            &mut self.graph,
+            &self.last_active_step,
+            noise_std,
+        );
+        // Synchroniser le vecteur de maturation interne du module avec TsoEngine
+        self.concept_maturation = self.neurogenesis.maturation.clone();
+
         // ── Phase 2: Deep graph conflict resolution ──
         // Run many resolve iterations to deeply clean up structural conflicts
         // in the semantic graph — more than the 15-20 used online.
@@ -1202,6 +1276,8 @@ impl TsoEngine {
         // Merges prototypes that are closer than 0.05 — removes redundancy
         // created by noisy sleep updates.
         let prototypes_pruned = self.attractor.prune_redundant(0.05);
+
+        // ── Phase 3.5: Scaling synaptique — déjà intégré dans neurogenesis.cycle()
 
         // ── Phase 4: Remove low-phi edges ──
         // Edges that contribute negligible tension are pruned from the
@@ -1223,6 +1299,7 @@ impl TsoEngine {
             replay_count,
             prototypes_pruned,
             prototypes_added,
+            new_concepts: neuro_outcome.births,
             edges_removed,
             concepts_pruned,
             phi_before,
@@ -1269,6 +1346,23 @@ impl TsoEngine {
 
     pub fn current_concept_id(&self) -> Option<usize> {
         self.current_concept_id
+    }
+
+    /// Accède au vecteur de maturation des concepts (période critique).
+    pub fn concept_maturation(&self) -> &[usize] {
+        &self.concept_maturation
+    }
+
+    /// Trouve le concept le moins actif (hors période critique) pour remplacement.
+    /// Retourne None si tous les concepts sont en période critique ou s'il n'y a pas de concepts.
+    pub fn find_least_active_concept(&self) -> Option<usize> {
+        let n = self.attractor.n_classes();
+        if n == 0 {
+            return None;
+        }
+        (0..n)
+            .filter(|&i| self.concept_maturation.get(i).copied().unwrap_or(0) == 0)
+            .min_by_key(|&i| self.last_active_step.get(i).copied().unwrap_or(0))
     }
 
     /// Flag an edge by its endpoints, removing it from the semantic graph.

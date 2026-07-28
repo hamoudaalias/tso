@@ -1,0 +1,1022 @@
+{
+  "format": 1,
+  "entries": {
+    "topology/hosts/4fe39d883ac48f1fcac36d1072802e5f335e8f8be821f46eb156654b665f3e09": {
+      "key": "topology/hosts/4fe39d883ac48f1fcac36d1072802e5f335e8f8be821f46eb156654b665f3e09",
+      "value": {
+        "format": 1,
+        "id": "session:019faa87-77ca-7f32-8292-6bb526a6caa4",
+        "rootId": "session:019faa87-77ca-7f32-8292-6bb526a6caa4",
+        "identity": {
+          "id": "session:019faa87-77ca-7f32-8292-6bb526a6caa4",
+          "name": "main",
+          "kind": "main",
+          "sessionId": "019faa87-77ca-7f32-8292-6bb526a6caa4"
+        },
+        "startedAt": 1785272440031,
+        "updatedAt": 1785272455046,
+        "expiresAt": 1785272470046
+      },
+      "version": 4,
+      "updatedAt": 1785272455047,
+      "updatedBy": {
+        "id": "session:019faa87-77ca-7f32-8292-6bb526a6caa4",
+        "name": "main",
+        "kind": "main",
+        "sessionId": "019faa87-77ca-7f32-8292-6bb526a6caa4"
+      }
+    },
+    "sessions/019faa87-77ca-7f32-8292-6bb526a6caa4": {
+      "key": "sessions/019faa87-77ca-7f32-8292-6bb526a6caa4",
+      "value": {
+        "id": "session:019faa87-77ca-7f32-8292-6bb526a6caa4",
+        "name": "Peer 019faa87",
+        "kind": "peer",
+        "status": "running",
+        "runner": "pi",
+        "transport": "host",
+        "cwd": "/Users/hamoudaalias/Desktop/project/tso",
+        "sessionId": "019faa87-77ca-7f32-8292-6bb526a6caa4",
+        "model": "deepseek/deepseek-v4-flash",
+        "thinking": "high",
+        "startedAt": 1785272440030,
+        "updatedAt": 1785272455046,
+        "pendingMessages": false,
+        "local": false
+      },
+      "version": 4,
+      "updatedAt": 1785272455049,
+      "updatedBy": {
+        "id": "session:019faa87-77ca-7f32-8292-6bb526a6caa4",
+        "name": "main",
+        "kind": "main",
+        "sessionId": "019faa87-77ca-7f32-8292-6bb526a6caa4"
+      }
+    },
+    "topology/participants/4fe39d883ac48f1fcac36d1072802e5f335e8f8be821f46eb156654b665f3e09": {
+      "key": "topology/participants/4fe39d883ac48f1fcac36d1072802e5f335e8f8be821f46eb156654b665f3e09",
+      "value": {
+        "format": 1,
+        "id": "session:019faa87-77ca-7f32-8292-6bb526a6caa4",
+        "kind": "root",
+        "rootId": "session:019faa87-77ca-7f32-8292-6bb526a6caa4",
+        "ownerHostId": "session:019faa87-77ca-7f32-8292-6bb526a6caa4",
+        "ownerIdentityId": "session:019faa87-77ca-7f32-8292-6bb526a6caa4",
+        "name": "main",
+        "status": "running",
+        "runner": "pi",
+        "transport": "host",
+        "capabilities": [
+          "steer",
+          "followUp",
+          "fabric"
+        ],
+        "cwd": "/Users/hamoudaalias/Desktop/project/tso",
+        "sessionId": "019faa87-77ca-7f32-8292-6bb526a6caa4",
+        "model": "deepseek/deepseek-v4-flash",
+        "thinking": "high",
+        "startedAt": 1785272440030,
+        "updatedAt": 1785272455046,
+        "pendingMessages": false,
+        "controlProtocol": "v1"
+      },
+      "version": 4,
+      "updatedAt": 1785272455052,
+      "updatedBy": {
+        "id": "session:019faa87-77ca-7f32-8292-6bb526a6caa4",
+        "name": "main",
+        "kind": "main",
+        "sessionId": "019faa87-77ca-7f32-8292-6bb526a6caa4"
+      }
+    },
+    "topology/hosts/e031cead6e3cfd74b38f37dd1cadcbab12ffa3fe3e2d7e36b5d8df126fa35542": {
+      "key": "topology/hosts/e031cead6e3cfd74b38f37dd1cadcbab12ffa3fe3e2d7e36b5d8df126fa35542",
+      "value": {
+        "format": 1,
+        "id": "session:019faa87-77b0-7231-8649-7d55263cf303",
+        "rootId": "session:019faa87-77b0-7231-8649-7d55263cf303",
+        "identity": {
+          "id": "session:019faa87-77b0-7231-8649-7d55263cf303",
+          "name": "main",
+          "kind": "main",
+          "sessionId": "019faa87-77b0-7231-8649-7d55263cf303"
+        },
+        "startedAt": 1785272440040,
+        "updatedAt": 1785272500063,
+        "expiresAt": 1785272515063
+      },
+      "version": 13,
+      "updatedAt": 1785272500064,
+      "updatedBy": {
+        "id": "session:019faa87-77b0-7231-8649-7d55263cf303",
+        "name": "main",
+        "kind": "main",
+        "sessionId": "019faa87-77b0-7231-8649-7d55263cf303"
+      }
+    },
+    "sessions/019faa87-77b0-7231-8649-7d55263cf303": {
+      "key": "sessions/019faa87-77b0-7231-8649-7d55263cf303",
+      "value": {
+        "id": "session:019faa87-77b0-7231-8649-7d55263cf303",
+        "name": "Peer 019faa87",
+        "kind": "peer",
+        "status": "running",
+        "runner": "pi",
+        "transport": "host",
+        "cwd": "/Users/hamoudaalias/Desktop/project/tso",
+        "sessionId": "019faa87-77b0-7231-8649-7d55263cf303",
+        "model": "deepseek/deepseek-v4-flash",
+        "thinking": "high",
+        "startedAt": 1785272440040,
+        "updatedAt": 1785272500063,
+        "pendingMessages": false,
+        "local": false
+      },
+      "version": 13,
+      "updatedAt": 1785272500066,
+      "updatedBy": {
+        "id": "session:019faa87-77b0-7231-8649-7d55263cf303",
+        "name": "main",
+        "kind": "main",
+        "sessionId": "019faa87-77b0-7231-8649-7d55263cf303"
+      }
+    },
+    "topology/participants/e031cead6e3cfd74b38f37dd1cadcbab12ffa3fe3e2d7e36b5d8df126fa35542": {
+      "key": "topology/participants/e031cead6e3cfd74b38f37dd1cadcbab12ffa3fe3e2d7e36b5d8df126fa35542",
+      "value": {
+        "format": 1,
+        "id": "session:019faa87-77b0-7231-8649-7d55263cf303",
+        "kind": "root",
+        "rootId": "session:019faa87-77b0-7231-8649-7d55263cf303",
+        "ownerHostId": "session:019faa87-77b0-7231-8649-7d55263cf303",
+        "ownerIdentityId": "session:019faa87-77b0-7231-8649-7d55263cf303",
+        "name": "main",
+        "status": "running",
+        "runner": "pi",
+        "transport": "host",
+        "capabilities": [
+          "steer",
+          "followUp",
+          "fabric"
+        ],
+        "cwd": "/Users/hamoudaalias/Desktop/project/tso",
+        "sessionId": "019faa87-77b0-7231-8649-7d55263cf303",
+        "model": "deepseek/deepseek-v4-flash",
+        "thinking": "high",
+        "startedAt": 1785272440040,
+        "updatedAt": 1785272500063,
+        "pendingMessages": false,
+        "controlProtocol": "v1"
+      },
+      "version": 13,
+      "updatedAt": 1785272500068,
+      "updatedBy": {
+        "id": "session:019faa87-77b0-7231-8649-7d55263cf303",
+        "name": "main",
+        "kind": "main",
+        "sessionId": "019faa87-77b0-7231-8649-7d55263cf303"
+      }
+    },
+    "topology/hosts/40d6d813b285d8b296589df1010cab1909c9892256c65858f3af7ec7bf1c992d": {
+      "key": "topology/hosts/40d6d813b285d8b296589df1010cab1909c9892256c65858f3af7ec7bf1c992d",
+      "value": {
+        "format": 1,
+        "id": "session:019faa87-77e4-7c04-a80a-6b33fd69c8c5",
+        "rootId": "session:019faa87-77e4-7c04-a80a-6b33fd69c8c5",
+        "identity": {
+          "id": "session:019faa87-77e4-7c04-a80a-6b33fd69c8c5",
+          "name": "main",
+          "kind": "main",
+          "sessionId": "019faa87-77e4-7c04-a80a-6b33fd69c8c5"
+        },
+        "startedAt": 1785272440088,
+        "updatedAt": 1785272455104,
+        "expiresAt": 1785272470104
+      },
+      "version": 4,
+      "updatedAt": 1785272455105,
+      "updatedBy": {
+        "id": "session:019faa87-77e4-7c04-a80a-6b33fd69c8c5",
+        "name": "main",
+        "kind": "main",
+        "sessionId": "019faa87-77e4-7c04-a80a-6b33fd69c8c5"
+      }
+    },
+    "sessions/019faa87-77e4-7c04-a80a-6b33fd69c8c5": {
+      "key": "sessions/019faa87-77e4-7c04-a80a-6b33fd69c8c5",
+      "value": {
+        "id": "session:019faa87-77e4-7c04-a80a-6b33fd69c8c5",
+        "name": "Peer 019faa87",
+        "kind": "peer",
+        "status": "idle",
+        "runner": "pi",
+        "transport": "host",
+        "cwd": "/Users/hamoudaalias/Desktop/project/tso",
+        "sessionId": "019faa87-77e4-7c04-a80a-6b33fd69c8c5",
+        "model": "deepseek/deepseek-v4-flash",
+        "thinking": "high",
+        "startedAt": 1785272440088,
+        "updatedAt": 1785272455104,
+        "pendingMessages": false,
+        "local": false
+      },
+      "version": 4,
+      "updatedAt": 1785272455107,
+      "updatedBy": {
+        "id": "session:019faa87-77e4-7c04-a80a-6b33fd69c8c5",
+        "name": "main",
+        "kind": "main",
+        "sessionId": "019faa87-77e4-7c04-a80a-6b33fd69c8c5"
+      }
+    },
+    "topology/participants/40d6d813b285d8b296589df1010cab1909c9892256c65858f3af7ec7bf1c992d": {
+      "key": "topology/participants/40d6d813b285d8b296589df1010cab1909c9892256c65858f3af7ec7bf1c992d",
+      "value": {
+        "format": 1,
+        "id": "session:019faa87-77e4-7c04-a80a-6b33fd69c8c5",
+        "kind": "root",
+        "rootId": "session:019faa87-77e4-7c04-a80a-6b33fd69c8c5",
+        "ownerHostId": "session:019faa87-77e4-7c04-a80a-6b33fd69c8c5",
+        "ownerIdentityId": "session:019faa87-77e4-7c04-a80a-6b33fd69c8c5",
+        "name": "main",
+        "status": "idle",
+        "runner": "pi",
+        "transport": "host",
+        "capabilities": [
+          "steer",
+          "followUp",
+          "fabric"
+        ],
+        "cwd": "/Users/hamoudaalias/Desktop/project/tso",
+        "sessionId": "019faa87-77e4-7c04-a80a-6b33fd69c8c5",
+        "model": "deepseek/deepseek-v4-flash",
+        "thinking": "high",
+        "startedAt": 1785272440088,
+        "updatedAt": 1785272455104,
+        "pendingMessages": false,
+        "controlProtocol": "v1"
+      },
+      "version": 4,
+      "updatedAt": 1785272455109,
+      "updatedBy": {
+        "id": "session:019faa87-77e4-7c04-a80a-6b33fd69c8c5",
+        "name": "main",
+        "kind": "main",
+        "sessionId": "019faa87-77e4-7c04-a80a-6b33fd69c8c5"
+      }
+    },
+    "topology/hosts/745e43929908612d250a7d1374e82874b0b75eeced2ad5f0ee3e4494ddf53705": {
+      "key": "topology/hosts/745e43929908612d250a7d1374e82874b0b75eeced2ad5f0ee3e4494ddf53705",
+      "value": {
+        "format": 1,
+        "id": "session:019faa94-8c73-7de9-b0ac-033abe60e8ed",
+        "rootId": "session:019faa94-8c73-7de9-b0ac-033abe60e8ed",
+        "identity": {
+          "id": "session:019faa94-8c73-7de9-b0ac-033abe60e8ed",
+          "name": "main",
+          "kind": "main",
+          "sessionId": "019faa94-8c73-7de9-b0ac-033abe60e8ed"
+        },
+        "startedAt": 1785273300305,
+        "updatedAt": 1785273310322,
+        "expiresAt": 1785273325322
+      },
+      "version": 3,
+      "updatedAt": 1785273310322,
+      "updatedBy": {
+        "id": "session:019faa94-8c73-7de9-b0ac-033abe60e8ed",
+        "name": "main",
+        "kind": "main",
+        "sessionId": "019faa94-8c73-7de9-b0ac-033abe60e8ed"
+      }
+    },
+    "sessions/019faa94-8c73-7de9-b0ac-033abe60e8ed": {
+      "key": "sessions/019faa94-8c73-7de9-b0ac-033abe60e8ed",
+      "value": {
+        "id": "session:019faa94-8c73-7de9-b0ac-033abe60e8ed",
+        "name": "Peer 019faa94",
+        "kind": "peer",
+        "status": "running",
+        "runner": "pi",
+        "transport": "host",
+        "cwd": "/Users/hamoudaalias/Desktop/project/tso",
+        "sessionId": "019faa94-8c73-7de9-b0ac-033abe60e8ed",
+        "model": "deepseek/deepseek-v4-flash",
+        "thinking": "high",
+        "startedAt": 1785273300305,
+        "updatedAt": 1785273310322,
+        "pendingMessages": false,
+        "local": false
+      },
+      "version": 3,
+      "updatedAt": 1785273310324,
+      "updatedBy": {
+        "id": "session:019faa94-8c73-7de9-b0ac-033abe60e8ed",
+        "name": "main",
+        "kind": "main",
+        "sessionId": "019faa94-8c73-7de9-b0ac-033abe60e8ed"
+      }
+    },
+    "topology/participants/745e43929908612d250a7d1374e82874b0b75eeced2ad5f0ee3e4494ddf53705": {
+      "key": "topology/participants/745e43929908612d250a7d1374e82874b0b75eeced2ad5f0ee3e4494ddf53705",
+      "value": {
+        "format": 1,
+        "id": "session:019faa94-8c73-7de9-b0ac-033abe60e8ed",
+        "kind": "root",
+        "rootId": "session:019faa94-8c73-7de9-b0ac-033abe60e8ed",
+        "ownerHostId": "session:019faa94-8c73-7de9-b0ac-033abe60e8ed",
+        "ownerIdentityId": "session:019faa94-8c73-7de9-b0ac-033abe60e8ed",
+        "name": "main",
+        "status": "running",
+        "runner": "pi",
+        "transport": "host",
+        "capabilities": [
+          "steer",
+          "followUp",
+          "fabric"
+        ],
+        "cwd": "/Users/hamoudaalias/Desktop/project/tso",
+        "sessionId": "019faa94-8c73-7de9-b0ac-033abe60e8ed",
+        "model": "deepseek/deepseek-v4-flash",
+        "thinking": "high",
+        "startedAt": 1785273300305,
+        "updatedAt": 1785273310322,
+        "pendingMessages": false,
+        "controlProtocol": "v1"
+      },
+      "version": 3,
+      "updatedAt": 1785273310326,
+      "updatedBy": {
+        "id": "session:019faa94-8c73-7de9-b0ac-033abe60e8ed",
+        "name": "main",
+        "kind": "main",
+        "sessionId": "019faa94-8c73-7de9-b0ac-033abe60e8ed"
+      }
+    },
+    "topology/hosts/4398102b5627630f97089026f380be114b20a21414b8b40dda2d50a3aeae587e": {
+      "key": "topology/hosts/4398102b5627630f97089026f380be114b20a21414b8b40dda2d50a3aeae587e",
+      "value": {
+        "format": 1,
+        "id": "session:019faa94-8c91-7207-acf8-ee14c395cc62",
+        "rootId": "session:019faa94-8c91-7207-acf8-ee14c395cc62",
+        "identity": {
+          "id": "session:019faa94-8c91-7207-acf8-ee14c395cc62",
+          "name": "main",
+          "kind": "main",
+          "sessionId": "019faa94-8c91-7207-acf8-ee14c395cc62"
+        },
+        "startedAt": 1785273300315,
+        "updatedAt": 1785273310329,
+        "expiresAt": 1785273325329
+      },
+      "version": 3,
+      "updatedAt": 1785273310330,
+      "updatedBy": {
+        "id": "session:019faa94-8c91-7207-acf8-ee14c395cc62",
+        "name": "main",
+        "kind": "main",
+        "sessionId": "019faa94-8c91-7207-acf8-ee14c395cc62"
+      }
+    },
+    "sessions/019faa94-8c91-7207-acf8-ee14c395cc62": {
+      "key": "sessions/019faa94-8c91-7207-acf8-ee14c395cc62",
+      "value": {
+        "id": "session:019faa94-8c91-7207-acf8-ee14c395cc62",
+        "name": "Peer 019faa94",
+        "kind": "peer",
+        "status": "running",
+        "runner": "pi",
+        "transport": "host",
+        "cwd": "/Users/hamoudaalias/Desktop/project/tso",
+        "sessionId": "019faa94-8c91-7207-acf8-ee14c395cc62",
+        "model": "deepseek/deepseek-v4-flash",
+        "thinking": "high",
+        "startedAt": 1785273300315,
+        "updatedAt": 1785273310329,
+        "pendingMessages": false,
+        "local": false
+      },
+      "version": 3,
+      "updatedAt": 1785273310332,
+      "updatedBy": {
+        "id": "session:019faa94-8c91-7207-acf8-ee14c395cc62",
+        "name": "main",
+        "kind": "main",
+        "sessionId": "019faa94-8c91-7207-acf8-ee14c395cc62"
+      }
+    },
+    "topology/participants/4398102b5627630f97089026f380be114b20a21414b8b40dda2d50a3aeae587e": {
+      "key": "topology/participants/4398102b5627630f97089026f380be114b20a21414b8b40dda2d50a3aeae587e",
+      "value": {
+        "format": 1,
+        "id": "session:019faa94-8c91-7207-acf8-ee14c395cc62",
+        "kind": "root",
+        "rootId": "session:019faa94-8c91-7207-acf8-ee14c395cc62",
+        "ownerHostId": "session:019faa94-8c91-7207-acf8-ee14c395cc62",
+        "ownerIdentityId": "session:019faa94-8c91-7207-acf8-ee14c395cc62",
+        "name": "main",
+        "status": "running",
+        "runner": "pi",
+        "transport": "host",
+        "capabilities": [
+          "steer",
+          "followUp",
+          "fabric"
+        ],
+        "cwd": "/Users/hamoudaalias/Desktop/project/tso",
+        "sessionId": "019faa94-8c91-7207-acf8-ee14c395cc62",
+        "model": "deepseek/deepseek-v4-flash",
+        "thinking": "high",
+        "startedAt": 1785273300315,
+        "updatedAt": 1785273310329,
+        "pendingMessages": false,
+        "controlProtocol": "v1"
+      },
+      "version": 3,
+      "updatedAt": 1785273310334,
+      "updatedBy": {
+        "id": "session:019faa94-8c91-7207-acf8-ee14c395cc62",
+        "name": "main",
+        "kind": "main",
+        "sessionId": "019faa94-8c91-7207-acf8-ee14c395cc62"
+      }
+    },
+    "topology/hosts/aab405d1444ec5331b0ec61f0e53daa0067e3ac74ff8f42873e3084aa0348eb6": {
+      "key": "topology/hosts/aab405d1444ec5331b0ec61f0e53daa0067e3ac74ff8f42873e3084aa0348eb6",
+      "value": {
+        "format": 1,
+        "id": "session:019faa94-8c3a-74cc-b525-993a057c7c4d",
+        "rootId": "session:019faa94-8c3a-74cc-b525-993a057c7c4d",
+        "identity": {
+          "id": "session:019faa94-8c3a-74cc-b525-993a057c7c4d",
+          "name": "main",
+          "kind": "main",
+          "sessionId": "019faa94-8c3a-74cc-b525-993a057c7c4d"
+        },
+        "startedAt": 1785273300325,
+        "updatedAt": 1785273310437,
+        "expiresAt": 1785273325437
+      },
+      "version": 3,
+      "updatedAt": 1785273310437,
+      "updatedBy": {
+        "id": "session:019faa94-8c3a-74cc-b525-993a057c7c4d",
+        "name": "main",
+        "kind": "main",
+        "sessionId": "019faa94-8c3a-74cc-b525-993a057c7c4d"
+      }
+    },
+    "sessions/019faa94-8c3a-74cc-b525-993a057c7c4d": {
+      "key": "sessions/019faa94-8c3a-74cc-b525-993a057c7c4d",
+      "value": {
+        "id": "session:019faa94-8c3a-74cc-b525-993a057c7c4d",
+        "name": "Peer 019faa94",
+        "kind": "peer",
+        "status": "idle",
+        "runner": "pi",
+        "transport": "host",
+        "cwd": "/Users/hamoudaalias/Desktop/project/tso",
+        "sessionId": "019faa94-8c3a-74cc-b525-993a057c7c4d",
+        "model": "deepseek/deepseek-v4-flash",
+        "thinking": "high",
+        "startedAt": 1785273300325,
+        "updatedAt": 1785273310437,
+        "pendingMessages": false,
+        "local": false
+      },
+      "version": 3,
+      "updatedAt": 1785273310439,
+      "updatedBy": {
+        "id": "session:019faa94-8c3a-74cc-b525-993a057c7c4d",
+        "name": "main",
+        "kind": "main",
+        "sessionId": "019faa94-8c3a-74cc-b525-993a057c7c4d"
+      }
+    },
+    "topology/participants/aab405d1444ec5331b0ec61f0e53daa0067e3ac74ff8f42873e3084aa0348eb6": {
+      "key": "topology/participants/aab405d1444ec5331b0ec61f0e53daa0067e3ac74ff8f42873e3084aa0348eb6",
+      "value": {
+        "format": 1,
+        "id": "session:019faa94-8c3a-74cc-b525-993a057c7c4d",
+        "kind": "root",
+        "rootId": "session:019faa94-8c3a-74cc-b525-993a057c7c4d",
+        "ownerHostId": "session:019faa94-8c3a-74cc-b525-993a057c7c4d",
+        "ownerIdentityId": "session:019faa94-8c3a-74cc-b525-993a057c7c4d",
+        "name": "main",
+        "status": "idle",
+        "runner": "pi",
+        "transport": "host",
+        "capabilities": [
+          "steer",
+          "followUp",
+          "fabric"
+        ],
+        "cwd": "/Users/hamoudaalias/Desktop/project/tso",
+        "sessionId": "019faa94-8c3a-74cc-b525-993a057c7c4d",
+        "model": "deepseek/deepseek-v4-flash",
+        "thinking": "high",
+        "startedAt": 1785273300325,
+        "updatedAt": 1785273310437,
+        "pendingMessages": false,
+        "controlProtocol": "v1"
+      },
+      "version": 3,
+      "updatedAt": 1785273310441,
+      "updatedBy": {
+        "id": "session:019faa94-8c3a-74cc-b525-993a057c7c4d",
+        "name": "main",
+        "kind": "main",
+        "sessionId": "019faa94-8c3a-74cc-b525-993a057c7c4d"
+      }
+    },
+    "topology/hosts/85d00cf2b3f5ef52b890bea7c5aae516040e449d9c289e228b044896495918fb": {
+      "key": "topology/hosts/85d00cf2b3f5ef52b890bea7c5aae516040e449d9c289e228b044896495918fb",
+      "value": {
+        "format": 1,
+        "id": "session:019faa94-8c56-745d-b888-136b9d637277",
+        "rootId": "session:019faa94-8c56-745d-b888-136b9d637277",
+        "identity": {
+          "id": "session:019faa94-8c56-745d-b888-136b9d637277",
+          "name": "main",
+          "kind": "main",
+          "sessionId": "019faa94-8c56-745d-b888-136b9d637277"
+        },
+        "startedAt": 1785273300317,
+        "updatedAt": 1785273310355,
+        "expiresAt": 1785273325355
+      },
+      "version": 3,
+      "updatedAt": 1785273310356,
+      "updatedBy": {
+        "id": "session:019faa94-8c56-745d-b888-136b9d637277",
+        "name": "main",
+        "kind": "main",
+        "sessionId": "019faa94-8c56-745d-b888-136b9d637277"
+      }
+    },
+    "sessions/019faa94-8c56-745d-b888-136b9d637277": {
+      "key": "sessions/019faa94-8c56-745d-b888-136b9d637277",
+      "value": {
+        "id": "session:019faa94-8c56-745d-b888-136b9d637277",
+        "name": "Peer 019faa94",
+        "kind": "peer",
+        "status": "running",
+        "runner": "pi",
+        "transport": "host",
+        "cwd": "/Users/hamoudaalias/Desktop/project/tso",
+        "sessionId": "019faa94-8c56-745d-b888-136b9d637277",
+        "model": "deepseek/deepseek-v4-flash",
+        "thinking": "high",
+        "startedAt": 1785273300317,
+        "updatedAt": 1785273310355,
+        "pendingMessages": false,
+        "local": false
+      },
+      "version": 3,
+      "updatedAt": 1785273310358,
+      "updatedBy": {
+        "id": "session:019faa94-8c56-745d-b888-136b9d637277",
+        "name": "main",
+        "kind": "main",
+        "sessionId": "019faa94-8c56-745d-b888-136b9d637277"
+      }
+    },
+    "topology/participants/85d00cf2b3f5ef52b890bea7c5aae516040e449d9c289e228b044896495918fb": {
+      "key": "topology/participants/85d00cf2b3f5ef52b890bea7c5aae516040e449d9c289e228b044896495918fb",
+      "value": {
+        "format": 1,
+        "id": "session:019faa94-8c56-745d-b888-136b9d637277",
+        "kind": "root",
+        "rootId": "session:019faa94-8c56-745d-b888-136b9d637277",
+        "ownerHostId": "session:019faa94-8c56-745d-b888-136b9d637277",
+        "ownerIdentityId": "session:019faa94-8c56-745d-b888-136b9d637277",
+        "name": "main",
+        "status": "running",
+        "runner": "pi",
+        "transport": "host",
+        "capabilities": [
+          "steer",
+          "followUp",
+          "fabric"
+        ],
+        "cwd": "/Users/hamoudaalias/Desktop/project/tso",
+        "sessionId": "019faa94-8c56-745d-b888-136b9d637277",
+        "model": "deepseek/deepseek-v4-flash",
+        "thinking": "high",
+        "startedAt": 1785273300317,
+        "updatedAt": 1785273310355,
+        "pendingMessages": false,
+        "controlProtocol": "v1"
+      },
+      "version": 3,
+      "updatedAt": 1785273310360,
+      "updatedBy": {
+        "id": "session:019faa94-8c56-745d-b888-136b9d637277",
+        "name": "main",
+        "kind": "main",
+        "sessionId": "019faa94-8c56-745d-b888-136b9d637277"
+      }
+    },
+    "topology/hosts/c8b86a3cca5a6e313df0aa5f7693dd8ed012556f99e474601115e7192022ec10": {
+      "key": "topology/hosts/c8b86a3cca5a6e313df0aa5f7693dd8ed012556f99e474601115e7192022ec10",
+      "value": {
+        "format": 1,
+        "id": "session:019faaad-be53-7ceb-b56e-2bbbf0c372a0",
+        "rootId": "session:019faaad-be53-7ceb-b56e-2bbbf0c372a0",
+        "identity": {
+          "id": "session:019faaad-be53-7ceb-b56e-2bbbf0c372a0",
+          "name": "main",
+          "kind": "main",
+          "sessionId": "019faaad-be53-7ceb-b56e-2bbbf0c372a0"
+        },
+        "startedAt": 1785274948209,
+        "updatedAt": 1785274953226,
+        "expiresAt": 1785274968226
+      },
+      "version": 2,
+      "updatedAt": 1785274953228,
+      "updatedBy": {
+        "id": "session:019faaad-be53-7ceb-b56e-2bbbf0c372a0",
+        "name": "main",
+        "kind": "main",
+        "sessionId": "019faaad-be53-7ceb-b56e-2bbbf0c372a0"
+      }
+    },
+    "sessions/019faaad-be53-7ceb-b56e-2bbbf0c372a0": {
+      "key": "sessions/019faaad-be53-7ceb-b56e-2bbbf0c372a0",
+      "value": {
+        "id": "session:019faaad-be53-7ceb-b56e-2bbbf0c372a0",
+        "name": "Peer 019faaad",
+        "kind": "peer",
+        "status": "running",
+        "runner": "pi",
+        "transport": "host",
+        "cwd": "/Users/hamoudaalias/Desktop/project/tso",
+        "sessionId": "019faaad-be53-7ceb-b56e-2bbbf0c372a0",
+        "model": "deepseek/deepseek-v4-flash",
+        "thinking": "high",
+        "startedAt": 1785274948209,
+        "updatedAt": 1785274953226,
+        "pendingMessages": false,
+        "local": false
+      },
+      "version": 2,
+      "updatedAt": 1785274953230,
+      "updatedBy": {
+        "id": "session:019faaad-be53-7ceb-b56e-2bbbf0c372a0",
+        "name": "main",
+        "kind": "main",
+        "sessionId": "019faaad-be53-7ceb-b56e-2bbbf0c372a0"
+      }
+    },
+    "topology/participants/c8b86a3cca5a6e313df0aa5f7693dd8ed012556f99e474601115e7192022ec10": {
+      "key": "topology/participants/c8b86a3cca5a6e313df0aa5f7693dd8ed012556f99e474601115e7192022ec10",
+      "value": {
+        "format": 1,
+        "id": "session:019faaad-be53-7ceb-b56e-2bbbf0c372a0",
+        "kind": "root",
+        "rootId": "session:019faaad-be53-7ceb-b56e-2bbbf0c372a0",
+        "ownerHostId": "session:019faaad-be53-7ceb-b56e-2bbbf0c372a0",
+        "ownerIdentityId": "session:019faaad-be53-7ceb-b56e-2bbbf0c372a0",
+        "name": "main",
+        "status": "running",
+        "runner": "pi",
+        "transport": "host",
+        "capabilities": [
+          "steer",
+          "followUp",
+          "fabric"
+        ],
+        "cwd": "/Users/hamoudaalias/Desktop/project/tso",
+        "sessionId": "019faaad-be53-7ceb-b56e-2bbbf0c372a0",
+        "model": "deepseek/deepseek-v4-flash",
+        "thinking": "high",
+        "startedAt": 1785274948209,
+        "updatedAt": 1785274953226,
+        "pendingMessages": false,
+        "controlProtocol": "v1"
+      },
+      "version": 2,
+      "updatedAt": 1785274953233,
+      "updatedBy": {
+        "id": "session:019faaad-be53-7ceb-b56e-2bbbf0c372a0",
+        "name": "main",
+        "kind": "main",
+        "sessionId": "019faaad-be53-7ceb-b56e-2bbbf0c372a0"
+      }
+    },
+    "topology/hosts/7f01b6cdec5f41d24bfac7f7c99d78926fc326322febd2622aef3e8154ab77eb": {
+      "key": "topology/hosts/7f01b6cdec5f41d24bfac7f7c99d78926fc326322febd2622aef3e8154ab77eb",
+      "value": {
+        "format": 1,
+        "id": "session:019faaad-be77-7fbd-811e-8a1f4d098e0c",
+        "rootId": "session:019faaad-be77-7fbd-811e-8a1f4d098e0c",
+        "identity": {
+          "id": "session:019faaad-be77-7fbd-811e-8a1f4d098e0c",
+          "name": "main",
+          "kind": "main",
+          "sessionId": "019faaad-be77-7fbd-811e-8a1f4d098e0c"
+        },
+        "startedAt": 1785274948209,
+        "updatedAt": 1785274958236,
+        "expiresAt": 1785274973236
+      },
+      "version": 3,
+      "updatedAt": 1785274958236,
+      "updatedBy": {
+        "id": "session:019faaad-be77-7fbd-811e-8a1f4d098e0c",
+        "name": "main",
+        "kind": "main",
+        "sessionId": "019faaad-be77-7fbd-811e-8a1f4d098e0c"
+      }
+    },
+    "sessions/019faaad-be77-7fbd-811e-8a1f4d098e0c": {
+      "key": "sessions/019faaad-be77-7fbd-811e-8a1f4d098e0c",
+      "value": {
+        "id": "session:019faaad-be77-7fbd-811e-8a1f4d098e0c",
+        "name": "Peer 019faaad",
+        "kind": "peer",
+        "status": "running",
+        "runner": "pi",
+        "transport": "host",
+        "cwd": "/Users/hamoudaalias/Desktop/project/tso",
+        "sessionId": "019faaad-be77-7fbd-811e-8a1f4d098e0c",
+        "model": "deepseek/deepseek-v4-flash",
+        "thinking": "high",
+        "startedAt": 1785274948209,
+        "updatedAt": 1785274958236,
+        "pendingMessages": false,
+        "local": false
+      },
+      "version": 3,
+      "updatedAt": 1785274958238,
+      "updatedBy": {
+        "id": "session:019faaad-be77-7fbd-811e-8a1f4d098e0c",
+        "name": "main",
+        "kind": "main",
+        "sessionId": "019faaad-be77-7fbd-811e-8a1f4d098e0c"
+      }
+    },
+    "topology/participants/7f01b6cdec5f41d24bfac7f7c99d78926fc326322febd2622aef3e8154ab77eb": {
+      "key": "topology/participants/7f01b6cdec5f41d24bfac7f7c99d78926fc326322febd2622aef3e8154ab77eb",
+      "value": {
+        "format": 1,
+        "id": "session:019faaad-be77-7fbd-811e-8a1f4d098e0c",
+        "kind": "root",
+        "rootId": "session:019faaad-be77-7fbd-811e-8a1f4d098e0c",
+        "ownerHostId": "session:019faaad-be77-7fbd-811e-8a1f4d098e0c",
+        "ownerIdentityId": "session:019faaad-be77-7fbd-811e-8a1f4d098e0c",
+        "name": "main",
+        "status": "running",
+        "runner": "pi",
+        "transport": "host",
+        "capabilities": [
+          "steer",
+          "followUp",
+          "fabric"
+        ],
+        "cwd": "/Users/hamoudaalias/Desktop/project/tso",
+        "sessionId": "019faaad-be77-7fbd-811e-8a1f4d098e0c",
+        "model": "deepseek/deepseek-v4-flash",
+        "thinking": "high",
+        "startedAt": 1785274948209,
+        "updatedAt": 1785274958236,
+        "pendingMessages": false,
+        "controlProtocol": "v1"
+      },
+      "version": 3,
+      "updatedAt": 1785274958240,
+      "updatedBy": {
+        "id": "session:019faaad-be77-7fbd-811e-8a1f4d098e0c",
+        "name": "main",
+        "kind": "main",
+        "sessionId": "019faaad-be77-7fbd-811e-8a1f4d098e0c"
+      }
+    },
+    "topology/hosts/19d9137858d5497028c372d877e4a602a2281e9225bd583bec73db5d01ba801d": {
+      "key": "topology/hosts/19d9137858d5497028c372d877e4a602a2281e9225bd583bec73db5d01ba801d",
+      "value": {
+        "format": 1,
+        "id": "session:019faaaf-f57a-76b8-aadf-439a9f3bc718",
+        "rootId": "session:019faaaf-f57a-76b8-aadf-439a9f3bc718",
+        "identity": {
+          "id": "session:019faaaf-f57a-76b8-aadf-439a9f3bc718",
+          "name": "main",
+          "kind": "main",
+          "sessionId": "019faaaf-f57a-76b8-aadf-439a9f3bc718"
+        },
+        "startedAt": 1785275090233,
+        "updatedAt": 1785275100255,
+        "expiresAt": 1785275115255
+      },
+      "version": 3,
+      "updatedAt": 1785275100257,
+      "updatedBy": {
+        "id": "session:019faaaf-f57a-76b8-aadf-439a9f3bc718",
+        "name": "main",
+        "kind": "main",
+        "sessionId": "019faaaf-f57a-76b8-aadf-439a9f3bc718"
+      }
+    },
+    "sessions/019faaaf-f57a-76b8-aadf-439a9f3bc718": {
+      "key": "sessions/019faaaf-f57a-76b8-aadf-439a9f3bc718",
+      "value": {
+        "id": "session:019faaaf-f57a-76b8-aadf-439a9f3bc718",
+        "name": "Peer 019faaaf",
+        "kind": "peer",
+        "status": "running",
+        "runner": "pi",
+        "transport": "host",
+        "cwd": "/Users/hamoudaalias/Desktop/project/tso",
+        "sessionId": "019faaaf-f57a-76b8-aadf-439a9f3bc718",
+        "model": "deepseek/deepseek-v4-flash",
+        "thinking": "high",
+        "startedAt": 1785275090233,
+        "updatedAt": 1785275100255,
+        "pendingMessages": false,
+        "local": false
+      },
+      "version": 3,
+      "updatedAt": 1785275100259,
+      "updatedBy": {
+        "id": "session:019faaaf-f57a-76b8-aadf-439a9f3bc718",
+        "name": "main",
+        "kind": "main",
+        "sessionId": "019faaaf-f57a-76b8-aadf-439a9f3bc718"
+      }
+    },
+    "topology/participants/19d9137858d5497028c372d877e4a602a2281e9225bd583bec73db5d01ba801d": {
+      "key": "topology/participants/19d9137858d5497028c372d877e4a602a2281e9225bd583bec73db5d01ba801d",
+      "value": {
+        "format": 1,
+        "id": "session:019faaaf-f57a-76b8-aadf-439a9f3bc718",
+        "kind": "root",
+        "rootId": "session:019faaaf-f57a-76b8-aadf-439a9f3bc718",
+        "ownerHostId": "session:019faaaf-f57a-76b8-aadf-439a9f3bc718",
+        "ownerIdentityId": "session:019faaaf-f57a-76b8-aadf-439a9f3bc718",
+        "name": "main",
+        "status": "running",
+        "runner": "pi",
+        "transport": "host",
+        "capabilities": [
+          "steer",
+          "followUp",
+          "fabric"
+        ],
+        "cwd": "/Users/hamoudaalias/Desktop/project/tso",
+        "sessionId": "019faaaf-f57a-76b8-aadf-439a9f3bc718",
+        "model": "deepseek/deepseek-v4-flash",
+        "thinking": "high",
+        "startedAt": 1785275090233,
+        "updatedAt": 1785275100255,
+        "pendingMessages": false,
+        "controlProtocol": "v1"
+      },
+      "version": 3,
+      "updatedAt": 1785275100262,
+      "updatedBy": {
+        "id": "session:019faaaf-f57a-76b8-aadf-439a9f3bc718",
+        "name": "main",
+        "kind": "main",
+        "sessionId": "019faaaf-f57a-76b8-aadf-439a9f3bc718"
+      }
+    },
+    "topology/hosts/4f4b7c9bb3bd1fc99804e95553f08eb3854a6f4394d8ec9a9a219cad50163193": {
+      "key": "topology/hosts/4f4b7c9bb3bd1fc99804e95553f08eb3854a6f4394d8ec9a9a219cad50163193",
+      "value": {
+        "format": 1,
+        "id": "session:019faaaf-f556-7ee9-8a08-2fc89c886d80",
+        "rootId": "session:019faaaf-f556-7ee9-8a08-2fc89c886d80",
+        "identity": {
+          "id": "session:019faaaf-f556-7ee9-8a08-2fc89c886d80",
+          "name": "main",
+          "kind": "main",
+          "sessionId": "019faaaf-f556-7ee9-8a08-2fc89c886d80"
+        },
+        "startedAt": 1785275090233,
+        "updatedAt": 1785275100267,
+        "expiresAt": 1785275115267
+      },
+      "version": 3,
+      "updatedAt": 1785275100268,
+      "updatedBy": {
+        "id": "session:019faaaf-f556-7ee9-8a08-2fc89c886d80",
+        "name": "main",
+        "kind": "main",
+        "sessionId": "019faaaf-f556-7ee9-8a08-2fc89c886d80"
+      }
+    },
+    "sessions/019faaaf-f556-7ee9-8a08-2fc89c886d80": {
+      "key": "sessions/019faaaf-f556-7ee9-8a08-2fc89c886d80",
+      "value": {
+        "id": "session:019faaaf-f556-7ee9-8a08-2fc89c886d80",
+        "name": "Peer 019faaaf",
+        "kind": "peer",
+        "status": "running",
+        "runner": "pi",
+        "transport": "host",
+        "cwd": "/Users/hamoudaalias/Desktop/project/tso",
+        "sessionId": "019faaaf-f556-7ee9-8a08-2fc89c886d80",
+        "model": "deepseek/deepseek-v4-flash",
+        "thinking": "high",
+        "startedAt": 1785275090233,
+        "updatedAt": 1785275100267,
+        "pendingMessages": false,
+        "local": false
+      },
+      "version": 3,
+      "updatedAt": 1785275100270,
+      "updatedBy": {
+        "id": "session:019faaaf-f556-7ee9-8a08-2fc89c886d80",
+        "name": "main",
+        "kind": "main",
+        "sessionId": "019faaaf-f556-7ee9-8a08-2fc89c886d80"
+      }
+    },
+    "topology/participants/4f4b7c9bb3bd1fc99804e95553f08eb3854a6f4394d8ec9a9a219cad50163193": {
+      "key": "topology/participants/4f4b7c9bb3bd1fc99804e95553f08eb3854a6f4394d8ec9a9a219cad50163193",
+      "value": {
+        "format": 1,
+        "id": "session:019faaaf-f556-7ee9-8a08-2fc89c886d80",
+        "kind": "root",
+        "rootId": "session:019faaaf-f556-7ee9-8a08-2fc89c886d80",
+        "ownerHostId": "session:019faaaf-f556-7ee9-8a08-2fc89c886d80",
+        "ownerIdentityId": "session:019faaaf-f556-7ee9-8a08-2fc89c886d80",
+        "name": "main",
+        "status": "running",
+        "runner": "pi",
+        "transport": "host",
+        "capabilities": [
+          "steer",
+          "followUp",
+          "fabric"
+        ],
+        "cwd": "/Users/hamoudaalias/Desktop/project/tso",
+        "sessionId": "019faaaf-f556-7ee9-8a08-2fc89c886d80",
+        "model": "deepseek/deepseek-v4-flash",
+        "thinking": "high",
+        "startedAt": 1785275090233,
+        "updatedAt": 1785275100267,
+        "pendingMessages": false,
+        "controlProtocol": "v1"
+      },
+      "version": 3,
+      "updatedAt": 1785275100272,
+      "updatedBy": {
+        "id": "session:019faaaf-f556-7ee9-8a08-2fc89c886d80",
+        "name": "main",
+        "kind": "main",
+        "sessionId": "019faaaf-f556-7ee9-8a08-2fc89c886d80"
+      }
+    }
+  },
+  "versions": {
+    "topology/hosts/4fe39d883ac48f1fcac36d1072802e5f335e8f8be821f46eb156654b665f3e09": 4,
+    "sessions/019faa87-77ca-7f32-8292-6bb526a6caa4": 4,
+    "topology/participants/4fe39d883ac48f1fcac36d1072802e5f335e8f8be821f46eb156654b665f3e09": 4,
+    "topology/hosts/e031cead6e3cfd74b38f37dd1cadcbab12ffa3fe3e2d7e36b5d8df126fa35542": 13,
+    "sessions/019faa87-77b0-7231-8649-7d55263cf303": 13,
+    "topology/participants/e031cead6e3cfd74b38f37dd1cadcbab12ffa3fe3e2d7e36b5d8df126fa35542": 13,
+    "topology/hosts/40d6d813b285d8b296589df1010cab1909c9892256c65858f3af7ec7bf1c992d": 4,
+    "sessions/019faa87-77e4-7c04-a80a-6b33fd69c8c5": 4,
+    "topology/participants/40d6d813b285d8b296589df1010cab1909c9892256c65858f3af7ec7bf1c992d": 4,
+    "topology/hosts/745e43929908612d250a7d1374e82874b0b75eeced2ad5f0ee3e4494ddf53705": 3,
+    "sessions/019faa94-8c73-7de9-b0ac-033abe60e8ed": 3,
+    "topology/participants/745e43929908612d250a7d1374e82874b0b75eeced2ad5f0ee3e4494ddf53705": 3,
+    "topology/hosts/4398102b5627630f97089026f380be114b20a21414b8b40dda2d50a3aeae587e": 3,
+    "sessions/019faa94-8c91-7207-acf8-ee14c395cc62": 3,
+    "topology/participants/4398102b5627630f97089026f380be114b20a21414b8b40dda2d50a3aeae587e": 3,
+    "topology/hosts/aab405d1444ec5331b0ec61f0e53daa0067e3ac74ff8f42873e3084aa0348eb6": 3,
+    "sessions/019faa94-8c3a-74cc-b525-993a057c7c4d": 3,
+    "topology/participants/aab405d1444ec5331b0ec61f0e53daa0067e3ac74ff8f42873e3084aa0348eb6": 3,
+    "topology/hosts/85d00cf2b3f5ef52b890bea7c5aae516040e449d9c289e228b044896495918fb": 3,
+    "sessions/019faa94-8c56-745d-b888-136b9d637277": 3,
+    "topology/participants/85d00cf2b3f5ef52b890bea7c5aae516040e449d9c289e228b044896495918fb": 3,
+    "topology/hosts/c8b86a3cca5a6e313df0aa5f7693dd8ed012556f99e474601115e7192022ec10": 2,
+    "sessions/019faaad-be53-7ceb-b56e-2bbbf0c372a0": 2,
+    "topology/participants/c8b86a3cca5a6e313df0aa5f7693dd8ed012556f99e474601115e7192022ec10": 2,
+    "topology/hosts/7f01b6cdec5f41d24bfac7f7c99d78926fc326322febd2622aef3e8154ab77eb": 3,
+    "sessions/019faaad-be77-7fbd-811e-8a1f4d098e0c": 3,
+    "topology/participants/7f01b6cdec5f41d24bfac7f7c99d78926fc326322febd2622aef3e8154ab77eb": 3,
+    "topology/hosts/1ad0329c703917fc1c6709eb81ce0e0ff992e75494797d176d9ac0ce4f7af624": 2,
+    "sessions/019faaaf-c3c1-735d-b8df-4ed10e3b8d61": 1,
+    "topology/participants/1ad0329c703917fc1c6709eb81ce0e0ff992e75494797d176d9ac0ce4f7af624": 2,
+    "topology/hosts/158e85bdbdbb37d301f94ab43f33ccbe512a654979482af03d3e67971b6e0799": 2,
+    "sessions/019faaaf-c3e1-7744-a8eb-f9b1913c99de": 1,
+    "topology/participants/158e85bdbdbb37d301f94ab43f33ccbe512a654979482af03d3e67971b6e0799": 2,
+    "topology/hosts/19d9137858d5497028c372d877e4a602a2281e9225bd583bec73db5d01ba801d": 3,
+    "sessions/019faaaf-f57a-76b8-aadf-439a9f3bc718": 3,
+    "topology/participants/19d9137858d5497028c372d877e4a602a2281e9225bd583bec73db5d01ba801d": 3,
+    "topology/hosts/4f4b7c9bb3bd1fc99804e95553f08eb3854a6f4394d8ec9a9a219cad50163193": 3,
+    "sessions/019faaaf-f556-7ee9-8a08-2fc89c886d80": 3,
+    "topology/participants/4f4b7c9bb3bd1fc99804e95553f08eb3854a6f4394d8ec9a9a219cad50163193": 3
+  },
+  "tombstoneOrder": [
+    "sessions/019faaaf-c3c1-735d-b8df-4ed10e3b8d61",
+    "topology/participants/1ad0329c703917fc1c6709eb81ce0e0ff992e75494797d176d9ac0ce4f7af624",
+    "topology/hosts/1ad0329c703917fc1c6709eb81ce0e0ff992e75494797d176d9ac0ce4f7af624",
+    "sessions/019faaaf-c3e1-7744-a8eb-f9b1913c99de",
+    "topology/participants/158e85bdbdbb37d301f94ab43f33ccbe512a654979482af03d3e67971b6e0799",
+    "topology/hosts/158e85bdbdbb37d301f94ab43f33ccbe512a654979482af03d3e67971b6e0799"
+  ]
+}
