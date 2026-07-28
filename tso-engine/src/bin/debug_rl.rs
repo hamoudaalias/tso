@@ -58,11 +58,23 @@ fn compute_bfs_potential() -> Vec<Vec<f64>> {
 
 fn main() {
     let bfs_pot = compute_bfs_potential();
+
+    let enable_trace = std::env::var("TRACE").is_ok() || std::env::args().any(|a| a == "--trace");
+    let enable_metrics = std::env::var("METRICS").is_ok() || std::env::args().any(|a| a == "--metrics");
+
+    if enable_trace {
+        tracing_subscriber::fmt()
+            .with_max_level(tracing::Level::DEBUG)
+            .init();
+        eprintln!("🔍 Trace mode enabled");
+    }
+
     let mut engine = TsoEngine::with_hidden(PERCEPTION_DIM, N_ACTIONS, 4);
     engine.cerebellum.epsilon = 0.1; engine.cerebellum.noise_std = 0.1;
     engine.cerebellum.replay_lr = 0.05; engine.cerebellum.replay_only = false;
     engine.sleep_every_n_episodes = 0;
     engine.use_stationary_reward = true;
+    engine.debug_step_dump = enable_trace;
     engine.hypothalamus.energy=1.0; engine.hypothalamus.hydration=1.0;
     engine.hypothalamus.temperature=0.5; engine.hypothalamus.sleep_debt=0.0;
 
@@ -82,6 +94,25 @@ fn main() {
         step_count += 1;
     }
     engine.end_episode();
+
+    if enable_metrics {
+        let m = engine.metrics_snapshot();
+        eprintln!();
+        eprintln!("=== METRICS ===");
+        eprintln!("phi={:.6}", m.phi);
+        eprintln!("well_being={:.6}", m.well_being);
+        eprintln!("deficit={:.6}", 1.0 - (m.energy + m.hydration) / 2.0);
+        eprintln!("energy={:.3} hydration={:.3} temp={:.3}", m.energy, m.hydration, m.temperature);
+        eprintln!("sleep_pressure={:.3}", m.sleep_pressure);
+        eprintln!("concepts={} edges={}", m.n_concepts, m.n_edges);
+        eprintln!("episodes={} steps={} sleep_cycles={}", m.total_episodes, m.total_steps, m.sleep_cycles);
+        // Export JSON si environ JSON_METRICS=1
+        if std::env::var("JSON_METRICS").is_ok() {
+            if let Ok(json) = serde_json::to_string(&m) {
+                eprintln!("JSON: {}", json);
+            }
+        }
+    }
 
     eprintln!();
     eprintln!("=== FIN INSPECTION ===");
