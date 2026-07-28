@@ -12,10 +12,10 @@
 /// ════════════════════════════════════════════════════════════════════════════
 
 use ndarray::Array1;
-use rand::Rng;
 use serde::{Serialize, Deserialize};
 
 fn tanh(x: f64) -> f64 { x.tanh() }
+#[allow(dead_code)]
 fn tanh_deriv(y: f64) -> f64 { 1.0 - y * y }
 
 /// Auto-encodeur variationnel.
@@ -185,7 +185,7 @@ impl Vae {
             .collect();
         let z = self.z.clone();
         let (x_recon, h_dec) = self.decode_hidden(&z);
-        let (elbo, mse, _kl) = self.elbo_loss(x, &x_recon, &mu, &logvar);
+        let (elbo, _mse, _kl) = self.elbo_loss(x, &x_recon, &mu, &logvar);
 
         // Gradient approximé sur w_dec et b_dec (dernière couche)
         for i in 0..self.dim {
