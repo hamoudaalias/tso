@@ -7,9 +7,11 @@ use crate::episodic::{EpisodicMemory, ContextBuffer};
 use crate::cerebellum::Cerebellum;
 use crate::core::{Graph, NodeId, resolve_with_anneal, resolve_parallel,
     demineur_sweep, demineur_sweep_trace,
-    lateral_inhibition_sweep, lateral_inhibition_trace};
+    lateral_inhibition_sweep, lateral_inhibition_trace,
+    exponential_decay_sweep};
 use crate::working_memory::WorkingMemory;
 use crate::action::ActionMotor;
+use crate::constraint_redirection::{self, RedirectionConfig};
 use crate::hypothalamus::Hypothalamus;
 use crate::attention::Attention;
 use crate::grid_cells::GridCells;
@@ -1273,6 +1275,11 @@ impl TsoEngine {
     /// Returns the amount of Φ eliminated by this single flag.
     /// This is the "drapeau" mechanic: each flagged edge resolves a conflict
     /// and immediately drops cognitive tension.
+    /// Balayage par décroissance exponentielle.
+    pub fn exponential_decay_sweep(&mut self, tol: f64, factor: f64) -> (usize, f64, f64) {
+        exponential_decay_sweep(&mut self.graph, tol, factor)
+    }
+
     pub fn flag_edge(&mut self, from: NodeId, to: NodeId) -> f64 {
         self.graph.flag_edge(from, to)
     }
@@ -1311,6 +1318,26 @@ impl TsoEngine {
     pub fn lateral_inhibition_trace(&mut self, tol: f64, decay: i8)
         -> (usize, f64, f64, Vec<(f64, f64, i8)>) {
         lateral_inhibition_trace(&mut self.graph, tol, decay)
+    }
+
+    /// Resolve graph conflicts by gradient descent on node vectors.
+    ///
+    /// CONSTRAINT REDIRECTION strategy:
+    ///   - No edges are deleted or modified.
+    ///   - Node vectors drift in latent space to satisfy all edge constraints
+    ///     simultaneously (energy-based learning).
+    ///   - After calling this, use `sync_prototypes_after_redirection()` to
+    ///     propagate drifted vectors back to the AttractorField prototypes.
+    pub fn resolve_constraint_redirection(&mut self, config: &RedirectionConfig) -> constraint_redirection::RedirectionResult {
+        constraint_redirection::resolve_by_redirection(&mut self.graph, config)
+    }
+
+    /// Copy graph node vectors back to the first prototype of each concept.
+    ///
+    /// Call this after `resolve_constraint_redirection()` to keep the
+    /// attractor field in sync with the drifted semantic vectors.
+    pub fn sync_prototypes_after_redirection(&mut self) {
+        constraint_redirection::sync_prototypes_from_graph(&self.graph, &mut self.attractor);
     }
 
     /// Run deep resolution in parallel using scoped threads.

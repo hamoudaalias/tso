@@ -267,14 +267,40 @@ impl Graph {
         self.remove_edge(from, to)
     }
 
+    /// Décroissance exponentielle du poids : multiplie le poids par `factor`.
+    /// Les poids i8 sont traités comme f64 le temps de la décroissance,
+    /// puis arrondis à l'entier le plus proche. Si |weight| < 0.5, l'arête est supprimée.
+    /// Retourne le Φ éliminé (0 si l'arête survit, >0 si supprimée).
+    pub fn exp_decay_edge_weight(&mut self, from: NodeId, to: NodeId, factor: f64) -> f64 {
+        let pos = self.edges.iter().position(|e| (e.from == from && e.to == to) || (e.from == to && e.to == from));
+        if let Some(idx) = pos {
+            let saved = self.edge_phi(&self.edges[idx]);
+            let e = &mut self.edges[idx];
+            let old = e.weight as f64;
+            let decayed = old * factor;
+            if decayed.abs() < 0.5 {
+                self.remove_edge(from, to);
+                saved
+            } else {
+                e.weight = decayed.round() as i8;
+                self.edge_map.insert((from, to), e.weight);
+                self.edge_map.insert((to, from), e.weight);
+                0.0
+            }
+        } else { 0.0 }
+    }
+
     /// Décroissance graduelle du poids d'une arête (inhibition latérale).
     /// Au lieu de supprimer instantanément, on réduit la valeur absolue du poids
     /// de `decay` à chaque violation. Si le poids passe à 0, l'arête est supprimée.
     /// Les poids sont i8 : +1/+2 (implication), -1 (exclusion).
     /// Retourne le Φ éliminé (0 si l'arête survit, >0 si supprimée).
     pub fn decay_edge_weight(&mut self, from: NodeId, to: NodeId, decay: i8) -> f64 {
-        if let Some(pos) = self.edges.iter().position(|e| (e.from == from && e.to == to) || (e.from == to && e.to == from)) {
-            let e = &mut self.edges[pos];
+        let pos = self.edges.iter().position(|e| (e.from == from && e.to == to) || (e.from == to && e.to == from));
+        if let Some(idx) = pos {
+            // Capture phi contribution *before* we mutate the weight
+            let saved = self.edge_phi(&self.edges[idx]);
+            let e = &mut self.edges[idx];
             let old_weight = e.weight;
             // Réduit vers 0 par pas de `decay`
             if old_weight > 0 {
@@ -282,10 +308,14 @@ impl Graph {
             } else if old_weight < 0 {
                 e.weight = (old_weight + decay).min(0);
             }
-            if e.weight == 0 {
-                self.remove_edge(from, to)
-            } else {
+            // Sync edge_map so edge_weight() returns the updated value
+            if e.weight != 0 {
+                self.edge_map.insert((from, to), e.weight);
+                self.edge_map.insert((to, from), e.weight);
                 0.0
+            } else {
+                self.remove_edge(from, to);
+                saved
             }
         } else {
             0.0
@@ -870,69 +900,121 @@ pub fn resolve_parallel(graph: &mut Graph, max_iter: usize, tol: f64, mut temper
 }
 
 /// Démineur mode: systematically "flag" all violated edges in a graph,
-/// removing them one by one and tracking the Φ drop per flag.
-/// Returns (flags_planted, phi_dropped, final_phi).
+/// removing them all in a single O(|E|) pass and tracking Φ dropped.
+/// Guarantees φ < tol on exit (since all edges with φ > tol are removed).
+/// Edges are lost permanently — this is an instant-removal strategy.
+/// Returns (flags_planted, total_phi_dropped, final_phi).
 pub fn demineur_sweep(graph: &mut Graph, tol: f64) -> (usize, f64, f64) {
     let mut flags = 0usize;
     let mut phi_dropped = 0.0;
-    if graph.phi() < tol { return (0, 0.0, graph.phi()); }
 
-    loop {
-        let violated: Vec<(usize, f64)> = graph.edges.iter().enumerate()
-            .map(|(idx, e)| (idx, graph.edge_phi(e)))
-            .filter(|(_, p)| *p > tol)
-            .collect();
-        if violated.is_empty() { break; }
-
-        let &(worst_idx, _) = violated.iter().max_by(|a, b| a.1.partial_cmp(&b.1).unwrap()).unwrap();
-        let (from, to) = {
-            let e = &graph.edges[worst_idx];
-            (e.from, e.to)
-        };
-        let saved = graph.flag_edge(from, to);
-        phi_dropped += saved;
-        flags += 1;
+    if graph.phi() < tol {
+        return (0, 0.0, graph.phi());
     }
+
+    // Single O(|E|) pass: drain edges, discard those exceeding tol,
+    // rebuild adjacency and edge_map only for survivors.
+    // edge_phi depends solely on node states + edge weight, which are
+    // invariant during removal, so a single pass yields the correct final state.
+    let old_edges = std::mem::take(&mut graph.edges);
+    graph.edge_map.clear();
+    for adj_list in &mut graph.adj {
+        adj_list.clear();
+    }
+
+    let mut new_edges: Vec<Edge> = Vec::with_capacity(old_edges.len());
+    for e in old_edges {
+        let p = graph.edge_phi(&e);
+        if p > tol {
+            flags += 1;
+            phi_dropped += p;
+            // edge is dropped permanently
+        } else {
+            let new_idx = new_edges.len();
+            graph.edge_map.insert((e.from, e.to), e.weight);
+            graph.edge_map.insert((e.to, e.from), e.weight);
+            graph.adj[e.from].push(new_idx);
+            graph.adj[e.to].push(new_idx);
+            new_edges.push(e);
+        }
+    }
+    graph.edges = new_edges;
 
     (flags, phi_dropped, graph.phi())
 }
 
 /// Démineur avec trace détaillée de chaque drapeau.
-/// Affiche Φ après chaque flag pour montrer "Φ chute à chaque drapeau".
-/// Retourne (flags, phi_dropped, final_phi, vec![(phi_avant, phi_après)]).
+/// Affiche Φ avant/après chaque flag (sur le total courant).
+/// Retourne (flags, phi_dropped, final_phi, vec![(phi_avant, phi_après, weight)]).
 pub fn demineur_sweep_trace(graph: &mut Graph, tol: f64) -> (usize, f64, f64, Vec<(f64, f64, i8)>) {
     let mut flags = 0usize;
     let mut phi_dropped = 0.0;
     let mut trace = Vec::new();
 
-    loop {
-        let phi_before_flag = graph.phi();
-        if phi_before_flag < tol {
-            if flags > 0 {
-                trace.push((phi_before_flag, phi_before_flag, 0));
-            }
-            break;
-        }
+    if graph.phi() < tol {
+        return (0, 0.0, graph.phi(), trace);
+    }
 
+    // Pre-compute all edge phi values (O(|E|) read-only pass)
+    let edge_phi_values: Vec<f64> = graph.edges.iter().map(|e| graph.edge_phi(e)).collect();
+    let total_phi: f64 = edge_phi_values.iter().sum();
+
+    // Drain and rebuild
+    let old_edges = std::mem::take(&mut graph.edges);
+    graph.edge_map.clear();
+    for adj_list in &mut graph.adj {
+        adj_list.clear();
+    }
+
+    let mut new_edges: Vec<Edge> = Vec::with_capacity(old_edges.len());
+    let mut remaining_phi = total_phi;
+    for (e, p) in old_edges.into_iter().zip(edge_phi_values.into_iter()) {
+        if p > tol {
+            let phi_before = remaining_phi;
+            remaining_phi -= p;
+            flags += 1;
+            phi_dropped += p;
+            trace.push((phi_before, remaining_phi, e.weight));
+        } else {
+            let new_idx = new_edges.len();
+            graph.edge_map.insert((e.from, e.to), e.weight);
+            graph.edge_map.insert((e.to, e.from), e.weight);
+            graph.adj[e.from].push(new_idx);
+            graph.adj[e.to].push(new_idx);
+            new_edges.push(e);
+            // remaining_phi unchanged — this edge's φ stays in the graph
+        }
+    }
+    graph.edges = new_edges;
+
+    (flags, phi_dropped, graph.phi(), trace)
+}
+
+/// Balayage par décroissance exponentielle : à chaque tick, le poids de
+/// la pire arête est multiplié par `factor` (ex: 0.95). L'arête est supprimée
+/// quand |weight| < 0.5. Aucune suppression brutale.
+/// Retourne (flags, phi_dropped, final_phi).
+pub fn exponential_decay_sweep(
+    graph: &mut Graph,
+    tol: f64,
+    factor: f64,
+) -> (usize, f64, f64) {
+    let mut flags = 0usize;
+    let mut phi_dropped = 0.0;
+    if graph.phi() < tol { return (0, 0.0, graph.phi()); }
+
+    for _ in 0..1000 {
         let violated: Vec<(usize, f64)> = graph.edges.iter().enumerate()
             .map(|(idx, e)| (idx, graph.edge_phi(e)))
             .filter(|(_, p)| *p > tol)
             .collect();
         if violated.is_empty() { break; }
-
         let &(worst_idx, _) = violated.iter().max_by(|a, b| a.1.partial_cmp(&b.1).unwrap()).unwrap();
-        let (from, to, weight) = {
-            let e = &graph.edges[worst_idx];
-            (e.from, e.to, e.weight)
-        };
-        graph.flag_edge(from, to);
-        let phi_after_flag = graph.phi();
-        phi_dropped += phi_before_flag - phi_after_flag;
-        flags += 1;
-        trace.push((phi_before_flag, phi_after_flag, weight));
+        let (from, to) = { let e = &graph.edges[worst_idx]; (e.from, e.to) };
+        let saved = graph.exp_decay_edge_weight(from, to, factor);
+        if saved > 0.0 { phi_dropped += saved; flags += 1; }
     }
-
-    (flags, phi_dropped, graph.phi(), trace)
+    (flags, phi_dropped, graph.phi())
 }
 
 /// Balayage par inhibition latérale : décroissance progressive du poids
@@ -945,6 +1027,7 @@ pub fn lateral_inhibition_sweep(
     tol: f64,
     decay: i8,
 ) -> (usize, f64, f64) {
+    if decay <= 0 { return (0, 0.0, graph.phi()); }
     let mut flags = 0usize;
     let mut phi_dropped = 0.0;
     if graph.phi() < tol { return (0, 0.0, graph.phi()); }
@@ -974,6 +1057,7 @@ pub fn lateral_inhibition_trace(
     tol: f64,
     decay: i8,
 ) -> (usize, f64, f64, Vec<(f64, f64, i8)>) {
+    if decay <= 0 { return (0, 0.0, graph.phi(), Vec::new()); }
     let mut flags = 0usize;
     let mut phi_dropped = 0.0;
     let mut trace = Vec::new();
