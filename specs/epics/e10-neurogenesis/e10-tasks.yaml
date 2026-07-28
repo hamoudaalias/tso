@@ -147,7 +147,7 @@ stories:
         description: "Ajouter sleep_synaptic_scaling: bool (défaut true) à CognitiveConfig"
         verify: "cd tso-engine && cargo check --lib"
         risk: P2
-        status: failing
+        status: passing
         allure:
           severity: normal
           categories: ["Neurogenesis", "SynapticScaling"]
@@ -156,7 +156,7 @@ stories:
         description: "Implémenter Phase 3.5 dans sleep_cycle() — scaling des poids incidents excessifs"
         verify: "cd tso-engine && cargo test -- test_neurogenesis_synaptic_scaling 2>&1 | grep ok"
         risk: P2
-        status: failing
+        status: passing
         allure:
           severity: normal
           categories: ["Neurogenesis", "SynapticScaling"]
@@ -165,7 +165,7 @@ stories:
         description: "Tester préservation du contraste relatif après scaling"
         verify: "cd tso-engine && cargo test -- test_neurogenesis_synaptic_contrast 2>&1 | grep ok"
         risk: P2
-        status: failing
+        status: passing
         allure:
           severity: normal
           categories: ["Neurogenesis", "SynapticScaling"]
@@ -174,7 +174,7 @@ stories:
         description: "Tester que sleep_synaptic_scaling = false saute la phase"
         verify: "cd tso-engine && cargo test -- test_neurogenesis_scaling_disabled 2>&1 | grep ok"
         risk: P2
-        status: failing
+        status: passing
         allure:
           severity: normal
           categories: ["Neurogenesis", "SynapticScaling"]

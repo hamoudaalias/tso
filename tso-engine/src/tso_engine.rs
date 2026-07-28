@@ -1339,6 +1339,36 @@ impl TsoEngine {
         // created by noisy sleep updates.
         let prototypes_pruned = self.attractor.prune_redundant(0.05);
 
+        // ── Phase 3.5: Scaling synaptique homéostatique ──
+        // Normalise les poids incidents des nœuds pour éviter l'emballement
+        // des connexions après la neurogenèse. Uniquement si activé.
+        if self.cogs.sleep_synaptic_scaling {
+            let n_nodes = self.graph.nodes.len();
+            if n_nodes > 0 {
+                let mut incident_weight = vec![0i64; n_nodes];
+                for e in &self.graph.edges {
+                    incident_weight[e.from] += e.weight as i64;
+                    incident_weight[e.to] += e.weight as i64;
+                }
+                let mean_weight = incident_weight.iter().sum::<i64>() as f64 / n_nodes as f64;
+                let threshold = mean_weight * 2.0;
+                if threshold > 0.0 {
+                    for (i, &total) in incident_weight.iter().enumerate() {
+                        let total_f = total as f64;
+                        if total_f > threshold {
+                            let scale = threshold / total_f;
+                            for e in &mut self.graph.edges {
+                                if e.from == i || e.to == i {
+                                    let scaled = (e.weight as f64 * scale).round() as i8;
+                                    e.weight = scaled.clamp(0, 127);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
         // ── Phase 4: Remove low-phi edges ──
         // Edges that contribute negligible tension are pruned from the
         // semantic graph, keeping only structurally meaningful connections.
