@@ -53,6 +53,7 @@ pub struct MetricsSnapshot {
 pub struct SubsystemFlags {
     pub attractor: bool,
     pub use_fpi: bool,
+    pub efe_weight: f64,
     pub graph_phi: bool,
     pub attention: bool,
     pub episodic_curiosity: bool,
@@ -69,6 +70,8 @@ pub struct CognitiveConfig {
     pub attractor: bool,
     /// Use FPI inference instead of attractor categorization
     pub use_fpi: bool,
+    /// Weight for EFE scoring in action selection (0.0 = pure RL)
+    pub efe_weight: f64,
     /// Graphe sémantique + Φ
     pub graph_phi: bool,
     /// Attention spatiale
@@ -96,6 +99,7 @@ impl CognitiveConfig {
     /// Rétrocompatible : les bins existants utilisent les champs plats.
     pub fn subsystems(&self) -> SubsystemFlags {
         SubsystemFlags {
+            efe_weight: self.efe_weight,
             use_fpi: self.use_fpi,            attractor: self.attractor,
             graph_phi: self.graph_phi,
             attention: self.attention,
@@ -110,6 +114,7 @@ impl Default for CognitiveConfig {
     fn default() -> Self {
         CognitiveConfig {
             use_fpi: false,
+            efe_weight: 0.0,
             attractor: true,
             graph_phi: true,
             attention: true,
@@ -759,6 +764,28 @@ impl TsoEngine {
                 *l += rng.gen_range(-self.cerebellum.noise_std..self.cerebellum.noise_std);
             }
         }
+        if cc.efe_weight > 0.0 && self.current_concept_id.is_some() {
+            let cid = self.current_concept_id.unwrap();
+            let n_states = self.dim;
+            let qs = vec![ndarray::Array1::from_shape_fn(n_states, |i| if i == cid { 1.0 } else { 0.0 })];
+            let a_eye: ndarray::ArrayD<f64> = ndarray::Array2::eye(n_states).into_dyn();
+            let b_id: ndarray::Array3<f64> = ndarray::Array3::from_shape_fn(
+                (n_states, n_states, logits.len()),
+                |(s1, s2, _)| if s1 == s2 { 1.0 } else { 0.0 }
+            );
+            let c_uniform: ndarray::Array1<f64> = ndarray::Array1::from_elem(n_states, 0.0);
+            let candidates: Vec<usize> = (0..logits.len()).collect();
+            let efe_scores: Vec<f64> = candidates.iter().map(|&a| {
+                crate::efe::score_policy(
+                    &qs, &[a_eye.clone()], &[b_id.clone()],
+                    &[c_uniform.clone()], &[a], true, true
+                )
+            }).collect();
+            for (l, g) in logits.iter_mut().zip(efe_scores.iter()) {
+                *l += cc.efe_weight * g;
+            }
+        }
+
         for (l, b) in logits.iter_mut().zip(bfs_bias.iter()) {
             *l += b * 0.5;
         }
