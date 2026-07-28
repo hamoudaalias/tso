@@ -1,3 +1,4 @@
+#![allow(dead_code, unused_assignments, unused_variables)]
 /// ════════════════════════════════════════════════════════════════════════════
 ///  Expérience A — Cerebellum seul sur Terrarium 7×7
 ///
@@ -179,7 +180,7 @@ fn run_experiment_a(cfg: &Config) {
     cerebellum.epsilon = 0.0; cerebellum.noise_std = 0.0;
     let mut test_rewards = Vec::with_capacity(TEST_EPS);
     let mut test_success = Vec::with_capacity(TEST_EPS);
-    for ep in 0..TEST_EPS {
+    for _ep in 0..TEST_EPS {
         let (total, succeeded) = run_ep(&mut cerebellum, &grid_cells, &bfs_pot, cfg, D_MAX);
         test_rewards.push(total); test_success.push(succeeded);
     }
@@ -206,7 +207,7 @@ fn run_experiment_a(cfg: &Config) {
     eprintln!();
 }
 
-fn run_ep(cerebellum: &mut Cerebellum, grid: &MultiGridCell, bfs_pot: &[Vec<f64>], cfg: &Config, d_max: f64) -> (f64, bool) {
+fn run_ep(cerebellum: &mut Cerebellum, grid: &MultiGridCell, bfs_pot: &[Vec<f64>], cfg: &Config, _d_max: f64) -> (f64, bool) {
     let mut env = TerEnv::new(); env.reset();
     cerebellum.reset_trace();
 

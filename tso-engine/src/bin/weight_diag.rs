@@ -1,3 +1,4 @@
+#![allow(dead_code, unused_assignments, unused_variables)]
 /// ════════════════════════════════════════════════════════════════════════════
 ///  Diagnostic ultra-ciblé : les poids du cerebellum bougent-ils en S1 ?
 ///
@@ -83,8 +84,8 @@ fn compute_bfs_potential() -> Vec<Vec<f64>> {
 }
 
 fn dump_w2(cbl: &Cerebellum, label: &str) {
-    let w2_00 = cbl.get_out_weight(0, 0);
-    let w2_10 = cbl.get_out_weight(1, 0);
+    let _w2_00 = cbl.get_out_weight(0, 0);
+    let _w2_10 = cbl.get_out_weight(1, 0);
     let w2_20 = cbl.get_out_weight(2, 0);
     let w2_30 = cbl.get_out_weight(3, 0);
     let w2_03 = cbl.get_out_weight(0, 3);
@@ -187,7 +188,7 @@ fn diagnose_phase1(bfs_pot: &[Vec<f64>]) {
             }
             let p = env.perceive();
             let next_pot = bfs_pot[env.agent.0][env.agent.1];
-            let rl_signal = reward + 0.99*next_pot - prev_pot;
+            let _rl_signal = reward + 0.99*next_pot - prev_pot;
             logits = cbl.forward_logits(&p);
             // No update during test
             action = logits.iter().enumerate().max_by(|(_,a),(_,b)| a.partial_cmp(b).unwrap()).map(|(i,_)|i).unwrap();

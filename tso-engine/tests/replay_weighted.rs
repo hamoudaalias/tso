@@ -31,7 +31,7 @@ fn setup_mixed_reward_engine(seed: u64) -> TsoEngine {
                 rng.r#gen::<f64>(), rng.r#gen::<f64>(),
                 rng.r#gen::<f64>(), rng.r#gen::<f64>(),
             ]);
-            let action = rng.r#gen_range(0..n_actions);
+            let _action = rng.r#gen_range(0..n_actions);
             let reward = if use_high_reward && rng.r#gen_bool(0.3) {
                 10.0
             } else {

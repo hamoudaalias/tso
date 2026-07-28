@@ -162,7 +162,7 @@ fn run_fix2(cfg: &Config) {
     eprintln!();
 }
 
-fn run_ep(seed: u64, engine: &mut TsoEngine, bfs_pot: &[Vec<f64>], cfg: &Config) -> (f64, bool) {
+fn run_ep(_seed: u64, engine: &mut TsoEngine, bfs_pot: &[Vec<f64>], cfg: &Config) -> (f64, bool) {
     let mut env = GridEnv5x5::new();
     env.reset();
     engine.end_episode();

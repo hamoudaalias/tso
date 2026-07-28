@@ -1,3 +1,4 @@
+#![allow(dead_code, unused_assignments, unused_variables)]
 /// ════════════════════════════════════════════════════════════════════════════
 ///  Comparaison : dump des poids du cerebellum après entraînement
 ///
@@ -128,7 +129,7 @@ fn dump_policy_from_weights(dim: usize, hd: usize, w1: &[Vec<f64>], b1: &[f64], 
             while cx>=0&&cy>=0&&cx<W as isize&&cy<H as isize{d+=1;cx+=dx;cy+=dy;}
             d as f64/(W.max(H) as f64)};
         let (fs, ws) = if dim>=6 {
-            let f=0.0; let w=0.0; // food & water senses from proximity
+            let _f=0.0; let _w=0.0; // food & water senses from proximity
             // We approximate: since water positions are fixed, we compute actual proximity
             let mut fs=0.0; for &(fx,fy)in&FOOD_POSITIONS{
                 let d=(((ix-fx as isize).abs().pow(2)+(iy-fy as isize).abs().pow(2))as f64).sqrt();

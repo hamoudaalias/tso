@@ -1,3 +1,4 @@
+#![allow(dead_code, unused_assignments, unused_variables)]
 use tso_engine::tso_engine::TsoEngine;
 use tso_engine::grid_world::GridWorld;
 

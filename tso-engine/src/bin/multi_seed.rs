@@ -1,3 +1,4 @@
+#![allow(dead_code, unused_assignments, unused_variables)]
 /// ════════════════════════════════════════════════════════════════════════════
 ///  Matrice multi-seeds §8 — Phase 1 #8 vs S1 vs S1+replay_only vs S1+δ-clip
 ///
@@ -7,7 +8,6 @@
 
 use ndarray::Array1;
 use rand::Rng;
-use std::time::Instant;
 use tso_engine::cerebellum::Cerebellum;
 use tso_engine::tso_engine::TsoEngine;
 
@@ -105,7 +105,7 @@ fn test_clean(engine: &TsoEngine) -> f64 {
     let mut successes = 0u64;
     for _ in 0..TEST_EPS {
         let mut env = GridEnv5x5::new(); env.reset();
-        let mut pos = env.agent;
+        let _pos = env.agent;
         let mut total = 0.0; let mut ok = false;
         let mut a = pick_greedy(engine, &env.perceive());
         while !env.done {
