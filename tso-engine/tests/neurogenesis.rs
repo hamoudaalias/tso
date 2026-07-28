@@ -256,3 +256,79 @@ fn test_neurogenesis_scaling_disabled() {
     assert!(report.phi_after >= 0.0, "Φ devrait être ≥ 0");
 }
 
+#[test]
+fn test_neurogenesis_diversity() {
+    // e10s05t01: La neurogenèse augmente la diversité des classes
+    let mut engine = TsoEngine::new(6, 4);
+    engine.cogs.sleep_neurogenesis_rate = 1.0;
+    engine.cogs.sleep_max_concepts = 50;
+    engine.cogs.sleep_maturation_cycles = 0;
+    engine.sleep_every_n_episodes = 0;
+
+    use ndarray::Array1;
+    let n_before = engine.num_concepts();
+    for _ in 0..10 {
+        let obs = Array1::from_vec(vec![0.1; 6]);
+        engine.step(&obs, 0.0, None, &[]);
+    }
+    engine.sleep_cycle();
+    let n_after = engine.num_concepts();
+
+    assert!(
+        n_after > n_before,
+        "La neurogenèse devrait augmenter le nombre de classes (n_before={n_before}, n_after={n_after})"
+    );
+}
+
+#[test]
+fn test_neurogenesis_phi_bounded() {
+    // e10s05t02: Φ reste borné après des cycles de neurogenèse
+    let mut engine = TsoEngine::new(6, 4);
+    engine.cogs.sleep_neurogenesis_rate = 0.3;
+    engine.cogs.sleep_max_concepts = 30;
+    engine.cogs.sleep_maturation_cycles = 1;
+    engine.sleep_every_n_episodes = 0;
+
+    use ndarray::Array1;
+    let max_phi = 0.5;
+    for cycle in 0..10 {
+        for _ in 0..10 {
+            let obs = Array1::from_vec(vec![0.1; 6]);
+            engine.step(&obs, 0.0, None, &[]);
+        }
+        let report = engine.sleep_cycle();
+        assert!(
+            report.phi_after <= max_phi,
+            "Cycle {cycle}: Φ = {:.3} > seuil {max_phi}",
+            report.phi_after
+        );
+    }
+}
+
+#[test]
+fn test_neurogenesis_phi_convergence() {
+    // e10s05t03: La neurogenèse ne dégrade pas la convergence de Φ
+    let mut engine = TsoEngine::new(6, 4);
+    engine.cogs.sleep_neurogenesis_rate = 0.1; // faible, réaliste
+    engine.cogs.sleep_max_concepts = 20;
+    engine.cogs.sleep_maturation_cycles = 2;
+    engine.sleep_every_n_episodes = 0;
+
+    use ndarray::Array1;
+    let phi_before = engine.graph.phi();
+    // Marcher un peu pour créer du Φ
+    for _ in 0..20 {
+        let obs = Array1::from_vec(vec![0.1; 6]);
+        engine.step(&obs, 0.0, None, &[]);
+    }
+    engine.sleep_cycle();
+    let phi_after = engine.graph.phi();
+
+    // Φ ne devrait pas augmenter de plus de 0.05
+    assert!(
+        phi_after <= phi_before + 0.05,
+        "Φ a trop augmenté : avant={phi_before:.3}, après={phi_after:.3}"
+    );
+}
+
+

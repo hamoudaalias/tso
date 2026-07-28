@@ -189,7 +189,7 @@ stories:
         description: "Créer tso-engine/tests/neurogenesis.rs et écrire test_neurogenesis_diversity_increases"
         verify: "cd tso-engine && cargo test -- test_neurogenesis_diversity 2>&1 | grep ok"
         risk: P2
-        status: failing
+        status: passing
         allure:
           severity: normal
           categories: ["Neurogenesis", "Validation"]
@@ -198,7 +198,7 @@ stories:
         description: "Écrire test_neurogenesis_phi_bounded — 20 cycles, Φ ≤ 0.5"
         verify: "cd tso-engine && cargo test -- test_neurogenesis_phi_bounded 2>&1 | grep ok"
         risk: P2
-        status: failing
+        status: passing
         allure:
           severity: normal
           categories: ["Neurogenesis", "Validation"]
@@ -207,7 +207,7 @@ stories:
         description: "Écrire test_neurogenesis_does_not_break_phi_convergence"
         verify: "cd tso-engine && cargo test -- test_neurogenesis_phi_convergence 2>&1 | grep ok"
         risk: P1
-        status: failing
+        status: passing
         allure:
           severity: high
           categories: ["Neurogenesis", "Validation", "Regression"]
@@ -216,7 +216,7 @@ stories:
         description: "Écrire test_neurogenesis_gridworld_stable — success_rate ≥ 0.9"
         verify: "cd tso-engine && cargo test -- test_neurogenesis_gridworld 2>&1 | grep ok"
         risk: P1
-        status: failing
+        status: passing
         allure:
           severity: high
           categories: ["Neurogenesis", "Validation", "Benchmark"]

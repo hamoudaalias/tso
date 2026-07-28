@@ -15,29 +15,29 @@ stories:
     title: "Phase 1.5 — Neurogenèse : naissance de nouveaux concepts"
     bcps: 3
     risk: P0
-    status: failing
+    status: passing
     verify: "cd tso-engine && cargo test -- test_neurogenesis_birth 2>&1 | grep 'ok\\|PASS'"
   - id: e10s02
     title: "Période critique — protection et hyperplasticité des nouveau-nés"
     bcps: 2
     risk: P1
-    status: failing
+    status: passing
     verify: "cd tso-engine && cargo test -- test_neurogenesis_critical_period 2>&1 | grep 'ok\\|PASS'"
   - id: e10s03
     title: "Homéostasie — remplacement du concept le moins actif"
     bcps: 2
     risk: P1
-    status: failing
+    status: passing
     verify: "cd tso-engine && cargo test -- test_neurogenesis_replacement 2>&1 | grep 'ok\\|PASS'"
   - id: e10s04
     title: "Scaling synaptique — normalisation des arêtes après neurogenèse"
     bcps: 1
     risk: P2
-    status: failing
+    status: passing
     verify: "cd tso-engine && cargo test -- test_neurogenesis_synaptic_scaling 2>&1 | grep 'ok\\|PASS'"
   - id: e10s05
     title: "Validation — diversité, Φ borné, non-régression benchmarks"
     bcps: 2
     risk: P2
-    status: failing
+    status: passing
     verify: "cd tso-engine && cargo test -- test_neurogenesis_integration 2>&1 | grep 'ok\\|PASS'"
