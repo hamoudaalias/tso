@@ -21,12 +21,12 @@ epic_cycle:
     - e06: "Observabilité — tracing dans Cargo, spans heartbeat, metrics JSON"
     - e07: "CI — GitHub Actions avec build/test/clippy/fmt"
     - e08: "Nettoyage — .gitignore, archive exprimetal"
-    - e10: "Sommeil Phase 3 — Neurogenèse : 5 stories, 21 tasks, 13 tests, design validé"
+    - e10: "Sommeil Phase 3 — Neurogenèse : 21 tasks, 13 tests, module extrait, design validé, merged"
 
 git:
-  branch: feat/phase3-sleep
-  hash: 2129cda
-  head_commit: "refactor(e10): extract Neurogenesis module from sleep_cycle() inline code (GREEN)"
+  branch: master
+  hash: 1528ed7
+  head_commit: "fix(e10): resolve 4 review warns — dead code, serde, config sync, test doc"
   working_tree:
     modified: []
     untracked: []
