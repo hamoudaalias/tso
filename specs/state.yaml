@@ -13,7 +13,7 @@ release:
 
 epic_cycle:
   current_step: done
-  next_skill: verify-work
+  next_skill: audit-code
   completed_steps:
     - e03: "Stabiliser le bien-être — δ-clip résout l'instabilité TD (34% → 99%)"
     - e04: "Attention spatiale — validation sur 3 benchmarks, ne dégrade pas"
@@ -37,7 +37,7 @@ handoff:
     - "e09 (VAE + Cerebellum conjoint) — 15 BCP, spec prête dans tech-stack.md, stories à découper"
     - "Neurogenèse extraite en src/neurogenesis.rs — sleep_cycle() délègue Phase 1.5 + 3.5"
     - "ADR-002 acté : RL plafonné → forces TSO (attractor, sommeil, mémoire épisodique, vision)"
-  next_skill: verify-work
+  next_skill: audit-code
 
 workspace_facts:
   - "Neurogenèse Phase 3 (e10) : 5 stories, 21 tasks, 13 tests — tout vert"
