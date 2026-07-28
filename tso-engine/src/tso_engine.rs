@@ -12,6 +12,7 @@ use crate::core::{Graph, NodeId, resolve_with_anneal, resolve_parallel,
 use crate::working_memory::WorkingMemory;
 use crate::action::ActionMotor;
 use crate::constraint_redirection::{self, RedirectionConfig};
+use crate::neurogenesis::{Neurogenesis, NeurogenesisConfig};
 use crate::hypothalamus::Hypothalamus;
 use crate::attention::Attention;
 use crate::grid_cells::GridCells;
@@ -250,6 +251,8 @@ pub struct TsoEngine {
     /// Permet la bissection pour isoler l'interférence du cycle cognitif
     /// sur l'apprentissage du Cerebellum (cf. BUG-2025-08-03T120000).
     pub cogs: CognitiveConfig,
+    #[serde(skip)]
+    pub neurogenesis: Neurogenesis,
 
     /// Debug : si true, dump le rl_signal et la récompense à chaque step.
     pub debug_step_dump: bool,
@@ -313,6 +316,12 @@ impl TsoEngine {
             attention: Attention::new(0.5),
             grid_cells: GridCells::new(0, 0),
             cogs: CognitiveConfig::default(),
+            neurogenesis: Neurogenesis::new(NeurogenesisConfig {
+                rate: CognitiveConfig::default().sleep_neurogenesis_rate,
+                max_concepts: CognitiveConfig::default().sleep_max_concepts,
+                maturation_cycles: CognitiveConfig::default().sleep_maturation_cycles,
+                synaptic_scaling: CognitiveConfig::default().sleep_synaptic_scaling,
+            }),
             prev_gated: None,
             prev_action: None,
             use_stationary_reward: false,
@@ -1241,92 +1250,21 @@ impl TsoEngine {
             self.attractor.lr = lr_saved;
         }
 
-        // ── Phase 1.5: Neurogenèse — naissance de nouveaux concepts ──
-        // Itère sur les prototypes existants et crée de nouvelles classes
-        // par mutation bruitée. Connecte les nouveaux concepts au graphe
-        // sémantique et initialise leur période critique.
-        let mut new_concepts_created = 0usize;
-        let neuro_rate = self.cogs.sleep_neurogenesis_rate;
-        let max_concepts = self.cogs.sleep_max_concepts;
-        let maturation = self.cogs.sleep_maturation_cycles;
+        // Synchroniser la config du module neurogenesis avec CognitiveConfig
+        self.neurogenesis.config.rate = self.cogs.sleep_neurogenesis_rate;
+        self.neurogenesis.config.max_concepts = self.cogs.sleep_max_concepts;
+        self.neurogenesis.config.maturation_cycles = self.cogs.sleep_maturation_cycles;
+        self.neurogenesis.config.synaptic_scaling = self.cogs.sleep_synaptic_scaling;
 
-        if neuro_rate > 0.0 && max_concepts > 0 {
-            // Homéostasie : si le budget est atteint, remplacer le concept le moins actif
-            // en le forçant à être pruné, puis créer un nouveau à sa place.
-            while self.attractor.n_classes() >= max_concepts {
-                if let Some(target) = self.find_least_active_concept() {
-                    // Forcer le retrait du concept cible
-                    // Augmenter step_count pour que last_active_step[target] soit dépassé
-                    // puis appel prune_concepts qui va le supprimer
-                    let saved_threshold = self.concept_prune_threshold;
-                    // Forcer un écart suffisant pour que target soit pruné
-                    // On crée un écart en augmentant artificiellement step_count
-                    // NB: safer approach: set last_active_step[target]=0 and use threshold=1
-                    let old_step = self.step_count;
-                    self.step_count = if self.last_active_step.get(target).copied().unwrap_or(0) + 1 > saved_threshold {
-                        self.last_active_step[target] = 0;
-                        saved_threshold + 1
-                    } else {
-                        old_step
-                    };
-                    if saved_threshold > 0 {
-                        self.concept_prune_threshold = 1;
-                        self.prune_concepts();
-                        self.concept_prune_threshold = saved_threshold;
-                    }
-                    self.step_count = old_step;
-                } else {
-                    // Tous les concepts sont en période critique, impossible de faire de la place
-                    break;
-                }
-            }
-
-            let n_classes = self.attractor.n_classes();
-            for i in 0..n_classes {
-                // Vérifier le budget avant chaque naissance
-                if self.attractor.n_classes() >= max_concepts {
-                    break;
-                }
-                if rand::random::<f64>() >= neuro_rate {
-                    continue;
-                }
-                if let Some(proto) = self.attractor.get_prototype(i) {
-                    let noise: Array1<f64> = (0..proto.len())
-                        .map(|_| rand::random::<f64>() * noise_std * 2.0 - noise_std)
-                        .collect();
-                    let mutated = proto + &noise;
-
-                    // Créer une nouvelle classe dans l'attractor
-                    let _new_id = self.attractor.add_class(&mutated);
-
-                    // Ajouter un nœud dans le graphe sémantique avec le prototype muté comme embedding
-                    let node_embedding = self.attractor.get_prototype(_new_id)
-                        .cloned()
-                        .unwrap_or_else(|| mutated.clone());
-                    let node_idx = self.graph.add_node(node_embedding);
-
-                    // Connecter aléatoirement à 2-3 voisins (uniquement vers des nœuds existants dans le graphe)
-                    let graph_nodes = self.graph.nodes.len();
-                    if graph_nodes > 1 {
-                        let n_edges = std::cmp::min(rand::random::<usize>() % 2 + 2, graph_nodes - 1);
-                        for _ in 0..n_edges {
-                            let neighbor = rand::random::<usize>() % (graph_nodes - 1);
-                            if neighbor != node_idx {
-                                self.graph.add_edge(node_idx, neighbor, 1);
-                            }
-                        }
-                    }
-
-                    // Initialiser la période critique (utiliser node_idx comme ID du nouveau concept)
-                    while self.concept_maturation.len() <= node_idx {
-                        self.concept_maturation.push(0);
-                    }
-                    self.concept_maturation[node_idx] = maturation;
-
-                    new_concepts_created += 1;
-                }
-            }
-        }
+        // ── Phase 1.5: Neurogenèse — délégation au module dédié ──
+        let neuro_outcome = self.neurogenesis.cycle(
+            &mut self.attractor,
+            &mut self.graph,
+            &self.last_active_step,
+            noise_std,
+        );
+        // Synchroniser le vecteur de maturation interne du module avec TsoEngine
+        self.concept_maturation = self.neurogenesis.maturation.clone();
 
         // ── Phase 2: Deep graph conflict resolution ──
         // Run many resolve iterations to deeply clean up structural conflicts
@@ -1339,35 +1277,7 @@ impl TsoEngine {
         // created by noisy sleep updates.
         let prototypes_pruned = self.attractor.prune_redundant(0.05);
 
-        // ── Phase 3.5: Scaling synaptique homéostatique ──
-        // Normalise les poids incidents des nœuds pour éviter l'emballement
-        // des connexions après la neurogenèse. Uniquement si activé.
-        if self.cogs.sleep_synaptic_scaling {
-            let n_nodes = self.graph.nodes.len();
-            if n_nodes > 0 {
-                let mut incident_weight = vec![0i64; n_nodes];
-                for e in &self.graph.edges {
-                    incident_weight[e.from] += e.weight as i64;
-                    incident_weight[e.to] += e.weight as i64;
-                }
-                let mean_weight = incident_weight.iter().sum::<i64>() as f64 / n_nodes as f64;
-                let threshold = mean_weight * 2.0;
-                if threshold > 0.0 {
-                    for (i, &total) in incident_weight.iter().enumerate() {
-                        let total_f = total as f64;
-                        if total_f > threshold {
-                            let scale = threshold / total_f;
-                            for e in &mut self.graph.edges {
-                                if e.from == i || e.to == i {
-                                    let scaled = (e.weight as f64 * scale).round() as i8;
-                                    e.weight = scaled.clamp(0, 127);
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
+        // ── Phase 3.5: Scaling synaptique — déjà intégré dans neurogenesis.cycle()
 
         // ── Phase 4: Remove low-phi edges ──
         // Edges that contribute negligible tension are pruned from the
@@ -1381,13 +1291,6 @@ impl TsoEngine {
         self.prune_concepts();
         let concepts_pruned = concepts_before.saturating_sub(self.attractor.n_classes());
 
-        // Décrémenter les compteurs de maturation (période critique)
-        for m in &mut self.concept_maturation {
-            if *m > 0 {
-                *m -= 1;
-            }
-        }
-
         let phi_after = self.graph.phi();
         self.sleep_cycles += 1;
         self.hypothalamus.reset_sleep();
@@ -1396,7 +1299,7 @@ impl TsoEngine {
             replay_count,
             prototypes_pruned,
             prototypes_added,
-            new_concepts: new_concepts_created,
+            new_concepts: neuro_outcome.births,
             edges_removed,
             concepts_pruned,
             phi_before,

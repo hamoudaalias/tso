@@ -223,3 +223,9 @@ impl Neurogenesis {
         &self.maturation
     }
 }
+
+impl Default for Neurogenesis {
+    fn default() -> Self {
+        Neurogenesis::new(NeurogenesisConfig::default())
+    }
+}
