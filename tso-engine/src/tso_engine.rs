@@ -176,6 +176,13 @@ pub struct TsoEngine {
     /// récompense stationnaire → politique exploitable.
     pub use_stationary_reward: bool,
 
+    /// Poids multiplicatifs pour chaque terme du bien-être.
+    /// Ordre : gated_reward, consummatory, curiosity, shaping,
+    ///         phi_delta, chronic_tension, deficit_penalty,
+    ///         metabolic_penalty, parsimony.
+    /// Défaut : [1.0; 9] (comportement historique).
+    pub well_being_weights: [f64; 9],
+
     /// Dernière valeur du bien-être (total_reward) calculée dans step().
     /// Utile pour l'export de métriques (MetricsSnapshot).
     pub last_total_reward: f64,
@@ -281,6 +288,7 @@ impl TsoEngine {
             prev_gated: None,
             prev_action: None,
             use_stationary_reward: false,
+            well_being_weights: [1.0; 9],
             last_total_reward: 0.0,
             prev_bfs_value: None,
             debug_step_dump: false,
@@ -559,7 +567,12 @@ impl TsoEngine {
         let parsimony = -(n_protos as f64) * 0.001;
         let is_terminal = reward.abs() >= 10.0;
         let r_curiosity = if is_terminal { 0.0 } else { intrinsic };
-        let total_reward = gated_reward + consummatory + r_curiosity + shaping - phi_delta + chronic_tension + metabolic_penalty + parsimony;
+        let total_reward = {
+            let w = self.well_being_weights;
+            w[0] * gated_reward + w[1] * consummatory + w[2] * r_curiosity + w[3] * shaping
+            - w[4] * phi_delta + w[5] * chronic_tension + w[6] * 0.0
+            + w[7] * metabolic_penalty + w[8] * parsimony
+        };
         self.last_total_reward = total_reward;
 
         // Value iteration trans log uses extrinsic reward only.
