@@ -6,7 +6,37 @@
 /// ════════════════════════════════════════════════════════════════════════════
 
 use std::time::Instant;
-use tso_engine::environment::{Environment, GridEnv};
+use tso_engine::environment::{Environment, GridEnv, StepResult};
+
+/// Environnement synthétique pour tester le scaling du trait.
+/// Observation = Vec<f64> de taille dim, action_space fixe.
+struct SyntheticEnv {
+    pub obs_dim: usize,
+    pub action_space: usize,
+    step_count: usize,
+    done: bool,
+}
+
+impl SyntheticEnv {
+    fn new(obs_dim: usize, action_space: usize) -> Self {
+        SyntheticEnv { obs_dim, action_space, step_count: 0, done: false }
+    }
+}
+
+impl Environment for SyntheticEnv {
+    fn reset(&mut self) -> Vec<f64> {
+        self.step_count = 0;
+        self.done = false;
+        vec![0.0; self.obs_dim]
+    }
+    fn step(&mut self, _action: usize) -> StepResult {
+        self.step_count += 1;
+        if self.step_count > 100 { self.done = true; }
+        StepResult { observation: vec![0.0; self.obs_dim], reward: 0.0, done: self.done }
+    }
+    fn action_space(&self) -> usize { self.action_space }
+    fn observation_dim(&self) -> usize { self.obs_dim }
+}
 
 fn bench<E: Environment>(env: &mut E, label: &str, n_steps: usize) {
     // Warmup
@@ -34,13 +64,22 @@ fn bench<E: Environment>(env: &mut E, label: &str, n_steps: usize) {
     let step_us = elapsed.as_nanos() as f64 / total_steps as f64 / 1000.0;
     let throughput = total_steps as f64 / elapsed.as_secs_f64();
 
-    println!("{label},{step_us:.1},{reset_us:.1},{throughput:.0}");
-    eprintln!("{label:>20}  step={step_us:>7.1} µs  reset={reset_us:>7.1} µs  throughput={throughput:>8.0} steps/s");
+    let obs_dim = env.observation_dim();
+    let act = env.action_space();
+    println!("{label},{step_us:.1},{reset_us:.1},{throughput:.0},{obs_dim},{act}");
+    eprintln!("{label:>20}  step={step_us:>7.1} µs  reset={reset_us:>7.1} µs  thr={throughput:>8.0}  dim={obs_dim}");
 }
 
 fn main() {
-    println!("backend,step_latency_us,reset_latency_us,throughput");
+    println!("backend,step_latency_us,reset_latency_us,throughput,obs_dim,action_space");
     bench(&mut GridEnv::new(), "GridWorld 5×5", 1000);
+    eprintln!();
+
+    // Scaling synthetic: 4, 64, 1024, 4096
+    for dim in [4usize, 64, 1024, 4096] {
+        let label = format!("Synthetic dim={dim}");
+        bench(&mut SyntheticEnv::new(dim, 4), &label, 10000);
+    }
 
     #[cfg(feature = "pyo3")] {
         // Minigrid via PyO3
