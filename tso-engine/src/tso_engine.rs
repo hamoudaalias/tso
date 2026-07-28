@@ -1,6 +1,7 @@
 use ndarray::Array1;
 use rand::Rng;
 use serde::{Serialize, Deserialize};
+use tracing::{event, Level};
 use crate::attractor::AttractorField;
 use crate::episodic::{EpisodicMemory, ContextBuffer};
 use crate::cerebellum::Cerebellum;
@@ -21,6 +22,22 @@ pub struct SleepReport {
     pub concepts_pruned: usize,
     pub phi_before: f64,
     pub phi_after: f64,
+}
+
+/// Instantané des métriques clés pour export JSON / temps réel.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct MetricsSnapshot {
+    pub phi: f64,
+    pub well_being: f64,
+    pub energy: f64,
+    pub hydration: f64,
+    pub temperature: f64,
+    pub sleep_pressure: f64,
+    pub n_concepts: usize,
+    pub n_edges: usize,
+    pub total_episodes: usize,
+    pub total_steps: usize,
+    pub sleep_cycles: usize,
 }
 
 /// Configuration fine des sous-systèmes cognitifs activés dans step() / heartbeat().
@@ -157,6 +174,10 @@ pub struct TsoEngine {
     /// récompense stationnaire → politique exploitable.
     pub use_stationary_reward: bool,
 
+    /// Dernière valeur du bien-être (total_reward) calculée dans step().
+    /// Utile pour l'export de métriques (MetricsSnapshot).
+    pub last_total_reward: f64,
+
     /// Valeur du potentiel BFS au step précédent (pour le shaping).
     /// Stocke le bfs_value du dernier step() pour calculer γ·Φ(s')−Φ(s).
     pub prev_bfs_value: Option<f64>,
@@ -257,6 +278,7 @@ impl TsoEngine {
             prev_gated: None,
             prev_action: None,
             use_stationary_reward: false,
+            last_total_reward: 0.0,
             prev_bfs_value: None,
             debug_step_dump: false,
         }
@@ -497,6 +519,7 @@ impl TsoEngine {
         let is_terminal = reward.abs() >= 10.0;
         let r_curiosity = if is_terminal { 0.0 } else { intrinsic };
         let total_reward = gated_reward + consummatory + r_curiosity + shaping - phi_delta + chronic_tension + metabolic_penalty + parsimony;
+        self.last_total_reward = total_reward;
 
         // Value iteration trans log uses extrinsic reward only.
         if let Some(p) = self.previous_concept() {
@@ -550,8 +573,15 @@ impl TsoEngine {
         };
 
         if self.debug_step_dump {
-            eprintln!("  [DEBUG step={}] rl_signal={:.6} reward_ext={:.3} bfs_value={:?} prev_bfs={:?} use_stationary={}",
-                self.step_count, rl_signal, reward, bfs_value, self.prev_bfs_value, self.use_stationary_reward);
+            event!(
+                Level::DEBUG,
+                step = self.step_count,
+                rl_signal = rl_signal,
+                reward_ext = reward,
+                bfs_value = bfs_value,
+                prev_bfs = self.prev_bfs_value,
+                stationary = self.use_stationary_reward,
+            );
         }
 
         // REINFORCE (TD-error for MLP, Monte Carlo for linear)
@@ -1138,6 +1168,23 @@ impl TsoEngine {
     /// Total episodes lived (persists across restarts).
     pub fn episode_count(&self) -> usize {
         self.total_episodes
+    }
+
+    /// Instantié les métriques courantes en snapshot sériaisable.
+    pub fn metrics_snapshot(&self) -> MetricsSnapshot {
+        MetricsSnapshot {
+            phi: self.current_phi,
+            well_being: self.last_total_reward,
+            energy: self.hypothalamus.energy,
+            hydration: self.hypothalamus.hydration,
+            temperature: self.hypothalamus.temperature,
+            sleep_pressure: self.hypothalamus.sleep_pressure(),
+            n_concepts: self.num_concepts(),
+            n_edges: self.graph_edges(),
+            total_episodes: self.total_episodes,
+            total_steps: self.total_steps,
+            sleep_cycles: self.sleep_cycles,
+        }
     }
 
     /// Number of stored episodic sequences.
