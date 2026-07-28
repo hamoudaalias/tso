@@ -27,5 +27,6 @@ pub mod zigzag_grid;
 pub mod efe;
 pub mod fpi;
 pub mod model;
+pub mod inference;
 pub mod learning;
 pub mod neurogenesis;

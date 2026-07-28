@@ -16,6 +16,7 @@ use crate::neurogenesis::{Neurogenesis, NeurogenesisConfig};
 use crate::hypothalamus::Hypothalamus;
 use crate::attention::Attention;
 use crate::grid_cells::GridCells;
+use crate::inference;
 
 /// Summary of what happened during a single sleep/consolidation cycle.
 #[derive(Clone, Debug)]
@@ -51,6 +52,7 @@ pub struct MetricsSnapshot {
 #[derive(Clone, Debug)]
 pub struct SubsystemFlags {
     pub attractor: bool,
+    pub use_fpi: bool,
     pub graph_phi: bool,
     pub attention: bool,
     pub episodic_curiosity: bool,
@@ -65,6 +67,8 @@ pub struct SubsystemFlags {
 pub struct CognitiveConfig {
     /// Catégorisation (attractor)
     pub attractor: bool,
+    /// Use FPI inference instead of attractor categorization
+    pub use_fpi: bool,
     /// Graphe sémantique + Φ
     pub graph_phi: bool,
     /// Attention spatiale
@@ -92,7 +96,7 @@ impl CognitiveConfig {
     /// Rétrocompatible : les bins existants utilisent les champs plats.
     pub fn subsystems(&self) -> SubsystemFlags {
         SubsystemFlags {
-            attractor: self.attractor,
+            use_fpi: self.use_fpi,            attractor: self.attractor,
             graph_phi: self.graph_phi,
             attention: self.attention,
             episodic_curiosity: self.episodic_curiosity,
@@ -105,6 +109,7 @@ impl CognitiveConfig {
 impl Default for CognitiveConfig {
     fn default() -> Self {
         CognitiveConfig {
+            use_fpi: false,
             attractor: true,
             graph_phi: true,
             attention: true,
@@ -470,7 +475,23 @@ impl TsoEngine {
         self.working_mem.observe(&[gated.clone()]);
 
         // ── 2. CATEGORIZATION (encoder / attractor) ─────────────────────
-        let (concept_id, _is_new, intrinsic, shaping) = if let Some(enc) = &mut self.encoder {
+        let (concept_id, _is_new, intrinsic, shaping) = if cc.subsystems().use_fpi {
+            // FPI inference: posterior -> argmax -> concept
+            let A_ident: Vec<ndarray::ArrayD<f64>> = vec![ndarray::Array2::eye(self.dim).into_dyn()];
+            let obs_onehot: Vec<ndarray::Array1<f64>> = vec![gated.clone()];
+            let result = crate::inference::infer_states(
+                &A_ident, &obs_onehot, None, 10
+            );
+            let cid = result.concept_id;
+            self.current_concept_id = Some(cid);
+            self.episode_trace.push(cid);
+            while self.concept_values.len() <= cid {
+                self.concept_values.push(0.0);
+            }
+            let surp = 0.0;
+            let shp = 0.0;
+            (cid, false, surp, shp)
+        } else if let Some(enc) = &mut self.encoder {
             // Utilise l'encodeur interchangeable (AttractorEncoder ou VaeEncoder)
             let result = enc.encode_raw(&gated);
             let cid = result.category_id;
