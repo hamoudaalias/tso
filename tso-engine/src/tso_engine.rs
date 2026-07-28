@@ -485,8 +485,20 @@ impl TsoEngine {
             let new_flag = dist > threshold;
             let cid = if new_flag { self.attractor.add_class(&gated) } else { cid };
 
+            // Boost de la période critique : lr × 3 et seuil × 0.5
+            let lr_saved = self.attractor.lr;
+            let threshold_saved = self.novelty_threshold;
+            if cid < self.concept_maturation.len() && self.concept_maturation[cid] > 0 {
+                self.attractor.lr *= 3.0;
+                self.novelty_threshold *= 0.5;
+            }
+
             self.adapt_novelty_threshold(cid, dist, new_flag);
             self.attractor.train_step(&gated, cid);
+
+            // Restaurer lr et threshold
+            self.attractor.lr = lr_saved;
+            self.novelty_threshold = threshold_saved;
 
             let prev_concept = self.current_concept_id;
             self.current_concept_id = Some(cid);
@@ -982,8 +994,12 @@ impl TsoEngine {
         }
 
         // Determine survivors: concepts active within the threshold window
+        // Les concepts en période critique (maturation > 0) sont toujours protégés
         let survivors: Vec<bool> = (0..n)
-            .map(|i| self.step_count - self.last_active_step[i] <= threshold)
+            .map(|i| {
+                self.step_count - self.last_active_step[i] <= threshold
+                    || self.concept_maturation.get(i).copied().unwrap_or(0) > 0
+            })
             .collect();
         let survivor_count = survivors.iter().filter(|&&a| a).count();
         if survivor_count == n || survivor_count == 0 { return; }
@@ -1304,6 +1320,13 @@ impl TsoEngine {
         let concepts_before = self.attractor.n_classes();
         self.prune_concepts();
         let concepts_pruned = concepts_before.saturating_sub(self.attractor.n_classes());
+
+        // Décrémenter les compteurs de maturation (période critique)
+        for m in &mut self.concept_maturation {
+            if *m > 0 {
+                *m -= 1;
+            }
+        }
 
         let phi_after = self.graph.phi();
         self.sleep_cycles += 1;

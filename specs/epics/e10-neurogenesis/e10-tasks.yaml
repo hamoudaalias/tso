@@ -72,7 +72,7 @@ stories:
         description: "Protéger les concepts en période critique dans prune_concepts() — condition maturation > 0"
         verify: "cd tso-engine && cargo test -- test_neurogenesis_critical_period 2>&1 | grep ok"
         risk: P1
-        status: failing
+        status: passing
         allure:
           severity: high
           categories: ["Neurogenesis", "CriticalPeriod"]
@@ -81,7 +81,7 @@ stories:
         description: "Décrémenter concept_maturation à la fin de sleep_cycle()"
         verify: "cd tso-engine && cargo test -- test_neurogenesis_maturation_decrements 2>&1 | grep ok"
         risk: P2
-        status: failing
+        status: passing
         allure:
           severity: normal
           categories: ["Neurogenesis", "CriticalPeriod"]
@@ -90,7 +90,7 @@ stories:
         description: "Appliquer lr × 3 et novelty_threshold × 0.5 dans step() si concept en maturation"
         verify: "cd tso-engine && cargo test -- test_neurogenesis_lr_boost 2>&1 | grep ok"
         risk: P1
-        status: failing
+        status: passing
         allure:
           severity: high
           categories: ["Neurogenesis", "CriticalPeriod"]
@@ -99,7 +99,7 @@ stories:
         description: "Restaurer attractor.lr et novelty_threshold après le step (sauvegarde/restauration)"
         verify: "cd tso-engine && cargo test -- test_neurogenesis_lr_boost 2>&1 | grep ok"
         risk: P1
-        status: failing
+        status: passing
         allure:
           severity: high
           categories: ["Neurogenesis", "CriticalPeriod"]
