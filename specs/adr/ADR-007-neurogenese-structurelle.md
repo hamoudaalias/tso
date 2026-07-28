@@ -137,3 +137,21 @@ Les concepts avec `maturation_counter > 0` sont protégés du pruning.
 
 Dans `remove_low_phi_edges()` existant, ajouter une normalisation :
 si le poids total incident d'un nœud dépasse 2× la moyenne, scaling linéaire.
+
+## Design d'interface retenu
+
+Après exploration de 3 designs (voir `specs/tech-architecture/neurogenesis-interface-design.md`) :
+
+**Design 1 (Minimal) pour l'interface publique** :
+- `NeurogenesisConfig` : 4 champs (rate, max_concepts, maturation_cycles, synaptic_scaling)
+- `Neurogenesis::new(config)` + `cycle(&mut self, attractor, graph, last_active, noise_std) -> Outcome`
+- 1 méthode publique, deep module (~120 lignes cachées)
+
+**Design 2 (Phases) pour les tests** (`#[cfg(test)]`) :
+- `birth_phase()`, `homeostasis()`, `scale_synapses()`, `end_cycle()`
+- Testable isolément sans exposer l'ordre des phases
+
+**Design 3 (Règles déclaratives)** — rejeté : prématuré, YAGNI, moteur de règles pour 4 cas.
+
+Le module scaffold est dans `specs/neurogenesis/mod.rs`. La migration du code inline
+de `sleep_cycle()` vers ce module est une étape ultérieure.

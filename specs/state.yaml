@@ -1,46 +1,46 @@
 # specs/state.yaml — État de session TSO
 # Généré par kickoff-branch e04 (03/08/2025)
 
-active_flow: build_epic
-active_epic_id: e04
-active_story_id: null
+active_flow: design-interface
+active_epic_id: e10
+active_story_id: e10s05
 active_bug_id: null
 
 release:
-  target_version: null
-  last_tag: v16.0-tabula-rasa
+  target_version: v2.0
+  last_tag: v2.0-stationary-reward
   last_publish: null
 
 epic_cycle:
-  current_step: kickoff-branch
-  next_skill: survey-context
-  completed_steps: []
-
-bug_cycle:
-  current_step: null
-  completed_steps: []
+  current_step: done
+  next_skill: verify-work
+  completed_steps:
+    - e03: "Stabiliser le bien-être — δ-clip résout l'instabilité TD (34% → 99%)"
+    - e04: "Attention spatiale — validation sur 3 benchmarks, ne dégrade pas"
+    - e05: "Sommeil Phase 2 — Φ converge (0.45→0.03), 3 tests pass"
+    - e06: "Observabilité — tracing dans Cargo, spans heartbeat, metrics JSON"
+    - e07: "CI — GitHub Actions avec build/test/clippy/fmt"
+    - e08: "Nettoyage — .gitignore, archive exprimetal"
+    - e10: "Sommeil Phase 3 — Neurogenèse : 5 stories, 21 tasks, 13 tests, design validé"
 
 git:
   branch: feat/phase3-sleep
-  hash: fd05997
-  head_commit: "docs(rapport): TSO × Minigrid avec VAE — 12%, dataset synthétique à remplacer"
+  hash: 2129cda
+  head_commit: "refactor(e10): extract Neurogenesis module from sleep_cycle() inline code (GREEN)"
   working_tree:
     modified: []
     untracked: []
-  preflight: cargo check --bins passed (0 errors)
 
 handoff:
-  last_step_completed: "e03 merged → e04 kickoff"
+  last_step_completed: "e10 implémenté — 13/13 tests, 21/21 tasks. Design d'interface validé. Release plan mis à jour."
   open_decisions:
-    - "CognitiveConfig permet de tester l'attention seule (config sans attractor, graph, hypothalamus)"
-    - "Zigzag 10×10 et Terrarium 7×7 comme terrains de test — benchmark avec/sans attention"
-    - "e04s01: tests unitaires attention_module (gain par erreur de prédiction)"
-    - "e04s02: benchmark Zigzag 10×10 avec/sans attention"
-    - "e04s03: benchmark Terrarium 7×7"
-  next_skill: survey-context
+    - "e09 (VAE + Cerebellum conjoint) — 15 BCP, spec prête dans tech-stack.md, stories à découper"
+    - "Neurogenèse extraite en src/neurogenesis.rs — sleep_cycle() délègue Phase 1.5 + 3.5"
+    - "ADR-002 acté : RL plafonné → forces TSO (attractor, sommeil, mémoire épisodique, vision)"
+  next_skill: verify-work
 
 workspace_facts:
-  - "CognitiveConfig disponible — permet de désactiver l'attention pour testing A/B"
-  - "Attention module dans src/attention.rs — gain multiplicatif par erreur de prédiction épisodique"
-  - "Grid envs: GridWorld, Terrarium, Sokoban dans src/"
-  - "δ-clip (delta_clip_max=5.0) par défaut dans CognitiveConfig"
+  - "Neurogenèse Phase 3 (e10) : 5 stories, 21 tasks, 13 tests — tout vert"
+  - "Module neurogenesis : src/neurogenesis.rs (Design 1 + 2). 13 tests, 21 tasks."
+  - "CognitiveConfig avec 4 flags neurogenèse + vec concept_maturation dans TsoEngine"
+  - "3 designs d'interface explorés, Design 1 retenu (minimal + phases test)"
