@@ -2,7 +2,7 @@
 ///  environment — Trait Environment + implémentation GridWorld 5×5
 ///
 ///  Interface unifiée pour tous les environnements (GridWorld, Minigrid, Habitat).
-///  step(action) → (obs, reward, done).
+///  Utilise Array1<f64> pour éviter les allocations à chaque step.
 ///
 ///  Utilisation : Box<dyn Environment> dans TsoEngine (même pattern qu'Encoder).
 /// ════════════════════════════════════════════════════════════════════════════
@@ -12,28 +12,21 @@ use ndarray::Array1;
 /// Résultat d'un step.
 #[derive(Clone, Debug)]
 pub struct StepResult {
-    pub observation: Vec<f64>,
+    pub observation: Array1<f64>,
     pub reward: f64,
     pub done: bool,
 }
 
 /// Interface universelle pour un environnement.
 pub trait Environment: Send {
-    /// Reset l'environnement, retourne l'observation initiale.
-    fn reset(&mut self) -> Vec<f64>;
-
-    /// Exécute une action, retourne (obs, reward, done).
+    fn reset(&mut self) -> Array1<f64>;
     fn step(&mut self, action: usize) -> StepResult;
-
-    /// Nombre d'actions possibles.
     fn action_space(&self) -> usize;
-
-    /// Dimension de l'observation.
     fn observation_dim(&self) -> usize;
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-//  GridWorld 5×5 (identique phase1b)
+//  GridWorld 5×5
 // ═══════════════════════════════════════════════════════════════════════════
 
 const W: usize = 5;
@@ -47,14 +40,20 @@ pub struct GridEnv {
     pub agent: (usize, usize),
     pub step_count: usize,
     pub done: bool,
+    obs_buf: Array1<f64>,
 }
 
 impl GridEnv {
     pub fn new() -> Self {
-        GridEnv { agent: (2, 2), step_count: 0, done: false }
+        GridEnv {
+            agent: (2, 2),
+            step_count: 0,
+            done: false,
+            obs_buf: Array1::zeros(PDIM),
+        }
     }
 
-    fn perceive(&self) -> Vec<f64> {
+    fn perceive(&mut self) -> Array1<f64> {
         let (x, y) = self.agent;
         let ix = x as isize;
         let iy = y as isize;
@@ -78,12 +77,19 @@ impl GridEnv {
                 break;
             }
         }
-        vec![ray(0, -1), ray(0, 1), ray(-1, 0), ray(1, 0), 0.0, ws]
+        // Écrire dans le buffer réutilisé
+        self.obs_buf[0] = ray(0, -1);
+        self.obs_buf[1] = ray(0, 1);
+        self.obs_buf[2] = ray(-1, 0);
+        self.obs_buf[3] = ray(1, 0);
+        self.obs_buf[4] = 0.0;
+        self.obs_buf[5] = ws;
+        self.obs_buf.clone()
     }
 }
 
 impl Environment for GridEnv {
-    fn reset(&mut self) -> Vec<f64> {
+    fn reset(&mut self) -> Array1<f64> {
         use rand::Rng;
         loop {
             let x = rand::thread_rng().r#gen_range(0..W);
@@ -136,11 +142,6 @@ impl Environment for GridEnv {
         }
     }
 
-    fn action_space(&self) -> usize {
-        NA
-    }
-
-    fn observation_dim(&self) -> usize {
-        PDIM
-    }
+    fn action_space(&self) -> usize { NA }
+    fn observation_dim(&self) -> usize { PDIM }
 }

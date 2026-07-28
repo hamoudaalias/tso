@@ -5,6 +5,7 @@
 ///  Sortie CSV : backend,step_latency_us,reset_latency_us,throughput
 /// ════════════════════════════════════════════════════════════════════════════
 
+use ndarray::Array1;
 use std::time::Instant;
 use tso_engine::environment::{Environment, GridEnv, StepResult};
 
@@ -24,15 +25,15 @@ impl SyntheticEnv {
 }
 
 impl Environment for SyntheticEnv {
-    fn reset(&mut self) -> Vec<f64> {
+    fn reset(&mut self) -> Array1<f64> {
         self.step_count = 0;
         self.done = false;
-        vec![0.0; self.obs_dim]
+        Array1::zeros(self.obs_dim)
     }
     fn step(&mut self, _action: usize) -> StepResult {
         self.step_count += 1;
         if self.step_count > 100 { self.done = true; }
-        StepResult { observation: vec![0.0; self.obs_dim], reward: 0.0, done: self.done }
+        StepResult { observation: Array1::zeros(self.obs_dim), reward: 0.0, done: self.done }
     }
     fn action_space(&self) -> usize { self.action_space }
     fn observation_dim(&self) -> usize { self.obs_dim }

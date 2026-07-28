@@ -34,7 +34,7 @@ fn main() {
         let mut ep_r = 0.0;
         loop {
             let action = engine.step(
-                &ndarray::Array1::from_vec(obs.clone()),
+                &obs,
                 0.0, None, &[],
             );
             let r = env.step(action);
@@ -46,7 +46,7 @@ fn main() {
                 if r.reward > 0.0 { total_r += 1.0; }
                 break;
             }
-            obs = r.observation;
+            obs = r.observation.clone();
         }
         episodes += 1;
     }

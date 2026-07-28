@@ -14,8 +14,8 @@
 use ndarray::Array1;
 use pyo3::prelude::*;
 use pyo3::Python;
-
 use tso_engine::environment::{Environment, StepResult};
+
 
 /// Wrapper PyO3 : minigrid.XXEnv(8, 8) → Environment trait.
 #[pyclass(unsendable)]
@@ -99,17 +99,18 @@ impl MinigridEnv {
 
 // Implémentation du trait Environment de tso-engine
 impl Environment for MinigridEnv {
-    fn reset(&mut self) -> Vec<f64> {
+    fn reset(&mut self) -> Array1<f64> {
         Python::attach(|py| {
             let result = self.py_env.bind(py).call_method1("reset", ((),)).unwrap();
             let obs_py = result.get_item(0).unwrap();
-            if let Ok(arr) = obs_py.extract::<Vec<Vec<Vec<f64>>>>() {
+            let obs_flat: Vec<f64> = if let Ok(arr) = obs_py.extract::<Vec<Vec<Vec<f64>>>>() {
                 arr.iter().flat_map(|row| row.iter().flat_map(|ch| ch.iter())).copied().collect()
             } else if let Ok(v) = obs_py.extract::<Vec<f64>>() {
                 v
             } else {
                 vec![0.0; self.obs_dim]
-            }
+            };
+            Array1::from_vec(obs_flat)
         })
     }
 
@@ -126,7 +127,11 @@ impl Environment for MinigridEnv {
             };
             let reward = result.get_item(1).unwrap().extract::<f64>().unwrap_or(0.0);
             let done = result.get_item(2).unwrap().extract::<bool>().unwrap_or(false);
-            StepResult { observation: obs_flat, reward, done }
+            StepResult {
+                observation: Array1::from_vec(obs_flat),
+                reward,
+                done,
+            }
         })
     }
 
