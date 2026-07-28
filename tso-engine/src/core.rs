@@ -267,6 +267,31 @@ impl Graph {
         self.remove_edge(from, to)
     }
 
+    /// Décroissance graduelle du poids d'une arête (inhibition latérale).
+    /// Au lieu de supprimer instantanément, on réduit la valeur absolue du poids
+    /// de `decay` à chaque violation. Si le poids passe à 0, l'arête est supprimée.
+    /// Les poids sont i8 : +1/+2 (implication), -1 (exclusion).
+    /// Retourne le Φ éliminé (0 si l'arête survit, >0 si supprimée).
+    pub fn decay_edge_weight(&mut self, from: NodeId, to: NodeId, decay: i8) -> f64 {
+        if let Some(pos) = self.edges.iter().position(|e| (e.from == from && e.to == to) || (e.from == to && e.to == from)) {
+            let e = &mut self.edges[pos];
+            let old_weight = e.weight;
+            // Réduit vers 0 par pas de `decay`
+            if old_weight > 0 {
+                e.weight = (old_weight - decay).max(0);
+            } else if old_weight < 0 {
+                e.weight = (old_weight + decay).min(0);
+            }
+            if e.weight == 0 {
+                self.remove_edge(from, to)
+            } else {
+                0.0
+            }
+        } else {
+            0.0
+        }
+    }
+
     /// Bulk-prune exclusion edges whose phi contribution is below `min_phi`.
     /// Returns (exclusion_removed, implication_removed, total_phi_saved).
     pub fn prune_exclusion_edges(&mut self, min_phi: f64) -> (usize, usize, f64) {
@@ -905,6 +930,74 @@ pub fn demineur_sweep_trace(graph: &mut Graph, tol: f64) -> (usize, f64, f64, Ve
         phi_dropped += phi_before_flag - phi_after_flag;
         flags += 1;
         trace.push((phi_before_flag, phi_after_flag, weight));
+    }
+
+    (flags, phi_dropped, graph.phi(), trace)
+}
+
+/// Balayage par inhibition latérale : décroissance progressive du poids
+/// des arêtes violées, au lieu de suppression instantanée (flag_edge).
+/// Chaque itération réduit le poids de la pire arête de `decay`,
+/// jusqu'à `min_weight` où l'arête est supprimée.
+/// Retourne (flags, phi_dropped, final_phi).
+pub fn lateral_inhibition_sweep(
+    graph: &mut Graph,
+    tol: f64,
+    decay: i8,
+) -> (usize, f64, f64) {
+    let mut flags = 0usize;
+    let mut phi_dropped = 0.0;
+    if graph.phi() < tol { return (0, 0.0, graph.phi()); }
+
+    loop {
+        let violated: Vec<(usize, f64)> = graph.edges.iter().enumerate()
+            .map(|(idx, e)| (idx, graph.edge_phi(e)))
+            .filter(|(_, p)| *p > tol)
+            .collect();
+        if violated.is_empty() { break; }
+
+        let &(worst_idx, _) = violated.iter().max_by(|a, b| a.1.partial_cmp(&b.1).unwrap()).unwrap();
+        let (from, to) = {
+            let e = &graph.edges[worst_idx];
+            (e.from, e.to)
+        };
+        let saved = graph.decay_edge_weight(from, to, decay);
+        if saved > 0.0 { phi_dropped += saved; flags += 1; }
+    }
+
+    (flags, phi_dropped, graph.phi())
+}
+
+/// Version avec trace de lateral_inhibition_sweep.
+pub fn lateral_inhibition_trace(
+    graph: &mut Graph,
+    tol: f64,
+    decay: i8,
+) -> (usize, f64, f64, Vec<(f64, f64, i8)>) {
+    let mut flags = 0usize;
+    let mut phi_dropped = 0.0;
+    let mut trace = Vec::new();
+
+    loop {
+        let phi_before = graph.phi();
+        if phi_before < tol { break; }
+
+        let violated: Vec<(usize, f64)> = graph.edges.iter().enumerate()
+            .map(|(idx, e)| (idx, graph.edge_phi(e)))
+            .filter(|(_, p)| *p > tol)
+            .collect();
+        if violated.is_empty() { break; }
+
+        let &(worst_idx, _) = violated.iter().max_by(|a, b| a.1.partial_cmp(&b.1).unwrap()).unwrap();
+        let (from, to, weight) = {
+            let e = &graph.edges[worst_idx];
+            (e.from, e.to, e.weight)
+        };
+        let saved = graph.decay_edge_weight(from, to, decay);
+        let phi_after = graph.phi();
+        phi_dropped += saved;
+        if saved > 0.0 { flags += 1; }
+        trace.push((phi_before, phi_after, weight));
     }
 
     (flags, phi_dropped, graph.phi(), trace)

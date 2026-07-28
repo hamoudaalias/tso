@@ -5,7 +5,9 @@ use tracing::{event, Level};
 use crate::attractor::AttractorField;
 use crate::episodic::{EpisodicMemory, ContextBuffer};
 use crate::cerebellum::Cerebellum;
-use crate::core::{Graph, NodeId, resolve_with_anneal, resolve_parallel, demineur_sweep, demineur_sweep_trace};
+use crate::core::{Graph, NodeId, resolve_with_anneal, resolve_parallel,
+    demineur_sweep, demineur_sweep_trace,
+    lateral_inhibition_sweep, lateral_inhibition_trace};
 use crate::working_memory::WorkingMemory;
 use crate::action::ActionMotor;
 use crate::hypothalamus::Hypothalamus;
@@ -1297,6 +1299,18 @@ impl TsoEngine {
     /// Returns (flags, phi_dropped, final_phi, vec![(phi_avant, phi_après, weight)]).
     pub fn demineur_sweep_trace(&mut self, tol: f64) -> (usize, f64, f64, Vec<(f64, f64, i8)>) {
         demineur_sweep_trace(&mut self.graph, tol)
+    }
+
+    /// Balayage par inhibition latérale (décroissance graduelle).
+    /// Balayage par inhibition latérale (décroissance graduelle).
+    pub fn lateral_inhibition_sweep(&mut self, tol: f64, decay: i8) -> (usize, f64, f64) {
+        lateral_inhibition_sweep(&mut self.graph, tol, decay)
+    }
+
+    /// Version avec trace de lateral_inhibition_sweep.
+    pub fn lateral_inhibition_trace(&mut self, tol: f64, decay: i8)
+        -> (usize, f64, f64, Vec<(f64, f64, i8)>) {
+        lateral_inhibition_trace(&mut self.graph, tol, decay)
     }
 
     /// Run deep resolution in parallel using scoped threads.
