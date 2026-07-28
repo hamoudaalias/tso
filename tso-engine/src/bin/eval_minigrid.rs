@@ -50,10 +50,31 @@ fn main() {
         (new_env, a, od)
     });
 
+    // Charger le VAE pré-entraîné
+    use tso_engine::encoder::{Encoder, VaeEncoder};
+    use std::fs;
+    let vae_bytes = fs::read("vae_weights.bin").unwrap_or_else(|_| {
+        eprintln!("⚠  vae_weights.bin not found, using AttractorField");
+        vec![]
+    });
     let mut engine = TsoEngine::with_hidden(obs_dim, act_space, 16);
     engine.cerebellum.epsilon = 0.2; engine.cerebellum.noise_std = 0.1;
     engine.cerebellum.replay_lr = 0.0; engine.sleep_every_n_episodes = 0;
     engine.use_stationary_reward = true;
+    engine.cogs.delta_clip_max = 5.0;
+
+    if !vae_bytes.is_empty() {
+        let vae: tso_engine::vae::Vae = bincode::deserialize(&vae_bytes).unwrap();
+        let mut vae_enc = VaeEncoder::new(obs_dim, 32, 8, 0.5);
+        vae_enc.vae = vae;
+        vae_enc.deterministic = true;
+        vae_enc.freeze = true;
+        engine.encoder = Some(Box::new(vae_enc));
+        eprintln!("VAE chargé et gelé (déterministe, freeze)");
+    } else {
+        engine.encoder = Some(Box::new(tso_engine::encoder::AttractorEncoder::new(obs_dim)));
+        eprintln!("Utilise AttractorEncoder (pas de VAE)");
+    }
     engine.cogs.delta_clip_max = 5.0;
 
     let t0 = Instant::now();
