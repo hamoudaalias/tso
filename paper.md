@@ -176,6 +176,8 @@ La solution est un **δ-clip** : `step_a = lr · min(|δ|, δ_max)` avec `δ_max
 
 Un mécanisme de **CognitiveConfig** (struct Rust avec 6 flags + `delta_clip_max`) permet de contrôler finement quels sous-systèmes sont activés à chaque step, facilitant la bissection et le diagnostic. Le défaut est tout-à-true (comportement identique au code pré-refactoring) avec `delta_clip_max = 5.0`.
 
+**Analyse de sensibilité des 9 termes du bien-être.** Chaque terme de l'équation (1) peut être pondéré individuellement via `well_being_weights: [f64; 9]` dans `TsoEngine`. Une matrice d'ablations systématiques (9 termes × 5 régimes homéostatiques × 5 seeds = 225 runs, binaire `ablation_matrix.rs`) a mesuré l'impact de chaque terme ablaté (poids=0) sur le taux de succès en exploitation pure, sans δ-clip. Les résultats confirment que le δ-clip est le **seul levier qui supprime la variance inter-seeds** : sans lui, la variance est de σ=10-32% et P5-P95=30-90 pts, et aucun terme ne stabilise la politique au-delà de ~75% dans le meilleur régime. Les régimes homéostatiques révèlent des dépendances spécifiques : en régime **Faim**, la curiosité (78%) domine ; en **Anxiété** (Φ élevé), la valeur consummatoire (75%) et la tension chronique (72%) sont critiques ; en **Métabolique** (concepts nombreux), la parcimonie (71%) devient le régulateur principal. La pénalité métabolique et le shaping BFS sont les guides dominants en régime Neutre (~70% chacun). Le `gated_reward` est le terme le moins influent dans tous les régimes (Δ < 5 points).
+
 ### 3.7 Sommeil et consolidation (hors ligne)
 
 **Fig. 3 — Cycle veille/sommeil :**
@@ -489,6 +491,10 @@ L'architecture supporte l'apprentissage moteur linéaire et MLP avec **replay bu
 | 2026-08 | `vae.rs` | Création du module VAE : encodeur MLP, reparameterization, ELBO, mode déterministe | Encodeur différentiable pour vision et autres entrées continues |
 | 2026-08 | `tso_engine.rs` | Ajout `encoder: Option<Box<dyn Encoder>>`, intégration dans step() | L'encodage devient interchangeable sans modifier le cycle cognitif |
 | 2026-08 | `encoder.rs` | Ajout `deterministic` et `freeze` sur VaeEncoder | Inférence stable après pré-entraînement batch hors ligne |
+| 2026-08 | `tso_engine.rs` | Ajout `well_being_weights: [f64; 9]` dans TsoEngine | Pondération indépendante des 9 termes du bien-être |
+| 2026-08 | `bin/sensitivity.rs` | Balayage 9 termes × 5 poids (45 runs) | Identifie metabolic_penalty et parsimony comme régulateurs dominants |
+| 2026-08 | `bin/ablation_matrix.rs` | Matrice 9 termes × 5 régimes × 5 seeds (225 runs) | Carte de dépendance : curiosity domine en Faim, consummatory en Anxiété, parsimony en Métabolique |
+| 2026-08 | `bin/eval_stability.rs` | Évaluation 6 configs × 20 seeds | Confirme que seul le δ-clip supprime la variance inter-seeds |
 
 ## Références
 

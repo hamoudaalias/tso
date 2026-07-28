@@ -105,6 +105,8 @@
 | **tracing** | Crate de logging structuré (niveaux DEBUG/INFO/ERROR, events avec champs typés). Remplace `eprintln!` dans le code de production. Activé via `--trace` ou `TRACE=1`. | Logging, debug |
 | **DEBUG step** | Event tracing émis à chaque heartbeat quand `debug_step_dump=true`. Inclut rl_signal, reward_ext, bfs_value, use_stationary_reward. | Step debug, RL trace |
 | **JSON_METRICS** | Variable d'environnement activant l'export JSON des MetricsSnapshot via `serde_json::to_string()`. | JSON export |
+| **well_being_weights** | Tableau `[f64; 9]` dans TsoEngine pondérant indépendamment chaque terme du bien-être. Défaut : `[1.0; 9]` (comportement historique). | Poids du bien-être, WB weights |
+| **Matrice d'ablations** | Binaire `ablation_matrix.rs` : 9 termes × 5 régimes homéostatiques × 5 seeds. Mesure l'impact de l'ablation de chaque terme (poids=0). Sortie CSV. | Ablation matrix, sensitivity matrix |
 
 ## Relations
 
