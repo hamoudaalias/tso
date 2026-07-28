@@ -107,6 +107,10 @@
 | **JSON_METRICS** | Variable d'environnement activant l'export JSON des MetricsSnapshot via `serde_json::to_string()`. | JSON export |
 | **well_being_weights** | Tableau `[f64; 9]` dans TsoEngine pondérant indépendamment chaque terme du bien-être. Défaut : `[1.0; 9]` (comportement historique). | Poids du bien-être, WB weights |
 | **Matrice d'ablations** | Binaire `ablation_matrix.rs` : 9 termes × 5 régimes homéostatiques × 5 seeds. Mesure l'impact de l'ablation de chaque terme (poids=0). Sortie CSV. | Ablation matrix, sensitivity matrix |
+| **Environment trait** | Interface `reset()`, `step(action)`, `action_space()`, `observation_dim()`. Unifie GridWorld, Minigrid, Habitat. Retourne `Array1<f64>` (pas d'allocation heap). Intégré via `Box<dyn Environment>` dans TsoEngine. | Environnement, env trait |
+| **GridEnv** | Implémentation GridWorld 5×5 du trait Environment (buffer `obs_buf` réutilisé, 1.2 µs/step). | Grid environment, env 5×5 |
+| **MinigridEnv** | Wrapper PyO3 vers la bibliothèque Python Minigrid. step/reset via FFI. Observation flatten (image RGB → Vec<f64> → Array1). ~50 µs/step. | MiniGrid bridge, Python env |
+| **Scaling dimensionnel** | Analyse de la latence du trait Environment de dim=4 à dim=4096. Résultat : latence quasi constante (0.7–1.2 µs/step). Le goulot est l'encodeur, pas l'interface. | Dimension scaling, env scaling |
 
 ## Relations
 

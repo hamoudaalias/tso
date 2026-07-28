@@ -393,6 +393,8 @@ TSO est écrit en Rust utilisant `ndarray` pour les opérations vectorielles, `s
 
 L'observabilité est assurée par le crate `tracing` : chaque heartbeat émet un event DEBUG structuré (rl_signal, reward_ext, bfs_value, flag stationnaire) quand `debug_step_dump=true`. Une struct `MetricsSnapshot` (serde + `serde_json`) capture les métriques clés (Φ, bien-être, énergie, hydratation, température, pression de sommeil, concepts, arêtes, épisodes, steps, cycles de sommeil) pour export en temps réel ou batch JSON. Le binaire `debug_rl` supporte les flags `--trace` (active `tracing_subscriber` au niveau DEBUG) et `--metrics` (affiche les métriques en fin d'épisode). La variable `JSON_METRICS=1` active l'export JSON pour ingestion externe.
 
+**Environnement interchangeable.** Un trait `Environment` (méthodes `reset()`, `step(action)`, `action_space()`, `observation_dim()`) unifie tous les environnements sous une interface commune. Trois implémentations sont fournies : `GridEnv` (GridWorld 5×5 natif Rust, 1.2 µs/step), `MinigridEnv` (wrapper PyO3 vers la bibliothèque Python Minigrid, ~50 µs/step), et `SyntheticEnv` (benchmark synthétique avec dimension configurable). Le trait est intégré à `TsoEngine` via `env: Option<Box<dyn Environment>>`, utilisant `Array1<f64>` (pas d'allocation heap par step — le buffer est réutilisé). Les métriques de scaling (dimension d'entrée de 4 à 4096) montrent une latence quasi constante (0.7–1.2 µs/step), confirmant que le goulot d'étranglement n'est pas l'interface mais l'encodeur qui consomme l'observation.
+
 ## 8. Limites et travaux futurs
 
 **Aliasing perceptuel.** Les 4 moustaches ne permettent pas de désambiguïser toutes les positions dans le zigzag 10×10. Une position donne la même lecture de moustaches à différents endroits du labyrinthe. L'attracteur crée un seul concept pour toutes les positions partageant le même vecteur de moustaches, empêchant l'apprentissage de valeurs différentes pour des positions distinctes mais perceptuellement identiques.
@@ -410,6 +412,8 @@ La parallélisation de la résolution (jusqu'à 4 threads), l'élagage massif de
 L'ajout d'un **replay buffer** (`ReplayBuffer`) stabilise l'apprentissage TD en permettant la relecture par mini-batchs des transitions passées. Le taux de succès en entraînement passe de 31 % à 72 % (avec cellules de grille), et l'exploitation pure atteint **100 %** avec un bruit minimal σ=0.01. Le replay buffer est intégré au Cervelet et les transitions sont enregistrées automatiquement dans `step()` et `heartbeat_dt()` avec les états *gated* après filtrage attentionnel.
 
 ~~**Instabilité TD en ligne.** La règle d'update `step_a = lr · |δ|` peut provoquer un effondrement de la politique si δ est non-borné (transitions terminales).~~ *(Résolu — voir §6.7)* Le **δ-clip** (`delta_clip_max = 5.0`) dans la mise à jour de l'acteur et un mécanisme de **CognitiveConfig** (6 flags de sous-systèmes) permettent de stabiliser l'apprentissage TD en ligne quel que soit le cycle cognitif activé. La validation multi-seeds (§6.7) confirme 98.9% ± 0.7% avec δ-clip sur 10 seeds.
+
+**Scaling dimensionnel.** Le passage des moustaches (4D) à la vision (64D–4096D) a été analysé par benchmark systématique sur le trait `Environment` (§7). La latence du trait reste quasi constante (0.7–1.2 µs/step) de 4 à 4096 dimensions — le goulot n'est pas l'interface mais l'encodeur qui consomme l'observation. L'AttractorField (distance euclidienne sur tous les prototypes) et le VAE (MatMul) scalent linéairement avec la dimension d'entrée. Le graphe sémantique (résolution par recuit) est le premier goulot d'étranglement à 4096D, atteignant ~30 ms pour 500 nœuds (30% du budget 10 Hz). La mémoire des prototypes (32 KB par prototype à 4096D) devient limitante au-delà de ~10 000 concepts. Aucun de ces goulots n'est bloquant pour les dimensions de vision (64–4096) avec le nombre de concepts observé en pratique (5–500).
 
 **Résultats expérimentaux préliminaires.** Les résultats présentés en §6 sont issus d'une seule seed par configuration. La validation §6.5 inclut 3 seeds, et §6.7 inclut 10 seeds. Une validation statistique rigoureuse (10+ seeds, intervalles de confiance) reste nécessaire pour l'ensemble des configurations.
 
@@ -495,6 +499,10 @@ L'architecture supporte l'apprentissage moteur linéaire et MLP avec **replay bu
 | 2026-08 | `bin/sensitivity.rs` | Balayage 9 termes × 5 poids (45 runs) | Identifie metabolic_penalty et parsimony comme régulateurs dominants |
 | 2026-08 | `bin/ablation_matrix.rs` | Matrice 9 termes × 5 régimes × 5 seeds (225 runs) | Carte de dépendance : curiosity domine en Faim, consummatory en Anxiété, parsimony en Métabolique |
 | 2026-08 | `bin/eval_stability.rs` | Évaluation 6 configs × 20 seeds | Confirme que seul le δ-clip supprime la variance inter-seeds |
+| 2026-08 | `environment.rs` | Création du trait `Environment` (reset, step, action_space, obs_dim) avec implémentation GridEnv (Array1 réutilisé) | Interface unifiée pour tous les environnements (GridWorld, Minigrid, Habitat) |
+| 2026-08 | `tso_engine.rs` | Ajout `env: Option<Box<dyn Environment>>` (serde skip) | Environnement interchangeable sans modifier le cycle cognitif |
+| 2026-08 | `tso_env` | Wrapper PyO3 MinigridEnv avec trait Environment | Accès aux environnements Python Minigrid depuis Rust |
+| 2026-08 | `bin/bench_env.rs` | Benchmark scaling : dim=4→64→1024→4096, synthétique + GridEnv | Latence quasi constante (0.7–1.2 µs/step), goulot = encodeur, pas interface |
 
 ## Références
 
