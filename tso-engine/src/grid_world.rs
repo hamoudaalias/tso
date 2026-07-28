@@ -6,6 +6,10 @@ use rand::Rng;
 /// L'agent ne voit jamais sa position absolue : uniquement 4 distances aux murs.
 /// Chaque pas donne -0.05, chaque mur donne -1.0, le but donne +10.0.
 /// Le reward shaping utilise la distance BFS au but (respecte les murs).
+///
+/// ## Renderer
+/// `render_ascii()` produit une chaîne console. Avec la feature `image`,
+/// `render_png()` écrit un fichier PNG de la grille.
 pub struct GridWorld {
     pub width: usize,
     pub height: usize,
@@ -302,6 +306,57 @@ impl GridWorld {
     pub fn exploration_bonus(&self) -> f64 {
         let count = self.visit_count[self.agent.0][self.agent.1].max(1);
         0.8 / (count as f64).sqrt()
+    }
+
+    // ── Renderer ───────────────────────────────────────────────────────
+
+    /// Rend la grille en ASCII.
+    /// @=agent  G=goal  #=wall  ~=water  .=empty
+    pub fn render_ascii(&self) -> String {
+        let water = [(1,1), (3,3), (1,4)];
+        let mut out = String::new();
+        for y in 0..self.height {
+            for x in 0..self.width {
+                if (x, y) == self.agent {
+                    out.push('@');
+                } else if (x, y) == self.goal {
+                    out.push('G');
+                } else if self.walls[x][y] {
+                    out.push('#');
+                } else if water.contains(&(x, y)) {
+                    out.push('~');
+                } else {
+                    out.push('.');
+                }
+            }
+            out.push('\n');
+        }
+        out
+    }
+
+    /// Écrit un PNG 200×200 de la grille si la feature `image` est activée.
+    #[cfg(feature = "image")]
+    pub fn render_png(&self, path: &str) -> Result<(), Box<dyn std::error::Error>> {
+        use image::{Rgb, RgbImage};
+        let cell = 40u32;
+        let mut img = RgbImage::new(self.width as u32 * cell, self.height as u32 * cell);
+        let water = [(1usize,1usize), (3,3), (1,4)];
+        for y in 0..self.height {
+            for x in 0..self.width {
+                let c = if (x, y) == self.agent { Rgb([0,255,0]) }
+                    else if (x, y) == self.goal { Rgb([255,215,0]) }
+                    else if self.walls[x][y] { Rgb([80,80,80]) }
+                    else if water.contains(&(x, y)) { Rgb([0,100,255]) }
+                    else { Rgb([240,240,240]) };
+                for py in 0..cell {
+                    for px in 0..cell {
+                        img.put_pixel(x as u32 * cell + px, y as u32 * cell + py, c);
+                    }
+                }
+            }
+        }
+        img.save(path)?;
+        Ok(())
     }
 }
 

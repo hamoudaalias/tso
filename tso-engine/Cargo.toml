@@ -17,3 +17,8 @@ pyo3 = { version = "0.29", features = ["auto-initialize"], optional = true }
 [features]
 default = []
 interop = ["pyo3"]
+viz = ["image"]
+
+[dependencies.image]
+version = "0.25"
+optional = true
