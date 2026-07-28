@@ -1,4 +1,8 @@
 // Tests d'intégration pour Sommeil Phase 3 — Neurogenèse structurelle
+// Note : les tests impliquant `sleep_neurogenesis_rate` sont probabilistes (random).
+// Avec rate=1.0, la naissance est déterministe. Avec rate=0.2, le résultat attendu
+// est statistique (≥1 naissance sur 5 concepts = 67% de chance). Les tests utilisent
+// rate=1.0 pour la reproductibilité.
 // Chaque test suit le cycle RED → GREEN → REFACTOR
 
 use tso_engine::{CognitiveConfig, TsoEngine, SleepReport};

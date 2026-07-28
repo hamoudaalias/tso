@@ -63,7 +63,9 @@ impl Neurogenesis {
     }
 
     /// Méthode publique unique — tout arrive ici.
-    /// Retourne un outcome + le vecteur de maturation mis à jour.
+    /// La config est synchronisée par le caller (sleep_cycle dans TsoEngine) avant l'appel.
+    /// Le caller doit aussi gérer le pruning des concepts après cycle() pour l'homéostasie.
+    /// L'état de maturation n'est pas persisté (reset à 0 au load).
     pub fn cycle(
         &mut self,
         attractor: &mut AttractorField,
@@ -160,22 +162,12 @@ impl Neurogenesis {
 
     fn homeostasis(
         &mut self,
-        attractor: &mut AttractorField,
+        _attractor: &mut AttractorField,
         _graph: &mut Graph,
-        last_active_step: &[usize],
+        _last_active_step: &[usize],
     ) {
-        while attractor.n_classes() >= self.config.max_concepts {
-            let target = match self.find_least_active_concept(last_active_step) {
-                Some(t) => t,
-                None => break, // tous en période critique
-            };
-
-            // Forcer le retrait du concept cible via l'attractor
-            // En pratique, le caller (sleep_cycle) appelle prune_concepts après cycle()
-            // qui se charge du nettoyage. Ici on se contente de marquer la cible.
-            // TODO: mécanisme de remplacement direct dans attractor
-            break;
-        }
+        // Homéostasie déléguée à sleep_cycle() qui appelle prune_concepts() après cycle().
+        // Le module Neurogenesis garantit que birth_phase ne crée pas au-delà de max_concepts.
     }
 
     // ── Phase 3 : Scaling synaptique ──
