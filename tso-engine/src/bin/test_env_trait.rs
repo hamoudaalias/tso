@@ -27,7 +27,7 @@ fn main() {
     let mut steps = 0usize;
     let mut episodes = 0usize;
 
-    for ep in 0..10 {
+    for _ep in 0..10 {
         let mut obs = Environment::reset(&mut env);
         engine.end_episode();
 

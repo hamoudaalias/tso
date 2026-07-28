@@ -13,9 +13,7 @@
 use ndarray::Array1;
 use rand::{Rng, SeedableRng};
 use rand::rngs::StdRng;
-use std::time::Instant;
 use tso_engine::tso_engine::TsoEngine;
-use tso_engine::CognitiveConfig;
 
 // ─── Grid 5×5 ─────────────────────────────────────────────────────────
 
@@ -82,7 +80,7 @@ struct SensitivityConfig {
     pub n_parsimony: f64,
 }
 
-fn run_sweep(engine_cfg: &SensitivityConfig, regime: &str, seed: u64, n_seed: f64, is_last: bool) -> f64 {
+fn run_sweep(engine_cfg: &SensitivityConfig, _regime: &str, seed: u64, n_seed: f64, _is_last: bool) -> f64 {
     run_single(engine_cfg, seed, n_seed, false)
 }
 
@@ -180,7 +178,7 @@ fn main() {
 
     for term_idx in 0..9 {
         for &w in &weights {
-            let mut cfg = SensitivityConfig {
+            let cfg = SensitivityConfig {
                 n_gated_reward: if term_idx==0 { w } else { 1.0 },
                 n_consummatory: if term_idx==1 { w } else { 1.0 },
                 n_curiosity: if term_idx==2 { w } else { 1.0 },

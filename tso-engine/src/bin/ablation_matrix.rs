@@ -159,7 +159,7 @@ fn main() {
         }
         println!("{},{}",
             term_labels[term_idx],
-            results.iter().map(|(m,s)| format!("{:.1}", m)).collect::<Vec<_>>().join(","));
+            results.iter().map(|(m,_s)| format!("{:.1}", m)).collect::<Vec<_>>().join(","));
         eprintln!("  {} done ({:.1?})", term_labels[term_idx], t0.elapsed());
     }
     eprintln!("Total: {total_runs} runs en {:.1?}", t0.elapsed());
