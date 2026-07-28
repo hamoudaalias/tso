@@ -561,6 +561,7 @@ dependencies = [
  "bincode",
  "ctrlc",
  "ndarray",
+ "pyo3",
  "rand",
  "serde",
  "serde_json",
