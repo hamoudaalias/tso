@@ -115,6 +115,8 @@ pub struct TsoEngine {
     pub attractor: AttractorField,
     #[serde(skip)]
     pub encoder: Option<Box<dyn crate::encoder::Encoder>>,
+    #[serde(skip)]
+    pub env: Option<Box<dyn crate::environment::Environment>>,
     pub episodic: EpisodicMemory,
     pub context: ContextBuffer,
     pub graph: Graph,
@@ -249,6 +251,7 @@ impl TsoEngine {
             working_mem: WorkingMemory::new(dim, 0.95, 0.5),
             attractor: AttractorField::new(dim, 8, 3, 0.01),
             encoder: None,
+            env: None,
             episodic: EpisodicMemory::new(50),
             context: ContextBuffer::new(10),
             graph: Graph::with_params(0.7, 0.1),
