@@ -1251,6 +1251,36 @@ impl TsoEngine {
         let maturation = self.cogs.sleep_maturation_cycles;
 
         if neuro_rate > 0.0 && max_concepts > 0 {
+            // Homéostasie : si le budget est atteint, remplacer le concept le moins actif
+            // en le forçant à être pruné, puis créer un nouveau à sa place.
+            while self.attractor.n_classes() >= max_concepts {
+                if let Some(target) = self.find_least_active_concept() {
+                    // Forcer le retrait du concept cible
+                    // Augmenter step_count pour que last_active_step[target] soit dépassé
+                    // puis appel prune_concepts qui va le supprimer
+                    let saved_threshold = self.concept_prune_threshold;
+                    // Forcer un écart suffisant pour que target soit pruné
+                    // On crée un écart en augmentant artificiellement step_count
+                    // NB: safer approach: set last_active_step[target]=0 and use threshold=1
+                    let old_step = self.step_count;
+                    self.step_count = if self.last_active_step.get(target).copied().unwrap_or(0) + 1 > saved_threshold {
+                        self.last_active_step[target] = 0;
+                        saved_threshold + 1
+                    } else {
+                        old_step
+                    };
+                    if saved_threshold > 0 {
+                        self.concept_prune_threshold = 1;
+                        self.prune_concepts();
+                        self.concept_prune_threshold = saved_threshold;
+                    }
+                    self.step_count = old_step;
+                } else {
+                    // Tous les concepts sont en période critique, impossible de faire de la place
+                    break;
+                }
+            }
+
             let n_classes = self.attractor.n_classes();
             for i in 0..n_classes {
                 // Vérifier le budget avant chaque naissance
@@ -1388,6 +1418,18 @@ impl TsoEngine {
     /// Accède au vecteur de maturation des concepts (période critique).
     pub fn concept_maturation(&self) -> &[usize] {
         &self.concept_maturation
+    }
+
+    /// Trouve le concept le moins actif (hors période critique) pour remplacement.
+    /// Retourne None si tous les concepts sont en période critique ou s'il n'y a pas de concepts.
+    pub fn find_least_active_concept(&self) -> Option<usize> {
+        let n = self.attractor.n_classes();
+        if n == 0 {
+            return None;
+        }
+        (0..n)
+            .filter(|&i| self.concept_maturation.get(i).copied().unwrap_or(0) == 0)
+            .min_by_key(|&i| self.last_active_step.get(i).copied().unwrap_or(0))
     }
 
     /// Flag an edge by its endpoints, removing it from the semantic graph.

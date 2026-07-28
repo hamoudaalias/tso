@@ -1,7 +1,7 @@
 // Tests d'intégration pour Sommeil Phase 3 — Neurogenèse structurelle
 // Chaque test suit le cycle RED → GREEN → REFACTOR
 
-use tso_engine::{CognitiveConfig, TsoEngine, SleepReport};
+use tso_engine::{CognitiveConfig, TsoEngine, SleepReport, attractor::AttractorField};
 
 #[test]
 fn test_neurogenesis_config_defaults() {
@@ -157,3 +157,29 @@ fn test_neurogenesis_lr_boost() {
         "Le lr devrait être restauré à 0.01 (valeur: {lr_after})"
     );
 }
+
+#[test]
+fn test_neurogenesis_replacement() {
+    // e10s03t02: Quand budget max atteint, le concept le moins actif est remplacé
+    let mut engine = TsoEngine::new(6, 4);
+    engine.cogs.sleep_neurogenesis_rate = 1.0;
+    engine.cogs.sleep_max_concepts = 5; // budget très serré
+    engine.cogs.sleep_maturation_cycles = 0; // pas de période critique pour ce test
+    engine.sleep_every_n_episodes = 0;
+
+    use ndarray::Array1;
+    // Créer quelques concepts
+    for _ in 0..10 {
+        let obs = Array1::from_vec(vec![0.1; 6]);
+        engine.step(&obs, 0.0, None, &[]);
+    }
+    engine.sleep_cycle(); // peut créer de nouveaux concepts (rate=1.0)
+
+    // Le nombre de concepts ne doit pas dépasser le budget
+    assert!(
+        engine.num_concepts() <= 5,
+        "num_concepts={} ne devrait pas dépasser max_concepts=5",
+        engine.num_concepts()
+    );
+}
+

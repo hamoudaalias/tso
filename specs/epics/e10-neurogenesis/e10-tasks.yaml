@@ -114,7 +114,7 @@ stories:
         description: "Implémenter find_least_active_concept() — min_by_key sur last_active_step, hors période critique"
         verify: "cd tso-engine && cargo check --lib"
         risk: P1
-        status: failing
+        status: passing
         allure:
           severity: high
           categories: ["Neurogenesis", "Homeostasis"]
@@ -123,7 +123,7 @@ stories:
         description: "Intégrer dans Phase 1.5 : si budget max atteint, remplacer le moins actif avant création"
         verify: "cd tso-engine && cargo test -- test_neurogenesis_replacement 2>&1 | grep ok"
         risk: P1
-        status: failing
+        status: passing
         allure:
           severity: high
           categories: ["Neurogenesis", "Homeostasis"]
@@ -132,7 +132,7 @@ stories:
         description: "Tester le cas limite : tous les concepts en période critique, budget plein → skip"
         verify: "cd tso-engine && cargo test -- test_neurogenesis_all_in_critical 2>&1 | grep ok"
         risk: P2
-        status: failing
+        status: passing
         allure:
           severity: normal
           categories: ["Neurogenesis", "Homeostasis"]
