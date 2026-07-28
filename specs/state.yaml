@@ -21,9 +21,9 @@ bug_cycle:
   completed_steps: []
 
 git:
-  branch: feat/e04-attention
-  hash: 4e5ea93
-  head_commit: "feat(e03): stabilize well-being signal with δ-clip and CognitiveConfig"
+  branch: feat/phase3-sleep
+  hash: fd05997
+  head_commit: "docs(rapport): TSO × Minigrid avec VAE — 12%, dataset synthétique à remplacer"
   working_tree:
     modified: []
     untracked: []
