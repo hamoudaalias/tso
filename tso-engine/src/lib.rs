@@ -16,3 +16,5 @@ pub mod grid_cells;
 pub mod multi_grid_cells;
 pub mod sokoban;
 pub mod terrarium;
+pub mod encoder;
+pub mod vae;
