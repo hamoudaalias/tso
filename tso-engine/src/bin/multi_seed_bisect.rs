@@ -131,7 +131,7 @@ fn run_seed(engine_cfg: &CognitiveConfig, seed: u64) -> f64 {
     engine.cerebellum.noise_std = 0.0;
 
     let mut successes = 0usize;
-    for ep in 0..TEST_EPS {
+    for _ep in 0..TEST_EPS {
         let (_, succeeded) = run_one_ep(&mut engine, &bfs_pot, &mut rng);
         if succeeded { successes += 1; }
     }

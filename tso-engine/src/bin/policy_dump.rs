@@ -1,3 +1,4 @@
+#![allow(dead_code, unused_assignments, unused_variables)]
 /// ════════════════════════════════════════════════════════════════════════════
 ///  Diagnostic de convergence : politique apprise vs optimale en S1
 ///
@@ -306,7 +307,7 @@ fn main() {
     for x in 0..W { for y in 0..H {
         if WATER_POSITIONS.contains(&(x,y)) { policy[x][y] = 4; continue; }
         // Simuler la perception à (x,y)
-        let env = GridEnv5x5::new(); // dummy
+        let _env = GridEnv5x5::new(); // dummy
         let ix = x as isize; let iy = y as isize;
         let ray = |dx:isize,dy:isize|->f64{let mut d=0;let mut cx=ix+dx;let mut cy=iy+dy;
             while cx>=0&&cy>=0&&cx<W as isize&&cy<H as isize{d+=1;cx+=dx;cy+=dy;}

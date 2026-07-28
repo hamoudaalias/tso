@@ -1,0 +1,39 @@
+name: Rust CI
+
+on:
+  push:
+    branches: [ master ]
+  pull_request:
+    branches: [ master ]
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./tso-engine
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Cache cargo
+      uses: actions/cache@v4
+      with:
+        path: ~/.cargo
+        key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+        restore-keys: ${{ runner.os }}-cargo-
+
+    - name: Build
+      run: cargo build --bins --verbose
+
+    - name: Run tests
+      run: cargo test --verbose
+
+    - name: Clippy
+      run: cargo clippy --bins -- -D warnings
+
+    - name: Check formatting
+      run: cargo fmt --check

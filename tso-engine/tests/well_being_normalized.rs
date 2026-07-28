@@ -92,8 +92,8 @@ fn test_normalized_well_being_in_engine() {
 // Petit helper RNG pour éviter la dépendance à rand dans les tests
 mod rand {
     use std::cell::RefCell;
-    use std::collections::hash_map::RandomState;
-    use std::hash::{BuildHasher, Hasher};
+    
+    
 
     thread_local! {
         static SEED: RefCell<u64> = const { RefCell::new(42) };

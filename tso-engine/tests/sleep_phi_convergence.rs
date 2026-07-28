@@ -31,7 +31,7 @@ fn setup_engine_with_graph(seed: u64) -> TsoEngine {
                 rng.r#gen::<f64>(), rng.r#gen::<f64>(),
                 rng.r#gen::<f64>(), rng.r#gen::<f64>(),
             ]);
-            let action = rng.r#gen_range(0..n_actions);
+            let _action = rng.r#gen_range(0..n_actions);
             // Simule des récompenses pour créer des arêtes +2
             let reward = if rng.r#gen_bool(0.2) { 20.0 } else { -0.01 };
             engine.step(&p, reward, None, &[]);
@@ -46,7 +46,7 @@ fn setup_engine_with_graph(seed: u64) -> TsoEngine {
 #[test]
 fn test_sleep_reduces_phi() {
     let mut engine = setup_engine_with_graph(42);
-    let phi_before = engine.current_phi;
+    let _phi_before = engine.current_phi;
 
     // S'il n'y a pas assez de concepts/arêtes, forcer plus d'épisodes
     if engine.graph_edges() < 5 {
