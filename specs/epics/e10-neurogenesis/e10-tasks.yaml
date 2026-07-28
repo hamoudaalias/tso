@@ -12,7 +12,7 @@ stories:
         description: "Ajouter sleep_neurogenesis_rate, sleep_max_concepts, sleep_maturation_cycles à CognitiveConfig"
         verify: "cd tso-engine && cargo check --lib"
         risk: P1
-        status: failing
+        status: passing
         allure:
           severity: high
           categories: ["Neurogenesis", "Config"]
@@ -21,7 +21,7 @@ stories:
         description: "Ajouter concept_maturation: Vec<usize> à TsoEngine, initialisé dans new() et with_hidden()"
         verify: "cd tso-engine && cargo check --lib"
         risk: P0
-        status: failing
+        status: passing
         allure:
           severity: critical
           categories: ["Neurogenesis", "DataStructure"]

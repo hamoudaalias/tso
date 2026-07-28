@@ -11,6 +11,7 @@ pub mod hypothalamus;
 pub mod attention;
 pub mod tso_engine;
 pub use tso_engine::CognitiveConfig;
+pub use tso_engine::TsoEngine;
 pub mod grid_world;
 pub mod grid_cells;
 pub mod multi_grid_cells;

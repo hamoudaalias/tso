@@ -177,6 +177,9 @@ pub struct TsoEngine {
     /// If a concept has not been activated for this many steps, it is pruned
     /// during end_episode. Set to 0 to disable pruning.
     pub concept_prune_threshold: usize,
+    /// Compteur de maturation pour chaque concept (0 = mature, >0 = période critique).
+    /// Indexé par concept_id. Initialisé à 0 pour tous les concepts.
+    pub(crate) concept_maturation: Vec<usize>,
 
     // ── Hypothalamic / Anxiety (Φ) state ──
     /// Current graph conflict energy Φ — measures cognitive tension (anxiety).
@@ -292,6 +295,7 @@ impl TsoEngine {
             concept_local_error: Vec::new(),
             last_active_step: Vec::new(),
             concept_prune_threshold: 500,
+            concept_maturation: Vec::new(),
             current_phi: 0.0,
             phi_prev: 0.0,
             anxious: false,
@@ -1285,6 +1289,11 @@ impl TsoEngine {
 
     pub fn current_concept_id(&self) -> Option<usize> {
         self.current_concept_id
+    }
+
+    /// Accède au vecteur de maturation des concepts (période critique).
+    pub fn concept_maturation(&self) -> &[usize] {
+        &self.concept_maturation
     }
 
     /// Flag an edge by its endpoints, removing it from the semantic graph.
