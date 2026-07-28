@@ -113,6 +113,8 @@ pub struct ProofMetrics {
 pub struct TsoEngine {
     pub working_mem: WorkingMemory,
     pub attractor: AttractorField,
+    #[serde(skip)]
+    pub encoder: Option<Box<dyn crate::encoder::Encoder>>,
     pub episodic: EpisodicMemory,
     pub context: ContextBuffer,
     pub graph: Graph,
@@ -239,6 +241,7 @@ impl TsoEngine {
         TsoEngine {
             working_mem: WorkingMemory::new(dim, 0.95, 0.5),
             attractor: AttractorField::new(dim, 8, 3, 0.01),
+            encoder: None,
             episodic: EpisodicMemory::new(50),
             context: ContextBuffer::new(10),
             graph: Graph::with_params(0.7, 0.1),
@@ -401,8 +404,46 @@ impl TsoEngine {
         // ── 1. WORKING MEMORY ────────────────────────────────────────────
         self.working_mem.observe(&[gated.clone()]);
 
-        // ── 2. CATEGORIZATION (attractor / concepts) ─────────────────────
-        let (concept_id, _is_new, intrinsic, shaping) = if cc.attractor {
+        // ── 2. CATEGORIZATION (encoder / attractor) ─────────────────────
+        let (concept_id, _is_new, intrinsic, shaping) = if let Some(enc) = &mut self.encoder {
+            // Utilise l'encodeur interchangeable (AttractorEncoder ou VaeEncoder)
+            let result = enc.encode_raw(&gated);
+            let cid = result.category_id;
+            let new_flag = result.is_new;
+
+            self.current_concept_id = Some(cid);
+            self.episode_trace.push(cid);
+
+            while self.concept_values.len() <= cid {
+                self.concept_values.push(0.0);
+            }
+            if new_flag {
+                if let Some(bv) = bfs_value {
+                    self.concept_values[cid] = bv;
+                }
+            }
+
+            let prev_concept = if self.episode_trace.len() >= 2 {
+                Some(self.episode_trace[self.episode_trace.len() - 2])
+            } else {
+                None
+            };
+            let shp = match prev_concept {
+                Some(p) if p < self.concept_values.len() && cid < self.concept_values.len() => {
+                    self.concept_values[cid] - self.concept_values[p]
+                }
+                _ => 0.0,
+            };
+
+            let surp = if cc.episodic_curiosity {
+                self.compute_surprise(if used_raw { &gated } else { perception }, cid, new_flag)
+            } else {
+                0.0
+            };
+
+            (cid, new_flag, surp, shp)
+        } else if cc.attractor {
+            // Fallback : AttractorField direct (comportement historique)
             let (cid, dist) = self.attractor.predict_with_distance(&gated);
             let threshold = self.concept_novelty_thresholds.get(cid).copied().unwrap_or(self.novelty_threshold);
             let new_flag = dist > threshold;
@@ -411,12 +452,10 @@ impl TsoEngine {
             self.adapt_novelty_threshold(cid, dist, new_flag);
             self.attractor.train_step(&gated, cid);
 
-            // Episode trace for concept values
             let prev_concept = self.current_concept_id;
             self.current_concept_id = Some(cid);
             self.episode_trace.push(cid);
 
-            // Grow concept_values
             while self.concept_values.len() <= cid {
                 self.concept_values.push(0.0);
             }
@@ -433,7 +472,6 @@ impl TsoEngine {
                 _ => 0.0,
             };
 
-            // Curiosity (needs episodic memory)
             let surp = if cc.episodic_curiosity {
                 self.compute_surprise(if used_raw { &gated } else { perception }, cid, new_flag)
             } else {
@@ -511,11 +549,14 @@ impl TsoEngine {
         }
         let metabolic_penalty = -self.hypothalamus.total_cost * 20.0;
 
-        let parsimony = if cc.attractor {
-            -(self.attractor.prototypes.len() as f64) * 0.001
+        let n_protos = if let Some(enc) = &self.encoder {
+            enc.prototype_count()
+        } else if cc.attractor {
+            self.attractor.prototypes.len()
         } else {
-            0.0
+            0
         };
+        let parsimony = -(n_protos as f64) * 0.001;
         let is_terminal = reward.abs() >= 10.0;
         let r_curiosity = if is_terminal { 0.0 } else { intrinsic };
         let total_reward = gated_reward + consummatory + r_curiosity + shaping - phi_delta + chronic_tension + metabolic_penalty + parsimony;
@@ -535,12 +576,16 @@ impl TsoEngine {
         // GRAPH: add transition edge between concept prototypes
         if cc.graph_phi && self.episode_trace.len() >= 2 {
             let p = self.episode_trace[self.episode_trace.len() - 2];
-            let a = &self.attractor.prototypes[p][0];
-            let b = &self.attractor.prototypes[concept_id][0];
-            self.graph.add_transition(a, b, reward);
-            // Track habit: repeated transitions become metabolically cheaper
-            let key = (p, concept_id);
-            *self.habit_counts.entry(key).or_insert(0) += 1;
+            // Tente d'abord via encoder, puis fallback attractor
+            let proto_a = self.encoder.as_ref().and_then(|e| e.get_prototype(p).cloned())
+                .or_else(|| self.attractor.prototypes.get(p).and_then(|v| v.first().cloned()));
+            let proto_b = self.encoder.as_ref().and_then(|e| e.get_prototype(concept_id).cloned())
+                .or_else(|| self.attractor.prototypes.get(concept_id).and_then(|v| v.first().cloned()));
+            if let (Some(a), Some(b)) = (proto_a.as_ref(), proto_b.as_ref()) {
+                self.graph.add_transition(a, b, reward);
+                let key = (p, concept_id);
+                *self.habit_counts.entry(key).or_insert(0) += 1;
+            }
         }
 
         // Periodic inline pruning — can accumulate many concepts in one episode.

@@ -51,6 +51,13 @@ pub trait Encoder: Send {
     /// Nombre de catégories connues (défaut 0).
     fn n_categories(&self) -> usize { 0 }
 
+    /// Prototype vector for a category (None for VAE / continuous encoders).
+    /// Used by graph edges, sleep replay.
+    fn get_prototype(&self, _category_id: usize) -> Option<&Array1<f64>> { None }
+
+    /// Number of prototype vectors across all categories (for parsimony).
+    fn prototype_count(&self) -> usize { 0 }
+
     /// Adaptation post-encodage (seuil, etc.). Appelée par step() après encode_raw().
     fn adapt(&mut self, _category_id: usize, _novelty: f64) {}
 
@@ -133,6 +140,14 @@ impl Encoder for AttractorEncoder {
 
     fn n_categories(&self) -> usize {
         self.field.n_classes()
+    }
+
+    fn get_prototype(&self, category_id: usize) -> Option<&Array1<f64>> {
+        self.field.get_prototype(category_id)
+    }
+
+    fn prototype_count(&self) -> usize {
+        self.field.prototypes.len()
     }
 
     fn adapt(&mut self, category_id: usize, novelty: f64) {
