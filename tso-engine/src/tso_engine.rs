@@ -22,6 +22,7 @@ pub struct SleepReport {
     pub replay_count: usize,
     pub prototypes_pruned: usize,
     pub prototypes_added: usize,
+    pub new_concepts: usize,
     pub edges_removed: usize,
     pub concepts_pruned: usize,
     pub phi_before: f64,
@@ -1224,6 +1225,63 @@ impl TsoEngine {
             self.attractor.lr = lr_saved;
         }
 
+        // ── Phase 1.5: Neurogenèse — naissance de nouveaux concepts ──
+        // Itère sur les prototypes existants et crée de nouvelles classes
+        // par mutation bruitée. Connecte les nouveaux concepts au graphe
+        // sémantique et initialise leur période critique.
+        let mut new_concepts_created = 0usize;
+        let neuro_rate = self.cogs.sleep_neurogenesis_rate;
+        let max_concepts = self.cogs.sleep_max_concepts;
+        let maturation = self.cogs.sleep_maturation_cycles;
+
+        if neuro_rate > 0.0 && max_concepts > 0 {
+            let n_classes = self.attractor.n_classes();
+            for i in 0..n_classes {
+                // Vérifier le budget avant chaque naissance
+                if self.attractor.n_classes() >= max_concepts {
+                    break;
+                }
+                if rand::random::<f64>() >= neuro_rate {
+                    continue;
+                }
+                if let Some(proto) = self.attractor.get_prototype(i) {
+                    let noise: Array1<f64> = (0..proto.len())
+                        .map(|_| rand::random::<f64>() * noise_std * 2.0 - noise_std)
+                        .collect();
+                    let mutated = proto + &noise;
+
+                    // Créer une nouvelle classe dans l'attractor
+                    let _new_id = self.attractor.add_class(&mutated);
+
+                    // Ajouter un nœud dans le graphe sémantique avec le prototype muté comme embedding
+                    let node_embedding = self.attractor.get_prototype(_new_id)
+                        .cloned()
+                        .unwrap_or_else(|| mutated.clone());
+                    let node_idx = self.graph.add_node(node_embedding);
+
+                    // Connecter aléatoirement à 2-3 voisins (uniquement vers des nœuds existants dans le graphe)
+                    let graph_nodes = self.graph.nodes.len();
+                    if graph_nodes > 1 {
+                        let n_edges = std::cmp::min(rand::random::<usize>() % 2 + 2, graph_nodes - 1);
+                        for _ in 0..n_edges {
+                            let neighbor = rand::random::<usize>() % (graph_nodes - 1);
+                            if neighbor != node_idx {
+                                self.graph.add_edge(node_idx, neighbor, 1);
+                            }
+                        }
+                    }
+
+                    // Initialiser la période critique (utiliser node_idx comme ID du nouveau concept)
+                    while self.concept_maturation.len() <= node_idx {
+                        self.concept_maturation.push(0);
+                    }
+                    self.concept_maturation[node_idx] = maturation;
+
+                    new_concepts_created += 1;
+                }
+            }
+        }
+
         // ── Phase 2: Deep graph conflict resolution ──
         // Run many resolve iterations to deeply clean up structural conflicts
         // in the semantic graph — more than the 15-20 used online.
@@ -1255,6 +1313,7 @@ impl TsoEngine {
             replay_count,
             prototypes_pruned,
             prototypes_added,
+            new_concepts: new_concepts_created,
             edges_removed,
             concepts_pruned,
             phi_before,

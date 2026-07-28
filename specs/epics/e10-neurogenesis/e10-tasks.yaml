@@ -57,7 +57,7 @@ stories:
         description: "Implémenter Phase 1.5 dans sleep_cycle() — mutation, add_class, add_node, connexions, tracking"
         verify: "cd tso-engine && cargo test -- test_neurogenesis_birth 2>&1 | grep ok"
         risk: P0
-        status: failing
+        status: passing
         allure:
           severity: critical
           categories: ["Neurogenesis", "Core"]
