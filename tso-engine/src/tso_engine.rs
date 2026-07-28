@@ -8,7 +8,7 @@ use crate::cerebellum::Cerebellum;
 use crate::core::{Graph, NodeId, resolve_with_anneal, resolve_parallel,
     demineur_sweep, demineur_sweep_trace,
     lateral_inhibition_sweep, lateral_inhibition_trace,
-    exponential_decay_sweep};
+    exponential_decay_sweep, exponential_decay_trace};
 use crate::working_memory::WorkingMemory;
 use crate::action::ActionMotor;
 use crate::constraint_redirection::{self, RedirectionConfig};
@@ -1278,6 +1278,11 @@ impl TsoEngine {
     /// Balayage par décroissance exponentielle.
     pub fn exponential_decay_sweep(&mut self, tol: f64, factor: f64) -> (usize, f64, f64) {
         exponential_decay_sweep(&mut self.graph, tol, factor)
+    }
+
+    pub fn exponential_decay_trace(&mut self, tol: f64, factor: f64)
+        -> (usize, f64, f64, Vec<(f64, f64, i8)>) {
+        exponential_decay_trace(&mut self.graph, tol, factor)
     }
 
     pub fn flag_edge(&mut self, from: NodeId, to: NodeId) -> f64 {

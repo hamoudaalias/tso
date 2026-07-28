@@ -33,11 +33,11 @@ fn test_lateral_inhibition_same_phi_as_flag() {
     eprintln!("lateral: {} decays, Φ dropped {:.4}, final Φ {:.4}", f2, phi2, final2);
 
     // Les deux doivent converger vers Φ < tol
-    assert!(final1 < 0.01, "flag sweep should converge to Φ < 0.01, got {:.4}", final1);
+    // Note: demineur_sweep utilise exponential_decay (×0.95) maintenant
+    assert!(final1 < 0.01, "demineur should converge to Φ < 0.01, got {:.4}", final1);
     assert!(final2 < 0.01, "lateral inhibition should converge to Φ < 0.01, got {:.4}", final2);
 
-    // La version graduelle supprime moins d'arêtes (ou autant, selon decay)
-    // mais le Φ final est le même
+    // Les deux strategies atteignent un Φ final similaire
     assert!((final1 - final2).abs() < 0.02, "Both should reach similar final Φ");
 }
 
