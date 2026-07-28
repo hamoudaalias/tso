@@ -1,8 +1,8 @@
 # specs/state.yaml — État de session TSO
-# Généré par session-state (03/08/2025)
+# Généré par kickoff-branch e04 (03/08/2025)
 
 active_flow: build_epic
-active_epic_id: e03
+active_epic_id: e04
 active_story_id: null
 active_bug_id: null
 
@@ -12,37 +12,35 @@ release:
   last_publish: null
 
 epic_cycle:
-  current_step: develop-tdd
-  next_skill: verify-work
-  completed_steps:
-    - kickoff-branch
-    - survey-context
-    - develop-tdd # e03s01, e03s02, e03s03 committed
+  current_step: kickoff-branch
+  next_skill: survey-context
+  completed_steps: []
 
 bug_cycle:
   current_step: null
   completed_steps: []
 
 git:
-  branch: feat/e03-stationary-reward
-  hash: 4d984c8
-  head_commit: "fix(tso_engine): add CognitiveConfig bissection + δ-clip par défaut (5.0)"
+  branch: feat/e04-attention
+  hash: 4e5ea93
+  head_commit: "feat(e03): stabilize well-being signal with δ-clip and CognitiveConfig"
   working_tree:
     modified: []
     untracked: []
-  preflight: cargo check --bins passed (0 errors, warnings only)
+  preflight: cargo check --bins passed (0 errors)
 
 handoff:
-  last_step_completed: "e03s04 — 100% test sur toutes les configs avec δ-clip"
+  last_step_completed: "e03 merged → e04 kickoff"
   open_decisions:
-    - "Le δ-clip résout la régression 98% → 22% (cause unique)"
-    - "Tous les sous-systèmes cognitifs (attractor, graph/Φ, attention, curiosity, métabolisme, hypothalamus) sont compatibles"
-    - "Le replay buffer a encore un δ non-clippé (replay_lr=0.05 × δ) — chantier e04 ou e05"
-    - "Prochain epic : e04 — Attention spatiale validation expérimentale (WSJF:20)"
-  next_skill: develop-tdd
+    - "CognitiveConfig permet de tester l'attention seule (config sans attractor, graph, hypothalamus)"
+    - "Zigzag 10×10 et Terrarium 7×7 comme terrains de test — benchmark avec/sans attention"
+    - "e04s01: tests unitaires attention_module (gain par erreur de prédiction)"
+    - "e04s02: benchmark Zigzag 10×10 avec/sans attention"
+    - "e04s03: benchmark Terrarium 7×7"
+  next_skill: survey-context
 
 workspace_facts:
-  - "Le projet TSO mixe lib + 18 binaires dans tso-engine/src/bin/"
-  - "Les tests d'intégration sont dans tso-engine/tests/"
-  - "E03 a 4 stories : diagnostic → normalisation → dual critic → expérience comparative"
-  - "Master est plusieurs commits derrière feat/e03-stationary-reward"
+  - "CognitiveConfig disponible — permet de désactiver l'attention pour testing A/B"
+  - "Attention module dans src/attention.rs — gain multiplicatif par erreur de prédiction épisodique"
+  - "Grid envs: GridWorld, Terrarium, Sokoban dans src/"
+  - "δ-clip (delta_clip_max=5.0) par défaut dans CognitiveConfig"

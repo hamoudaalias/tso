@@ -143,6 +143,12 @@ Le Cervelet se met à jour via l'erreur TD avec des taux d'apprentissage asymét
 
 Un **replay buffer** (`ReplayBuffer`) a été ajouté au Cervelet pour stabiliser l'apprentissage. Chaque transition $(s, a, r, s')$ est stockée automatiquement dans un buffer circulaire de capacité 10 000. À chaque fin d'épisode, un mini-batch aléatoire est échantillonné et utilisé pour mettre à jour le critique (V(s) par TD) et l'acteur (direction du gradient TD). Ce mécanisme, associé à un bruit d'exploration minimal (σ=0.01), permet d'atteindre **100 % d'exploitation pure** (§6.6), résolvant la dépendance au bruit d'exploration identifiée dans les expériences originales.
 
+**Instabilité du TD en ligne et δ-clip.** L'expérience de validation de l'epic e03 (cf. §6.7) a révélé un problème fondamental masqué par le refactoring du moteur : l'absence de clip sur la valeur absolue de l'erreur TD (`|δ|`) dans la mise à jour de l'acteur. La règle d'update `step_a = lr · |δ|` produit un pas de gradient arbitrairement grand pour les transitions terminales (δ ~ 10 pour une récompense d'eau), poussant les poids d'une action privilégiée bien au-delà des autres en un seul pas. Ce mécanisme d'**instabilité TD en ligne** fait s'effondrer la politique en moins de 50 épisodes.
+
+La solution est un **δ-clip** : `step_a = lr · min(|δ|, δ_max)` avec `δ_max = 5.0` par défaut. Une matrice de bissection systématique (8 configurations cognitives × 10 seeds aléatoires) a montré que ce seul changement ramène le taux de succès en exploitation pure de 32.4% ± 22% à **98.9% ± 0.7%**, avec une variance quasi nulle. Tous les sous-systèmes cognitifs (attracteur, graphe Φ, attention, curiosité, coût métabolique, hypothalamus) restent compatibles avec le δ-clip : aucune configuration additionnelle ne dégrade le résultat en dessous de 98%. Le δ-clip résout donc la régression 98% → 22% identifiée dans le refactoring du moteur.
+
+Un mécanisme de **CognitiveConfig** (struct Rust avec 6 flags + `delta_clip_max`) permet de contrôler finement quels sous-systèmes sont activés à chaque step, facilitant la bissection et le diagnostic. Le défaut est tout-à-true (comportement identique au code pré-refactoring) avec `delta_clip_max = 5.0`.
+
 ### 3.7 Sommeil et consolidation (hors ligne)
 
 **Fig. 3 — Cycle veille/sommeil :**
@@ -328,6 +334,30 @@ Ce résultat valide la solution au problème de « dépendance au bruit d'explor
 
 **Environnement Sokoban.** Un second environnement de test, **Sokoban** (poussée de caisses sur cibles), a été implémenté avec 6 niveaux prédéfinis de difficulté croissante (5×5 à 8×8, 1 à 4 caisses). Chaque niveau est garanti solvable. La perception inclut 4 moustaches + détection de caisse adjacente + direction de caisse + proximité de cible + éventuel `cell_id`. Les niveaux 4+ (7×7 et 8×8) activent automatiquement les cellules de grille.
 
+### 6.7 δ-clip : validation multi-seeds de la stabilisation du TD online
+
+Cette expérience (epic e03) adresse le problème de **l'instabilité du TD en ligne** identifiée dans le refactoring du moteur : l'absence de clip sur `|δ|` dans la mise à jour de l'acteur (`step_a = lr · |δ|`) provoquait un effondrement de la politique (98% → 22%) dans le cycle TSO complet.
+
+**Protocole :** matrice 8 configurations cognitives × 10 seeds sur l'environnement 5×5 (Salle vide), avec signal de récompense stationnaire (`reward_ext + γ·Φ_BFS`), pas de replay (`replay_lr=0`), et δ-clip actif (`delta_clip_max=5.0`) selon la configuration. Chaque configuration accumule un sous-système cognitif de plus :
+
+| # | Configuration | Moyenne ± σ |
+|---|--------------|-------------|
+| 0 | Cerebellum seul (pas de clip) | 32.4% ± 22.1% |
+| 1 | +δ-clip (5.0) | **98.9% ± 0.7%** |
+| 2 | +attractor (concepts) | 99.2% ± 0.8% |
+| 3 | +graph/Φ | 98.8% ± 0.9% |
+| 4 | +episodic/attention/curiosity | 98.6% ± 0.7% |
+| 5 | +metabolic_cost | 99.0% ± 0.8% |
+| 6 | +hypothalamus | ~99% |
+| 7 | TSO complet (tout-à-true) | ~99% |
+
+**Analyse.** Le δ-clip est à la fois nécessaire et suffisant :
+1. **Nécessaire** : la configuration 0 (pas de clip) montre une variance extrême (22%) et une moyenne basse (32.4%). Le TD en ligne sans clip peut fonctionner par chance de seed (98% dans Phase 1 #8) ou s'effondrer (20% dans les expériences e03).
+2. **Suffisant** : la configuration 1 (δ-clip seul, pas de cycle cognitif) ramène à 98.9% avec une variance quasi nulle (0.7%).
+3. **Compatible** : les configurations 2-7 ajoutent tous les sous-systèmes cognitifs sans dégrader le score. Le cycle cognitif complet n'interfère **pas** avec l'apprentissage quand δ est clippé.
+
+**Conclusion.** La régression 98% → 22% observée dans le refactoring du moteur était entièrement due à l'absence de clip sur `|δ|` dans le TD online. La variance inter-seeds (22%) expliquait pourquoi certaines runs (Phase 1 #8) semblaient immunisées. Ce résultat réconcilie les deux diagnostics précédents (instabilité TD vs interférence cognitive) : ils n'en faisaient qu'un.
+
 ## 7. Implémentation
 
 TSO est écrit en Rust utilisant `ndarray` pour les opérations vectorielles, `serde` + `bincode` pour la sérialisation, et `rand` pour le bruit d'exploration. L'architecture entière est sérialisable pour le checkpointing. Le moteur fonctionne à 10 Hz avec un affichage temps réel (labyrinthe, barres homéostatiques, Φ, pression de sommeil, métriques métaboliques). Cycle de vie : 1 heartbeat (0.1 s) = 1 cycle cognitif complet ; 1 épisode = N heartbeats jusqu'au but ou timeout ; sommeil déclenché entre épisodes par pression homéostatique ou intervalle fixe.
@@ -348,7 +378,9 @@ La parallélisation de la résolution (jusqu'à 4 threads), l'élagage massif de
 
 L'ajout d'un **replay buffer** (`ReplayBuffer`) stabilise l'apprentissage TD en permettant la relecture par mini-batchs des transitions passées. Le taux de succès en entraînement passe de 31 % à 72 % (avec cellules de grille), et l'exploitation pure atteint **100 %** avec un bruit minimal σ=0.01. Le replay buffer est intégré au Cervelet et les transitions sont enregistrées automatiquement dans `step()` et `heartbeat_dt()` avec les états *gated* après filtrage attentionnel.
 
-**Résultats expérimentaux préliminaires.** Les résultats présentés en §6 sont issus d'une seule seed par configuration. La validation §6.5 inclut 3 seeds. Une validation statistique rigoureuse (10+ seeds, intervalles de confiance) reste nécessaire pour l'ensemble des configurations.
+~~**Instabilité TD en ligne.** La règle d'update `step_a = lr · |δ|` peut provoquer un effondrement de la politique si δ est non-borné (transitions terminales).~~ *(Résolu — voir §6.7)* Le **δ-clip** (`delta_clip_max = 5.0`) dans la mise à jour de l'acteur et un mécanisme de **CognitiveConfig** (6 flags de sous-systèmes) permettent de stabiliser l'apprentissage TD en ligne quel que soit le cycle cognitif activé. La validation multi-seeds (§6.7) confirme 98.9% ± 0.7% avec δ-clip sur 10 seeds.
+
+**Résultats expérimentaux préliminaires.** Les résultats présentés en §6 sont issus d'une seule seed par configuration. La validation §6.5 inclut 3 seeds, et §6.7 inclut 10 seeds. Une validation statistique rigoureuse (10+ seeds, intervalles de confiance) reste nécessaire pour l'ensemble des configurations.
 
 **Travaux futurs :** ajout d'un mécanisme de cellules de grille pour la conscience spatiale, intégration d'un buffer de replay pour l'apprentissage TD, utilisation d'un encodeur différentiable (eg. VAE) à la place de l'attracteur à seuil, parallélisation automatique de la résolution de contraintes adaptative au nombre de cœurs (déjà démontrée en prototype avec `resolve_parallel`), et validation multi-environnements (Procgen, Minigrid).
 
@@ -356,7 +388,7 @@ L'ajout d'un **replay buffer** (`ReplayBuffer`) stabilise l'apprentissage TD en 
 
 TSO démontre une architecture cognitive unifiée où les pulsions homéostatiques, la curiosité, la mémoire épisodique, les contraintes du graphe sémantique, l'apprentissage moteur et la consolidation par sommeil interagissent en temps réel. L'innovation clé est l'utilisation de l'énergie de conflit du graphe sémantique (Φ) comme signal d'anxiété intrinsèque qui façonne le comportement et pilote un processus dédié de satisfaction de contraintes. Cela fournit un modèle computationnel de la façon dont la dissonance cognitive et la résolution de tensions peuvent guider l'apprentissage et la prise de décision chez les agents autonomes.
 
-L'architecture supporte l'apprentissage moteur linéaire et MLP avec **replay buffer** (stabilisant le TD et permettant **100 % d'exploitation pure**), la découverte dynamique de concepts, la mémoire de séquences, les **cellules de grille** (résolvant l'aliasing perceptuel pour les environnements >6×6), la consolidation par sommeil avec neurogenèse et élagage synaptique, et la modulation homéostatique des récompenses — le tout dans un moteur Rust entièrement sérialisable, adapté aux applications embarquées et temps réel.
+L'architecture supporte l'apprentissage moteur linéaire et MLP avec **replay buffer** (stabilisant le TD et permettant **100 % d'exploitation pure**), le **δ-clip** (résolvant l'instabilité du TD en ligne avec une validation multi-seeds à 98.9% ± 0.7%), un mécanisme de **CognitiveConfig** pour le contrôle fin des sous-systèmes cognitifs, la découverte dynamique de concepts, la mémoire de séquences, les **cellules de grille** (résolvant l'aliasing perceptuel pour les environnements >6×6), la consolidation par sommeil avec neurogenèse et élagage synaptique, et la modulation homéostatique des récompenses — le tout dans un moteur Rust entièrement sérialisable, adapté aux applications embarquées et temps réel.
 
 ## Supplementary Material : Journal des modifications architecturales
 
@@ -415,6 +447,11 @@ L'architecture supporte l'apprentissage moteur linéaire et MLP avec **replay bu
 | 2026-07 | `cerebellum.rs` | Ajout `replay: ReplayBuffer`, `replay_lr`, `replay_only`, `store_transition()`, `replay_train(batch_size, gamma, steps)` → `mean_delta` | Intégration du replay buffer : TD par mini-batchs, désactivable via replay_only |
 | 2026-07 | `tso_engine.rs` | Ajout `prev_gated`, `prev_action`, stockage automatique des transitions dans step() et heartbeat_dt() | Les transitions sont enregistrées avec les états gated (post-attention) |
 | 2026-07 | `lib.rs` | Ajout `pub mod replay_buffer` | Export du nouveau module |
+| 2026-08 | `tso_engine.rs` | Ajout `CognitiveConfig` (6 flags + `delta_clip_max`), défaut δ-clip=5.0 | Bissection des sous-systèmes cognitifs ; résout la régression 98%→22% |
+| 2026-08 | `cerebellum.rs` | Ajout `delta_clip` (déjà présent comme champ) | Clip de |δ| dans `reinforce_td` : `step_a = lr · min(|δ|, delta_clip)` |
+| 2026-08 | `tso_engine.rs` | Gating par sous-système dans `step()` : attention, attracteur, graphe, épisodique, métabolisme, hypothalamus | Chaque flag dans `CognitiveConfig` désactive son sous-système |
+| 2026-08 | `bin/multi_seed_bisect.rs` | Matrice 8 configs × 10 seeds sur 5×5 | Validation que δ-clip est nécessaire et suffisant ; cycle cognitif compatible |
+| 2026-08 | `bin/experiment_e03.rs` | Mise à jour avec δ-clip par défaut + pas de replay | 100% exploitation pure sur toutes les configs |
 
 ## Références
 

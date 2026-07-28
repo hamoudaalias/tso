@@ -3,7 +3,7 @@ title: "Attention spatiale — validation expérimentale"
 priority: 2
 wsjf: 20
 bcp: 8
-status: planned
+status: in_progress
 dependencies: []
 stories:
   - id: e04s01
