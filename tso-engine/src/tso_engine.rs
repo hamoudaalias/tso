@@ -46,40 +46,60 @@ pub struct MetricsSnapshot {
     pub sleep_cycles: usize,
 }
 
+/// Flags activant/désactivant chaque sous-système cognitif dans step() / heartbeat().
+/// Groupe logique des 6 booléens de CognitiveConfig.
+#[derive(Clone, Debug)]
+pub struct SubsystemFlags {
+    pub attractor: bool,
+    pub graph_phi: bool,
+    pub attention: bool,
+    pub episodic_curiosity: bool,
+    pub metabolic_cost: bool,
+    pub hypothalamus: bool,
+}
+
 /// Configuration fine des sous-systèmes cognitifs activés dans step() / heartbeat().
 /// Chaque flag contrôle un sous-système indépendant pour bissection.
 /// Défaut : tout-à-true (comportement actuel inchangé).
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct CognitiveConfig {
-    /// Catégorisation (attractor) : création de concepts prototypes, pruning,
-    /// seuil de nouveauté. Si désactivé, step() utilise un concept factice (id=0).
+    /// Catégorisation (attractor)
     pub attractor: bool,
-    /// Graphe sémantique + Φ : transitions, résolution avec recuit, Φ, chronic_tension.
+    /// Graphe sémantique + Φ
     pub graph_phi: bool,
-    /// Attention spatiale : gating des moustaches par erreur de prédiction épisodique.
-    /// Si désactivé, step() utilise la perception brute.
+    /// Attention spatiale
     pub attention: bool,
-    /// Mémoire épisodique + curiosité intrinsèque : rappel de contexte, surprise.
+    /// Mémoire épisodique + curiosité intrinsèque
     pub episodic_curiosity: bool,
-    /// Coût métabolique : consommation d'énergie par le calcul cognitif.
+    /// Coût métabolique
     pub metabolic_cost: bool,
-    /// Hypothalamus : dérive homéostatique (énergie, hydratation, température, sleep_debt).
+    /// Hypothalamus
     pub hypothalamus: bool,
-    /// Clip de |δ| dans reinforce_td : step_a = lr * min(|δ|, delta_clip_max).
-    /// 0.0 = pas de clip (comportement actuel).
+    /// Clip de |δ| dans reinforce_td
     pub delta_clip_max: f64,
-    /// Neurogenèse : probabilité qu'un prototype existant génère un nouveau concept
-    /// pendant le cycle sommeil (Phase 1.5). 0.0 = pas de neurogenèse.
+    /// Neurogenèse : probabilité de naissance (0.0 – 1.0)
     pub sleep_neurogenesis_rate: f64,
-    /// Neurogenèse : nombre maximum de concepts (prototypes + graphe). Au-delà,
-    /// le concept le moins actif est remplacé (homéostasie).
+    /// Neurogenèse : budget max de concepts
     pub sleep_max_concepts: usize,
-    /// Neurogenèse : nombre de cycles sommeil pendant lesquels un nouveau concept
-    /// est en période critique (protection anti-pruning, lr boosté).
+    /// Neurogenèse : durée période critique
     pub sleep_maturation_cycles: usize,
-    /// Scaling synaptique : normaliser les poids d'arêtes après chaque neurogenèse
-    /// pour éviter l'emballement des connexions (Phase 3.5).
+    /// Neurogenèse : scaling synaptique
     pub sleep_synaptic_scaling: bool,
+}
+
+impl CognitiveConfig {
+    /// Retourne les flags de sous-systèmes comme struct groupé.
+    /// Rétrocompatible : les bins existants utilisent les champs plats.
+    pub fn subsystems(&self) -> SubsystemFlags {
+        SubsystemFlags {
+            attractor: self.attractor,
+            graph_phi: self.graph_phi,
+            attention: self.attention,
+            episodic_curiosity: self.episodic_curiosity,
+            metabolic_cost: self.metabolic_cost,
+            hypothalamus: self.hypothalamus,
+        }
+    }
 }
 
 impl Default for CognitiveConfig {
@@ -433,12 +453,12 @@ impl TsoEngine {
         self.cerebellum.delta_clip = cc.delta_clip_max;
 
         // ── 0. HYPOTHALAMUS DRIFT ─────────────────────────────────────────
-        if cc.hypothalamus {
+        if cc.subsystems().hypothalamus {
             self.hypothalamus.step();
         }
 
         // ── 0b. SPATIAL ATTENTION ────────────────────────────────────────
-        let (gated, used_raw) = if cc.attention {
+        let (gated, used_raw) = if cc.subsystems().attention {
             let predicted_proto = self.predicted_concept_id
                 .and_then(|id| self.attractor.get_prototype(id));
             (self.attention.attend(perception, predicted_proto), false)
@@ -480,14 +500,14 @@ impl TsoEngine {
                 _ => 0.0,
             };
 
-            let surp = if cc.episodic_curiosity {
+            let surp = if cc.subsystems().episodic_curiosity {
                 self.compute_surprise(if used_raw { &gated } else { perception }, cid, new_flag)
             } else {
                 0.0
             };
 
             (cid, new_flag, surp, shp)
-        } else if cc.attractor {
+        } else if cc.subsystems().attractor {
             // Fallback : AttractorField direct (comportement historique)
             let (cid, dist) = self.attractor.predict_with_distance(&gated);
             let threshold = self.concept_novelty_thresholds.get(cid).copied().unwrap_or(self.novelty_threshold);
@@ -529,7 +549,7 @@ impl TsoEngine {
                 _ => 0.0,
             };
 
-            let surp = if cc.episodic_curiosity {
+            let surp = if cc.subsystems().episodic_curiosity {
                 self.compute_surprise(if used_raw { &gated } else { perception }, cid, new_flag)
             } else {
                 0.0
@@ -547,59 +567,59 @@ impl TsoEngine {
         };
 
         // ── 3. EPISODIC PREDICTION (même sans attracteur) ────────────────
-        if cc.episodic_curiosity {
+        if cc.subsystems().episodic_curiosity {
             self.context.push(concept_id);
             self.predicted_concept_id = self.episodic.recall(&self.context.as_slice());
         }
 
         // ── 4. HOMEOSTATIC GATING & Φ ────────────────────────────────────
-        let gated_reward = if cc.hypothalamus {
+        let gated_reward = if cc.subsystems().hypothalamus {
             self.hypothalamus.gate_reward(reward)
         } else {
             reward
         };
-        let consummatory = if cc.hypothalamus && reward > 0.0 {
+        let consummatory = if cc.subsystems().hypothalamus && reward > 0.0 {
             self.hypothalamus.consummatory_value(reward)
         } else {
             0.0
         };
 
         // Φ computation
-        self.current_phi = if cc.graph_phi {
+        self.current_phi = if cc.subsystems().graph_phi {
             self.graph.phi()
         } else {
             0.0
         };
         let phi_delta = self.current_phi - self.phi_prev;
-        self.anxious = cc.graph_phi && self.current_phi > self.phi_threshold;
-        if cc.hypothalamus {
+        self.anxious = cc.subsystems().graph_phi && self.current_phi > self.phi_threshold;
+        if cc.subsystems().hypothalamus {
             self.hypothalamus.set_phi(self.current_phi);
         }
-        if cc.hypothalamus && reward > 0.0 {
+        if cc.subsystems().hypothalamus && reward > 0.0 {
             self.hypothalamus.consume(reward);
         }
 
         // Periodic graph resolve
-        if cc.graph_phi && self.step_count % 50 == 0 {
+        if cc.subsystems().graph_phi && self.step_count % 50 == 0 {
             let result = resolve_with_anneal(&mut self.graph, 20, 0.05, 0.15);
             self.oscillation_breaks += result.oscillation_breaks;
         }
 
-        let resolved_phi = if cc.graph_phi { self.graph.phi() } else { 0.0 };
-        let chronic_tension = if cc.graph_phi {
+        let resolved_phi = if cc.subsystems().graph_phi { self.graph.phi() } else { 0.0 };
+        let chronic_tension = if cc.subsystems().graph_phi {
             -(resolved_phi * resolved_phi) * 0.001
         } else {
             0.0
         };
         self.phi_prev = resolved_phi;
         self.current_phi = resolved_phi;
-        self.anxious = cc.graph_phi && resolved_phi > self.phi_threshold;
-        if cc.hypothalamus {
+        self.anxious = cc.subsystems().graph_phi && resolved_phi > self.phi_threshold;
+        if cc.subsystems().hypothalamus {
             self.hypothalamus.set_phi(resolved_phi);
         }
 
         // Apply metabolic cost before well-being
-        if cc.metabolic_cost {
+        if cc.subsystems().metabolic_cost {
             self.apply_metabolic_costs();
         } else {
             self.hypothalamus.total_cost = 0.0;
@@ -608,7 +628,7 @@ impl TsoEngine {
 
         let n_protos = if let Some(enc) = &self.encoder {
             enc.prototype_count()
-        } else if cc.attractor {
+        } else if cc.subsystems().attractor {
             self.attractor.prototypes.len()
         } else {
             0
@@ -631,12 +651,12 @@ impl TsoEngine {
         }
 
         // Set goal value when found
-        if cc.attractor && reward >= 20.0 && concept_id < self.concept_values.len() {
+        if cc.subsystems().attractor && reward >= 20.0 && concept_id < self.concept_values.len() {
             self.concept_values[concept_id] = 20.0;
         }
 
         // GRAPH: add transition edge between concept prototypes
-        if cc.graph_phi && self.episode_trace.len() >= 2 {
+        if cc.subsystems().graph_phi && self.episode_trace.len() >= 2 {
             let p = self.episode_trace[self.episode_trace.len() - 2];
             // Tente d'abord via encoder, puis fallback attractor
             let proto_a = self.encoder.as_ref().and_then(|e| e.get_prototype(p).cloned())
@@ -651,7 +671,7 @@ impl TsoEngine {
         }
 
         // Periodic inline pruning — can accumulate many concepts in one episode.
-        if cc.attractor && self.concept_prune_threshold > 0 && self.step_count % self.concept_prune_threshold == 0 {
+        if cc.subsystems().attractor && self.concept_prune_threshold > 0 && self.step_count % self.concept_prune_threshold == 0 {
             self.prune_concepts();
         }
 
