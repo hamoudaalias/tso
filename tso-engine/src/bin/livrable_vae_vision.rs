@@ -72,6 +72,10 @@ fn main() {
     let mut enc = VaeEncoder::new(INPUT_DIM, HIDDEN_DIM, LATENT_DIM, NOVELTY_THRESHOLD);
     let mut rng = rand::thread_rng();
 
+    // Mode déterministe + freeze = inférence stable après pré-entraînement
+    enc.deterministic = true;
+    enc.freeze = true;
+
     // ── Phase 1 : Entraînement en ligne sur 200 images aléatoires ──────
     eprintln!("--- Phase 1 : Entraînement (200 images, 1 step chacune) ---");
     let mut total_mse = 0.0;

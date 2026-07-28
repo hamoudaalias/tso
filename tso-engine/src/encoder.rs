@@ -167,6 +167,11 @@ pub struct VaeEncoder {
     /// Quand un latent s'écarte trop du centroid le plus proche, nouvelle catégorie.
     pub centroids: Vec<Vec<f64>>,
     pub novelty_threshold: f64,
+    /// Mode déterministe : utilise µ au lieu de z = µ + σ·ε.
+    /// Active APRÈS pré-entraînement hors ligne pour une stabilité parfaite.
+    pub deterministic: bool,
+    /// Gèle la mise à jour des centroids (true = inférence seule).
+    pub freeze: bool,
     /// Dernières stats VAE (pour interrogation externe).
     last_stats: Option<VaeStats>,
 }
@@ -177,6 +182,8 @@ impl VaeEncoder {
             vae: crate::vae::Vae::new(input_dim, hidden_dim, latent_dim),
             centroids: Vec::new(),
             novelty_threshold,
+            deterministic: false,
+            freeze: false,
             last_stats: None,
         }
     }
@@ -189,18 +196,23 @@ impl VaeEncoder {
 
 impl Encoder for VaeEncoder {
     fn encode_raw(&mut self, perception: &Array1<f64>) -> EncodeResult {
-        // Forward VAE complet
         self.vae.encode(perception);
         let mu = self.vae.mu.clone();
         let logvar = self.vae.logvar.clone();
-        let z = self.vae.reparameterize().to_vec();
+
+        // Mode déterministe : z = µ (stable après pré-entraînement)
+        // Mode stochastique : z = µ + σ·ε (exploration, entraînement)
+        let z: Vec<f64> = if self.deterministic {
+            mu.clone()
+        } else {
+            self.vae.reparameterize().to_vec()
+        };
+
         let x_recon = self.vae.decode(&z);
-
-        // Perte ELBO
         let (_elbo, mse, kl) = self.vae.elbo_loss(perception, &x_recon, &mu, &logvar);
-        let novelty = mse.sqrt(); // RMSE comme erreur de reconstruction
+        let novelty = mse.sqrt();
 
-        // Mapper le latent à un centroid existant, ou créer une nouvelle catégorie
+        // Premier appel : créer le premier centroid
         if self.centroids.is_empty() {
             self.centroids.push(z);
             self.last_stats = Some(VaeStats { mu, logvar, elbo: mse + kl * 0.001, kl, mse });
@@ -212,23 +224,21 @@ impl Encoder for VaeEncoder {
         let mut best_dist = Self::latent_dist(&z, &self.centroids[0]);
         for (i, c) in self.centroids.iter().enumerate().skip(1) {
             let d = Self::latent_dist(&z, c);
-            if d < best_dist {
-                best_dist = d;
-                best_idx = i;
-            }
+            if d < best_dist { best_dist = d; best_idx = i; }
         }
 
         if best_dist > self.novelty_threshold {
-            // Nouvelle catégorie
             let new_id = self.centroids.len();
             self.centroids.push(z);
             self.last_stats = Some(VaeStats { mu, logvar, elbo: mse + kl * 0.001, kl, mse });
             EncodeResult { category_id: new_id, novelty, is_new: true }
         } else {
-            // Catégorie existante → soft update du centroid
-            let rate = 0.1;
-            for k in 0..self.vae.latent_dim {
-                self.centroids[best_idx][k] += rate * (z[k] - self.centroids[best_idx][k]);
+            // Soft update du centroid sauf en mode freeze (inférence seule)
+            if !self.freeze {
+                let rate = 0.1;
+                for k in 0..self.vae.latent_dim {
+                    self.centroids[best_idx][k] += rate * (z[k] - self.centroids[best_idx][k]);
+                }
             }
             self.last_stats = Some(VaeStats { mu, logvar, elbo: mse + kl * 0.001, kl, mse });
             EncodeResult { category_id: best_idx, novelty, is_new: false }
