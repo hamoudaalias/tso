@@ -792,18 +792,14 @@ impl TsoEngine {
 
         self.working_mem.observe(&[gated.clone()]);
 
-        // Categorisation (on attention-gated perception)
-        let (concept_id, dist) = self.attractor.predict_with_distance(&gated);
-        let threshold = self.novelty_threshold;
-        let is_new = dist > threshold;
-        let concept_id = if is_new { self.attractor.add_class(&gated) } else { concept_id };
-        self.adapt_novelty_threshold(concept_id, dist, is_new);
-        self.attractor.train_step(&gated, concept_id);
+        // Categorisation via PerceptualBelt (attention-gated perception)
+        let percept = self.belt.process(&gated, None, &[], false, true, true, true);
+        let concept_id = percept.concept_id;
+        let intrinsic = percept.intrinsic;
+        let is_new = percept.is_new;
 
-        // Intrinsic curiosity reward from episodic prediction error
-        // Uses RAW perception so curiosity reflects genuine surprise,
-        // not attention-distorted input.
-        let intrinsic = self.compute_surprise(perception, concept_id, is_new);
+        // Sync belt internal episodic prediction
+        self.belt.set_predicted_concept_id(self.predicted_concept_id);
 
         // Update episodic prediction for next step
         self.context.push(concept_id);
