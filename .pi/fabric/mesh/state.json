@@ -1070,11 +1070,11 @@
           "sessionId": "019fab40-fc62-7ef9-961d-d482b2527e57"
         },
         "startedAt": 1785284591942,
-        "updatedAt": 1785339523426,
-        "expiresAt": 1785339538426
+        "updatedAt": 1785339628435,
+        "expiresAt": 1785339643435
       },
-      "version": 5968,
-      "updatedAt": 1785339523427,
+      "version": 5989,
+      "updatedAt": 1785339628435,
       "updatedBy": {
         "id": "session:019fab40-fc62-7ef9-961d-d482b2527e57",
         "name": "main",
@@ -1096,12 +1096,12 @@
         "model": "deepseek/deepseek-v4-flash",
         "thinking": "high",
         "startedAt": 1785284591941,
-        "updatedAt": 1785339523426,
+        "updatedAt": 1785339628435,
         "pendingMessages": false,
         "local": false
       },
-      "version": 5968,
-      "updatedAt": 1785339523428,
+      "version": 5989,
+      "updatedAt": 1785339628437,
       "updatedBy": {
         "id": "session:019fab40-fc62-7ef9-961d-d482b2527e57",
         "name": "main",
@@ -1132,12 +1132,12 @@
         "model": "deepseek/deepseek-v4-flash",
         "thinking": "high",
         "startedAt": 1785284591941,
-        "updatedAt": 1785339523426,
+        "updatedAt": 1785339628435,
         "pendingMessages": false,
         "controlProtocol": "v1"
       },
-      "version": 5968,
-      "updatedAt": 1785339523431,
+      "version": 5989,
+      "updatedAt": 1785339628438,
       "updatedBy": {
         "id": "session:019fab40-fc62-7ef9-961d-d482b2527e57",
         "name": "main",
@@ -1158,11 +1158,11 @@
           "sessionId": "019fae27-e3f3-77f1-84ef-c836e0f77a30"
         },
         "startedAt": 1785333279200,
-        "updatedAt": 1785339527137,
-        "expiresAt": 1785339542137
+        "updatedAt": 1785339631369,
+        "expiresAt": 1785339646369
       },
-      "version": 1564,
-      "updatedAt": 1785339527137,
+      "version": 1602,
+      "updatedAt": 1785339631369,
       "updatedBy": {
         "id": "session:019fae27-e3f3-77f1-84ef-c836e0f77a30",
         "name": "main",
@@ -1184,12 +1184,12 @@
         "model": "deepseek/deepseek-v4-flash",
         "thinking": "high",
         "startedAt": 1785333279199,
-        "updatedAt": 1785339527137,
+        "updatedAt": 1785339631369,
         "pendingMessages": false,
         "local": false
       },
-      "version": 1564,
-      "updatedAt": 1785339527140,
+      "version": 1602,
+      "updatedAt": 1785339631371,
       "updatedBy": {
         "id": "session:019fae27-e3f3-77f1-84ef-c836e0f77a30",
         "name": "main",
@@ -1220,12 +1220,12 @@
         "model": "deepseek/deepseek-v4-flash",
         "thinking": "high",
         "startedAt": 1785333279199,
-        "updatedAt": 1785339527137,
+        "updatedAt": 1785339631369,
         "pendingMessages": false,
         "controlProtocol": "v1"
       },
-      "version": 1564,
-      "updatedAt": 1785339527141,
+      "version": 1602,
+      "updatedAt": 1785339631373,
       "updatedBy": {
         "id": "session:019fae27-e3f3-77f1-84ef-c836e0f77a30",
         "name": "main",
@@ -1280,18 +1280,18 @@
     "topology/hosts/8fb9e061d2f55a181792f575d43d26e570d8d40d6803b35a7925a877dfceea63": 228,
     "sessions/019fab40-07e5-7e97-87ac-afad2865e87c": 228,
     "topology/participants/8fb9e061d2f55a181792f575d43d26e570d8d40d6803b35a7925a877dfceea63": 228,
-    "topology/hosts/4bdedd52cc23a8fa0fc692da4e9aba084f51eacf74f6bcc8b4d8513025acb8e0": 5968,
-    "sessions/019fab40-fc62-7ef9-961d-d482b2527e57": 5968,
-    "topology/participants/4bdedd52cc23a8fa0fc692da4e9aba084f51eacf74f6bcc8b4d8513025acb8e0": 5968,
+    "topology/hosts/4bdedd52cc23a8fa0fc692da4e9aba084f51eacf74f6bcc8b4d8513025acb8e0": 5989,
+    "sessions/019fab40-fc62-7ef9-961d-d482b2527e57": 5989,
+    "topology/participants/4bdedd52cc23a8fa0fc692da4e9aba084f51eacf74f6bcc8b4d8513025acb8e0": 5989,
     "topology/hosts/c225ac34ccc4e119cd8aaac8637574117d43325041bde13a6b9b697d2cb7a4ea": 2236,
     "sessions/019fab4a-973c-70d5-a485-15157441a182": 2235,
     "topology/participants/c225ac34ccc4e119cd8aaac8637574117d43325041bde13a6b9b697d2cb7a4ea": 2236,
     "topology/hosts/782f9d63418c2643023e73232f888e5e2cbc5c42a4b2757671ffa7741059c665": 5376,
     "sessions/019fab94-8441-798a-aad8-2630f593d17c": 5375,
     "topology/participants/782f9d63418c2643023e73232f888e5e2cbc5c42a4b2757671ffa7741059c665": 5376,
-    "topology/hosts/f136b58dcb0fd14159e76b8a5cb26e5b883c9c6459dadeb0fd7a17b525a5991d": 1564,
-    "sessions/019fae27-e3f3-77f1-84ef-c836e0f77a30": 1564,
-    "topology/participants/f136b58dcb0fd14159e76b8a5cb26e5b883c9c6459dadeb0fd7a17b525a5991d": 1564
+    "topology/hosts/f136b58dcb0fd14159e76b8a5cb26e5b883c9c6459dadeb0fd7a17b525a5991d": 1602,
+    "sessions/019fae27-e3f3-77f1-84ef-c836e0f77a30": 1602,
+    "topology/participants/f136b58dcb0fd14159e76b8a5cb26e5b883c9c6459dadeb0fd7a17b525a5991d": 1602
   },
   "tombstoneOrder": [
     "sessions/019faaaf-c3c1-735d-b8df-4ed10e3b8d61",
