@@ -1,5 +1,5 @@
 # TSO : Topographic Stabilization Operator
-## Une architecture neuromorphique où la friction remplace l'attention
+## Architecture neuromorphique à friction topographique
 
 **Auteur :** Hamouda ALIAS  
 **Date :** Juillet 2026  
@@ -39,8 +39,8 @@ PyTorch ou CUDA. Tests validés : 45 tests unitaires,
 ## 1. Introduction
 
 La capacité des modèles de langage à grande échelle (LLMs) a progressé grâce à
-l'architecture Transformer. Cependant, ces modèles présentent une caractéristique
-limitative : la relation entre l'information et le calcul est statique. Un Transformer
+les modèles denses présentent une caractéristique
+limitative : la relation entre l'information et le calcul est statique. Un modèle dense
 déploie la même quantité de ressources par token, qu'il traite un mot trivial ou une
 équation complexe. Cette densité entraîne un coût énergétique élevé et rend
 l'apprentissage continu vulnérable à l'oubli catastrophique.
@@ -64,19 +64,14 @@ catégorisation par prototypes ne sont pas spécifiques à un domaine.
 TSO s'inscrit à la confluence de plusieurs domaines :
 
 **Calcul Adaptatif :** Des méthodes comme Adaptive Computation Time (ACT) ou
-PonderNet visent à ajuster le calcul à la difficulté de l'entrée, mais restent basées
-sur des réseaux denses et la rétropropagation.
+PonderNet visent à ajuster le calcul à la difficulté de l'entrée.
 
 **Réseaux de Neurones à Impulsions (SNN) :** TSO utilise des réservoirs SNN
 (Dual-LIF) pour l'intégration temporelle multi-échelle.
 
 **Inférence Active :** Issus de Friston, ces cadres modélisent la cognition comme une
-minimisation de la surprise. TSO s'en distingue en modélisant la friction non comme
-une erreur de prédiction externe, mais comme une contradiction structurelle interne.
-
-**Apprentissage Continu :** TSO adresse l'oubli catastrophique nativement par sa
-plasticité locale et son découplage features/classifieur. Les Transformers nécessitent
-des artifices externes (EWC, Replay Buffers, distillation) pour atténuer l'oubli.
+minimisation de la surprise. TSO s'en distingue en modélisant la friction comme
+une contradiction structurelle interne plutôt qu'une erreur de prédiction externe.
 
 ---
 
@@ -106,8 +101,7 @@ La friction globale : Φ(G_t) = Σ_{(i,j)∈E} Violation_ij.
 
 ### 3.1 Dual-LIF : mémoire multi-échelle
 
-Le Dual-LIF est l'équivalent neuromorphique du multi-head attention des Transformers.
-Deux réservoirs LIF parallèles :
+Le Dual-LIF utilise deux réservoirs LIF parallèles :
 
 - **Mémoire lente** (α=0.9) : contexte global (sujet, agent, thème)
 - **Mémoire rapide** (α=0.5) : syntaxe locale (2-3 derniers mots, négations)
@@ -171,19 +165,19 @@ Python, PyTorch ou CUDA.
 
 **Modules du kernel :**
 
-| Module | Rôle | Équivalent Transformer |
+| Module | Rôle |
 |--------|------|----------------------|
-| `neurons.rs` | Clusters LIF + Dual-LIF | Feed-Forward |
-| `core.rs` | Graphe Φ, résolution de contraintes | Self-Attention |
-| `plasticity.rs` | R-STDP (prévu) | Backpropagation |
-| `operators.rs` | Inversion, Alignement, Répulsion, Expansion | Embedding / Projection |
-| `perceptual_belt.rs` | Pipeline de représentation unifié | — |
-| `attractor.rs` | AttractorField (prototypes) | Tête de classification |
-| `cerebellum.rs` | Actor-critic TD(λ) | Policy Network |
-| `vae.rs` | Encodeur variationnel (online) | Auto-encoder |
-| `fpi.rs` + `efe.rs` | Active inference (FPI/EFE) | Inférence bayésienne |
-| `rotating_t.rs` | Benchmark non-stationnaire | — |
-| `minigrid_env.rs` | MiniGrid Rust 7×7 147D | — |
+| `neurons.rs` | Clusters LIF + Dual-LIF |
+| `core.rs` | Graphe Φ, résolution de contraintes |
+| `plasticity.rs` | R-STDP (prévu) |
+| `operators.rs` | Inversion, Alignement, Répulsion |
+| `perceptual_belt.rs` | Pipeline de représentation unifié |
+| `attractor.rs` | AttractorField (prototypes) |
+| `cerebellum.rs` | Actor-critic TD(λ) |
+| `vae.rs` | Encodeur variationnel (online) |
+| `fpi.rs` + `efe.rs` | Active inference (FPI/EFE) |
+| `rotating_t.rs` | Benchmark non-stationnaire |
+| `minigrid_env.rs` | MiniGrid Rust 7×7 147D |
 
 **Propriétés :**
 - Zéro dépendance Python — compilation native
@@ -205,7 +199,7 @@ visuelle sur MiniGrid DoorKey (grille 7×7, observation RGB 147D).
 
 | Condition | Moyenne | σ | Δ vs linéaire |
 |-----------|---------|---|---------------|
-| Actor-critic linéaire (147D) | 1.03 | 0.17 | — |
+| Actor-critic linéaire (147D) | 1.03 | 0.17 |
 | TSO + attracteur (147D) | 2.11 | 0.36 | +1.08 |
 | TSO + VAE (147D→16D) | 2.06 | 0.34 | +1.03 |
 | TSO + VAE + FPI | **2.13** | 0.34 | +1.10 |
@@ -264,11 +258,9 @@ repose sur l'actor-critic TD(λ) pour la navigation.
 
 ## 9. Conclusion
 
-Les RNN ont été remplacés par les Transformers grâce à la parallélisation de
-l'attention. Nous proposons que la friction topographique (Φ) explore une
-direction alternative où le calcul est conditionné par une dynamique interne
-de stabilisation, et non par une obligation liée au flux de données.
-
+Nous proposons que la friction topographique (Φ) explore une direction où
+le calcul est conditionné par une dynamique interne de stabilisation, et non
+par une obligation liée au flux de données.
 La validation sur MiniGrid (TSO 2.13 vs linéaire 1.03, +105%) confirme
 que la catégorisation par prototypes et la friction topographique apportent
 un avantage mesurable sur les entrées visuelles de haute dimension.
