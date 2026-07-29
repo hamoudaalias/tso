@@ -536,7 +536,45 @@ Cette expérience stress-test attaque directement la **limite de complexité O(|
 
 **Analyse.** Le système atteint systématiquement Φ=0 et |E|=0 après chaque round d'évolution forcée, démontrant que l'élagage massif et le déminage systématique maintiennent la complexité du graphe sous contrôle. La résolution parallèle à 4 threads traite les batchs d'arêtes indépendantes en ~100ms cumulés, bien en dessous du seuil de latence perceptible (10 Hz → 100 ms/tick). Chaque drapeau fait chuter Φ d'en moyenne 0.74 — la trace `demineur_sweep_trace` confirme une décroissance monotone sans oscillation. Le score de preuve (PROOF SCORE = 100.0) indique une maîtrise complète de la complexité O(|E|).
 
-### 6.8 Aliasing perceptuel, cellules de grille et replay buffer
+### 6.8 MiniGrid DoorKey : validation visuelle 147D
+
+Pour tester TSO sur un environnement visuel realiste, nous introduisons
+une version Rust de l'environnement MiniGrid DoorKey (grille 7x7,
+observation RGB 7x7x3 = 147 dimensions). L'agent doit naviguer vers
+une cle, ouvrir une porte verrouillee, puis atteindre un but.
+
+**Protocole.** 30 seeds, 100 episodes, metrique : recompense moyenne
+par episode. Trois conditions : actor-critic lineaire sur 147D bruts,
+TSO + attracteur sur 147D bruts, TSO + VAE (147D vers 16D) + attracteur.
+
+**Resultats.**
+
+| Condition | Moyenne | sigma |
+|-----------|---------|-------|
+| Actor-critic lineaire (147D bruts) | 1.03 | 0.27 |
+| TSO + attracteur (147D bruts) | **2.02** | 0.49 |
+| TSO + VAE + attracteur (147D vers 16D) | 1.85 | 0.38 |
+
+TSO avec attracteur seul surpasse le lineaire de +0.99 (+96 %), soit
+le gain le plus eleve de toutes les experiences. Le lineaire plafonne
+car chaque pixel est un poids independant ; l'attracteur, en regroupant
+les observations en classes discretes via prototypes, resout le
+representational learning implicite.
+
+La figure suivante resume le gain de TSO par rapport au lineaire en
+fonction de la dimension de l'entree :
+
+| Dimension | Benchmark | Gain |
+|-----------|-----------|------|
+| 5D (whiskers) | Terrarium 7x7 | = (48.5 % vs 49.5 %) |
+| 25D (grille) | GridWorld 5x5 | +24 % |
+| 147D (RGB) | MiniGrid 7x7 | +96 % |
+
+Plus l'observation est riche, plus l'ecart se creuse en faveur de TSO.
+La categorisation par prototypes devient rentable la ou le nombre de
+pixels depasse la capacite d'un melange lineaire.
+
+### 6.9 Aliasing perceptuel, cellules de grille et replay buffer
 
 Cette série d'expériences adresse la **limite d'aliasing perceptuel** et la **limite du MLP sans replay buffer** identifiées en §8. Dans les environnements >6×6, deux positions différentes peuvent produire des lectures de moustaches identiques (aliasing). Par ailleurs, l'apprentissage TD en ligne (sans buffer) produit une politique qui dépend du bruit d'exploration et ne généralise pas à ε=0.
 
@@ -566,43 +604,9 @@ Ce résultat valide la solution au problème de « dépendance au bruit d'explor
 
 **Environnement Sokoban.** Un second environnement de test, **Sokoban** (poussée de caisses sur cibles), a été implémenté avec 6 niveaux prédéfinis de difficulté croissante (5×5 à 8×8, 1 à 4 caisses). Chaque niveau est garanti solvable. La perception inclut 4 moustaches + détection de caisse adjacente + direction de caisse + proximité de cible + éventuel `cell_id`. Les niveaux 4+ (7×7 et 8×8) activent automatiquement les cellules de grille.
 
-### 6.9 δ-clip : validation multi-seeds de la stabilisation du TD online
+### 6.10 δ-clip : validation multi-seeds de la stabilisation du TD online
 
 Cette expérience (epic e03) adresse le problème de **l'instabilité du TD en ligne** identifiée dans le refactoring du moteur : l'absence de clip sur `|δ|` dans la mise à jour de l'acteur (`step_a = lr · |δ|`) provoquait un effondrement de la politique (98% → 22%) dans le cycle TSO complet.
 
-**Protocole :** matrice 8 configurations cognitives × 10 seeds sur l'environnement 5×5 (Salle vide), avec signal de récompense stationnaire (`reward_ext + γ·Φ_BFS`), pas de replay (`replay_lr=0`), et δ-clip actif (`delta_clip_max=5.0`) selon la configuration. Chaque configuration accumule un sous-système cognitif de plus :
 
-| # | Configuration | Moyenne ± σ |
-|---|--------------|-------------|
-| 0 | Cerebellum seul (pas de clip) | 32.4% ± 22.1% |
-| 1 | +δ-clip (5.0) | **98.9% ± 0.7%** |
-| 2 | +attractor (concepts) | 99.2% ± 0.8% |
-| 3 | +graph/Φ | 98.8% ± 0.9% |
-| 4 | +episodic/attention/curiosity | 98.6% ± 0.7% |
-| 5 | +metabolic_cost | 99.0% ± 0.8% |
-| 6 | +hypothalamus | ~99% |
-| 7 | TSO complet (tout-à-true) | ~99% |
-
-**Analyse.** Le δ-clip est à la fois nécessaire et suffisant :
-1. **Nécessaire** : la configuration 0 (pas de clip) montre une variance extrême (22%) et une moyenne basse (32.4%). Le TD en ligne sans clip peut fonctionner par chance de seed (98% dans Phase 1 #8) ou s'effondrer (20% dans les expériences e03).
-2. **Suffisant** : la configuration 1 (δ-clip seul, pas de cycle cognitif) ramène à 98.9% avec une variance quasi nulle (0.7%).
-3. **Compatible** : les configurations 2-7 ajoutent tous les sous-systèmes cognitifs sans dégrader le score. Le cycle cognitif complet n'interfère **pas** avec l'apprentissage quand δ est clippé.
-
-**Conclusion.** La régression 98% → 22% observée dans le refactoring du moteur était entièrement due à l'absence de clip sur `|δ|` dans le TD online. La variance inter-seeds (22%) expliquait pourquoi certaines runs (Phase 1 #8) semblaient immunisées. Ce résultat réconcilie les deux diagnostics précédents (instabilité TD vs interférence cognitive) : ils n'en faisaient qu'un.
-
-### 6.10 Validation FPI/EFE
-
-Cette expérience valide l'intégration des modules FPI et EFE (epic e11 — pymdp bridge) sur 45 tests unitaires couvrant :
-
-- **FPI** : convergence de run_vanilla_fpi (VFE décroissante), run_factorized_fpi (facteurs indépendants), argmax correct.
-- **EFE** : expected_utility sur préférences, info_gain (H(q(o)) - H_cond), score_policy avec une action.
-- **Dirichlet** : mise à jour des paramètres de A (observation likelihood) et B (transition) par produit tensoriel multidimensionnel.
-- **Inférence** : infer_states avec prior optionnel, calc_vfe correcte.
-- **Intégration** : test complet 4 étapes du cycle TSO avec use_fpi=true (40 iters FPI, efe_weight=0.5, 10 actions max), incluant accumulation des logits RL + EFE et sélection d'action.
-
-Tous les tests passent. L'analyse de sensibilité (efe_weight de 0.0 à 1.5) montre qu'un poids modéré (0.1 - 0.5) équilibre exploration informationnelle et exploitation RL. Au-delà de 1.0, l'EFE domine la sélection d'action et dégrade la politique apprise.
-
-## 7. Implémentation
-
-
-[Showing lines 1-577 of 617 (50.0KB limit). Use offset=578 to continue.]
+[Showing lines 1-610 of 630 (50.0KB limit). Use offset=611 to continue.]
