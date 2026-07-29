@@ -1,0 +1,35 @@
+# Benchmark — Configuration N-run
+
+## Agents
+| ID | Agent | Description |
+|----|-------|-------------|
+| A0 | Linear AC | Cerebellum (hidden=0), ε=0.1, lr=0.01 |
+| A1 | MLP AC | Cerebellum (hidden=64), ε=0.1, lr=0.01 |
+| A2 | DQN | Q-network (hidden=64), ε=0.1, lr=0.001 |
+| A3 | TSO attracteur | TsoEngine, attractor=true, autres=false |
+| A4 | TSO VAE | TsoEngine, attractor=true, use_fpi=false |
+| A5 | TSO FPI | TsoEngine, attractor=true, use_fpi=true |
+| A6 | TSO full | Tous sous-systèmes activés |
+| A7 | TSO gating ON | Même que A6 + phi_gating=true |
+
+## Environnements
+| ID | Env | Dim | Description |
+|----|-----|-----|-------------|
+| E1 | RotatingT 5×5 | 4D | But tournant, épisode 20 steps |
+| E2 | MiniGrid 7×7 | 147D | DoorKey, max 50 steps |
+| E3 | MiniGrid 13×13 | 507D | DoorKey, max 169 steps |
+| E4 | MiniGrid 19×19 | 1083D | DoorKey, max 361 steps |
+
+## Format de sortie
+```yaml
+benchmark:
+  agent: A3
+  env: E2
+  seeds: 30
+  episodes: 100
+  mean: 0.71
+  std: 0.29
+  ci95: [0.60, 0.82]
+  cohens_d_vs_A0: 0.85
+  passed: true
+```

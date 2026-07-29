@@ -37,3 +37,7 @@ path = "src/bin/bench_dqn.rs"
 [[bin]]
 name = "bench_scale"
 path = "src/bin/bench_scale.rs"
+
+[[bin]]
+name = "bench_all"
+path = "src/bin/bench_all.rs"
