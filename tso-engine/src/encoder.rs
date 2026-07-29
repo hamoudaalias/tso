@@ -170,6 +170,7 @@ pub struct VaeEncoder {
     /// Mode déterministe : utilise µ au lieu de z = µ + σ·ε.
     /// Active APRÈS pré-entraînement hors ligne pour une stabilité parfaite.
     pub deterministic: bool,
+    pub lr: f64,
     /// Gèle la mise à jour des centroids (true = inférence seule).
     pub freeze: bool,
     /// Dernières stats VAE (pour interrogation externe).
@@ -183,6 +184,7 @@ impl VaeEncoder {
             centroids: Vec::new(),
             novelty_threshold,
             deterministic: false,
+            lr: 0.001,
             freeze: false,
             last_stats: None,
         }
