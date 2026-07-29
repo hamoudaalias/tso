@@ -6,24 +6,18 @@ Nous présentons **TSO (Tension-Solving Organism)**, une architecture
 cognitive bio-inspirée implémentée en Rust. TSO modélise un agent
 autonome doté de pulsions homéostatiques, de mémoire épisodique et
 sémantique, d'exploration motivée par la curiosité, et d'un mécanisme
-novateur de tension cognitive (Φ) ancré dans la satisfaction de
-contraintes.
+de tension cognitive (Φ) ancré dans la satisfaction de contraintes.
 
-Sur les benchmarks stationnaires classiques (Terrarium 7×7), TSO
-atteint 48.5 % (±20.7 %) contre 49.5 % (±29.0 %) pour un actor-critic
-linéaire — performance comparable avec une variance réduite d'un tiers.
+Sur les benchmarks stationnaires (Terrarium 7×7), TSO atteint 48.5 %
+(±20.7 %) contre 49.5 % (±29.0 %) pour un actor-critic linéaire —
+performance comparable, variance réduite d'un tiers, sans gain de
+moyenne. Sur le benchmark non-stationnaire Rotating-T, TSO surpasse
+sa version dépouillée (+0.36) mais un actor-critic linéaire pur le
+bat de 36 % (3.20 vs 2.35), l'overhead du cycle cognitif annulant
+le gain des mécanismes internes.
 
-Sur le benchmark non-stationnaire Rotating-T (changement de but
-périodique), TSO complet surpasse significativement le baseline
-(2.38 vs 1.97, Δ = +0.41, +21 %), démontrant que la machinerie
-cognitive de TSO apporte un avantage mesurable dans les environnements
-dynamiques. Une ablation confirme que le gain émerge de l'interaction
-des sous-systèmes plutôt que d'un module isolé.
-
-Le code source — simplifié par un audit ponytail (−1100 lignes,
-−7 fichiers, fusion de 5 modules de représentation en un
-PerceptualBelt de 8 méthodes publiques) — est disponible en open
-source.## 1. Introduction
+Le code source — simplifié par un audit (−1100 lignes, fusion de
+5 modules de représentation en un PerceptualBelt) — est disponible.## 1. Introduction
 
 Les organismes biologiques n'apprennent pas uniquement par récompense. Ils sont mus par des besoins homéostatiques internes, la curiosité, et une pulsion fondamentale à résoudre la dissonance cognitive. TSO modélise cette architecture de contrôle intégrée en combinant :
 
@@ -391,36 +385,39 @@ Les résultats montrent que sur l'environnement simple (Corridor 10×1), toutes 
 
 Les benchmarks stationnaires (Terrarium, Corridor) mesurent la performance
 sur des récompenses fixes, où un actor-critic linéaire peut mémoriser la
-politique optimale. Pour révéler l'avantage des mécanismes cognitifs de
-TSO, nous introduisons **Rotating-T** : une grille 5×5 ouverte où la
-position de la récompense change périodiquement.
+politique optimale. Pour tester l'avantage des mécanismes cognitifs de
+TSO sous changement de régime, nous introduisons **Rotating-T** :
+grille 5×5 ouverte, but tournant tous les 50 épisodes (4 positions),
+150 épisodes, 100 seeds.
 
-**Protocole :**
-- Grille 5×5, 4 actions (N/E/S/O), but tournant tous les 50 épisodes
-- Phase A : but (4,0) — Phase B : but (0,4) — Phase C : aléatoire
-- 150 épisodes, 50 seeds, métrique : récompense moyenne par épisode
-- Tous les agents passent par la même boucle engine.step(), seuls les flags diffèrent
+Trois conditions comparées :
 
-**Résultats :**
+| Condition | Moyenne | σ |
+|-----------|---------|---|
+| Actor-critic linéaire pur (Cerebellum seul) | **3.20** | 0.29 |
+| TSO complet (tous sous-systèmes actifs) | 2.35 | 0.57 |
+| TSO sans sous-systèmes (moteur seul) | 1.99 | 0.25 |
 
-| Condition | Moyenne | σ | Δ vs baseline |
-|-----------|---------|---|---------------|
-| Baseline (tous sous-systèmes désactivés) | 1.97 | 0.25 | — |
-| TSO complet | **2.38** | 0.53 | **+0.41** |
-| TSO sans épisodique | 2.31 | 0.55 | +0.34 |
-| TSO sans attention | 2.42 | 0.55 | +0.45 |
+Le véritable actor-critic linéaire — un Cerebellum standalone avec
+forward_logits + reinforce_td, sans engine TSO — surpasse TSO de 36 %
+(3.20 vs 2.35). L'overhead du cycle cognitif complet (belt,
+hypothalamus, graphe, well-being) retarde l'apprentissage et annule
+le gain potentiel des mécanismes cognitifs.
 
-TSO complet surpasse le baseline de +0.41 (21 %). L'avantage est
-statistiquement significatif (écart-type baseline 0.25). Les ablations
-individuelles (sans épisodique, sans attention) ne dégradent pas la
-performance, suggérant que le gain émerge de l'interaction des
-mécanismes (attracteur + hypothalamus + graphe Φ) plutôt que d'un
-module isolé.
+TSO-full surpasse néanmoins TSO-all-off de +0.36 (2.35 vs 1.99),
+démontrant que les sous-systèmes cognitifs (attracteur, hypothalamus,
+graphe Φ) apportent un bénéfice interne mesurable. Mais ce bénéfice
+ne compense pas le coût de l'engin face à un agent minimal.
 
-Ce résultat répond à la critique de §6.4 : si la complexité de TSO
-ne se justifie pas sur les benchmarks stationnaires, elle apporte un
-avantage mesurable dès que l'environnement devient non-stationnaire.
-La « cathédrale » paie sa dette là où elle compte.### 6.7 Jeu Faiblesse §8 attaquée — Démineur et résistance O(|E|)
+**Interprétation.** La complexité de TSO ne se justifie pas sur ce
+benchmark : l'avantage des mécanismes cognitifs est réel (+0.36) mais
+l'overhead du cycle complet annule le gain. Pour que TSO batte un
+baseline linéaire, il faudrait soit réduire l'overhead (simplifier
+le well-being, déplacer le Φ hors ligne), soit trouver un environnement
+où la mémoire épisodique ou le graphe sémantique apportent un gain
+supérieur au coût fixe de l'engin. Ce résultat est cohérent avec
+§6.4 : TSO n'est pas compétitif sur les benchmarks standards, et
+le gap ne se comble pas sur Rotating-T.### 6.7 Jeu Faiblesse §8 attaquée — Démineur et résistance O(|E|)
 
 Cette expérience stress-test attaque directement la **limite de complexité O(|E|)** identifiée en §8. Le protocole comporte 5 phases :
 
@@ -574,4 +571,5 @@ Le codebase a fait l'objet d'un audit de sur-ingénierie (ponytail) ayant suppri
 L'observabilité est assurée par le crate `tracing` : chaque heartbeat émet un event DEBUG structuré (rl_signal, reward_ext, bfs_value) quand `debug_step_dump=true`. Une struct `MetricsSnapshot` capture les métriques clés (Phi, bien-être, énergie, etc.) pour export JSON ou temps réel. Le binaire `debug_rl` supporte les flags `--trace` et `--metrics`.
 
 
-[Showing lines 1-554 of 570 (50.0KB limit). Use offset=555 to continue.]
+
+[Showing lines 1-576 of 577 (50.0KB limit). Use offset=577 to continue.]

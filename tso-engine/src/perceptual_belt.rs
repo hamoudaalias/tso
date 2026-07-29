@@ -101,6 +101,16 @@ impl PerceptualBelt {
         use_attention: bool,
     ) -> &Percept {
         // ── 0. SPATIAL ATTENTION ──────────────────────────────────
+        // Fast path: when no categorization backend is active, skip everything
+        if !use_fpi && self.encoder.is_none() && !use_attractor {
+            let gated = perception.clone();
+            self.current_concept_id = None;
+            self.last_percept = Some(Box::new(Percept {
+                concept_id: 0, gated: gated.clone(),
+                intrinsic: 0.0, shaping: 0.0, is_new: false,
+            }));
+            return self.last_percept.as_ref().unwrap();
+        }
         let (gated, used_raw) = if use_attention {
             let predicted_proto = self.predicted_concept_id
                 .and_then(|id| self.attractor.get_prototype(id).cloned());
