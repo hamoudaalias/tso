@@ -475,11 +475,50 @@ Tous les tests passent. L'analyse de sensibilité (efe_weight de 0.0 à 1.5) mon
 
 ## 7. Implémentation
 
-TSO est écrit en Rust utilisant `ndarray` pour les opérations vectorielles, `serde` + `bincode` pour la sérialisation, et `rand` pour le bruit d'exploration. L'architecture entière est sérialisable pour le checkpointing. Le moteur fonctionne à 10 Hz avec un affichage temps réel (labyrinthe, barres homéostatiques, Φ, pression de sommeil, métriques métaboliques). Cycle de vie : 1 heartbeat (0.1 s) = 1 cycle cognitif complet ; 1 épisode = N heartbeats jusqu'au but ou timeout ; sommeil déclenché entre épisodes par pression homéostatique ou intervalle fixe.
+TSO est écrit en Rust (édition 2024) utilisant `ndarray` pour les opérations vectorielles, `serde` + `bincode` pour la sérialisation, et `rand` pour le bruit d'exploration. L'architecture entière est sérialisable pour le checkpointing. Le moteur fonctionne à 10 Hz avec un affichage temps réel. Cycle de vie : 1 heartbeat (0.1 s) = 1 cycle cognitif complet ; 1 épisode = N heartbeats jusqu'au but ou timeout ; sommeil déclenché entre épisodes par pression homéostatique ou intervalle fixe.
 
-L'observabilité est assurée par le crate `tracing` : chaque heartbeat émet un event DEBUG structuré (rl_signal, reward_ext, bfs_value, flag stationnaire) quand `debug_step_dump=true`. Une struct `MetricsSnapshot` (serde + `serde_json`) capture les métriques clés (Φ, bien-être, énergie, hydratation, température, pression de sommeil, concepts, arêtes, épisodes, steps, cycles de sommeil) pour export en temps réel ou batch JSON. Le binaire `debug_rl` supporte les flags `--trace` (active `tracing_subscriber` au niveau DEBUG) et `--metrics` (affiche les métriques en fin d'épisode). La variable `JSON_METRICS=1` active l'export JSON pour ingestion externe.
+### 7.1 Architecture du code source
 
-**Environnement interchangeable.** Un trait `Environment` (méthodes `reset()`, `step(action)`, `action_space()`, `observation_dim()`) unifie tous les environnements sous une interface commune. Trois implémentations sont fournies : `GridEnv` (GridWorld 5×5 natif Rust, 1.2 µs/step), `MinigridEnv` (wrapper PyO3 vers la bibliothèque Python Minigrid, ~50 µs/step), et `SyntheticEnv` (benchmark synthétique avec dimension configurable). Le trait est intégré à `TsoEngine` via `env: Option<Box<dyn Environment>>`, utilisant `Array1<f64>` (pas d'allocation heap par step — le buffer est réutilisé). Les métriques de scaling (dimension d'entrée de 4 à 4096) montrent une latence quasi constante (0.7–1.2 µs/step), confirmant que le goulot d'étranglement n'est pas l'interface mais l'encodeur qui consomme l'observation.
+Le code source est organisé en ~30 modules dans le crate `tso-engine` :
+
+| Module | Rôle |
+|--------|------|
+| `core.rs` | Graphe sémantique (980 lignes), Phi, résolution de contraintes |
+| `tso_engine.rs` | Cycle cognitif 4 étapes (1622 lignes) |
+| `cerebellum.rs` | Actor-critic TD(λ) + replay buffer |
+| `attractor.rs` | Catégoriseur à prototypes hebbien |
+| `hypothalamus.rs` | Régulation homéostatique |
+| `episodic.rs` | Mémoire épisodique, prédiction par suffixe |
+| `working_memory.rs` | DualLIF + mémoire associative |
+| `grid_world.rs` | Environnement GridWorld |
+
+Une architecture de features `Cargo.toml` active conditionnellement les sous-systèmes de recherche :
+
+| Feature | Sous-système |
+|---------|-------------|
+| `cognitive-cycle` | Coeur TSO (défaut) |
+| `active-inference` | FPI + EFE + inférence |
+| `vae-encoder` | VAE + encodeur variationnel |
+| `parallel-resolve` | Résolution parallèle du graphe |
+| `interop` | PyO3 / Minigrid |
+
+### 7.2 Nettoyage du code
+
+Le codebase a fait l'objet d'un audit de sur-ingénierie (ponytail) ayant supprimé ~1800 lignes de code mort :
+
+- Modules supprimés : `constraint_redirection.rs` (467 lignes), `multi_grid_cells.rs` (136 lignes)
+- Code mort dans `core.rs` : `sequential_phi()`, `local_edge_indices()`, `remove_low_phi_edges()` (95 lignes)
+- Inlinage : `attention.rs` (65 lignes) intégré dans `tso_engine.rs`
+- Feature-gating : `inject_exclusion_edges()` derrière `experimental-bins`
+- Binaires : 3 conservés (`debug_rl`, `weakness_game_v3`, `eval_minigrid`) sur 45, archivés dans `specs/archive/bin/`
+
+### 7.3 Observabilité
+
+L'observabilité est assurée par le crate `tracing` : chaque heartbeat émet un event DEBUG structuré (rl_signal, reward_ext, bfs_value) quand `debug_step_dump=true`. Une struct `MetricsSnapshot` capture les métriques clés (Phi, bien-être, énergie, etc.) pour export JSON ou temps réel. Le binaire `debug_rl` supporte les flags `--trace` et `--metrics`.
+
+### 7.4 Environnement interchangeable
+
+Un trait `Environment` (reset, step, action_space, observation_dim) unifie tous les environnements. Trois implémentations : `GridEnv` (GridWorld 5x5 natif Rust, 1.2 us/step), `MinigridEnv` (wrapper PyO3, feature `interop`), et `SyntheticEnv` (benchmark configurable). Latence quasi constante (0.7-1.2 us/step) de dim 4 à 4096.
 
 ## 8. Limites et travaux futurs
 

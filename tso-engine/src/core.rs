@@ -196,6 +196,30 @@ impl Graph {
         }
     }
 
+    pub fn sequential_phi(&self, lif_state: &Array1<f64>, word_id: NodeId, negate: bool) -> f64 {
+        let e = if negate { -&self.nodes[word_id] } else { self.nodes[word_id].clone() };
+        let mut total = 0.0;
+        for edge in &self.edges {
+            let other_id = if edge.from == word_id {
+                edge.to
+            } else if edge.to == word_id {
+                edge.from
+            } else {
+                continue;
+            };
+            let activation = lif_state.dot(&self.nodes[other_id]).max(0.0);
+            if activation > 1e-12 {
+                let dot = e.dot(&self.nodes[other_id]);
+                let phi = match edge.weight {
+                    1 => (self.gamma - dot).max(0.0),
+                    -1 => (dot - self.epsilon).max(0.0),
+                    _ => 0.0,
+                };
+                total += activation * phi;
+            }
+        }
+        total
+    }
 
     pub fn neighbourhood(&self, seeds: &[NodeId], depth: usize) -> Vec<NodeId> {
         let mut set: HashSet<NodeId> = seeds.iter().cloned().collect();
@@ -336,7 +360,6 @@ impl Graph {
     /// Inject many random exclusion edges between random node pairs.
     /// Used to stress-test the resolution and pruning machinery.
     /// Returns the number of edges added.
-    #[cfg(feature = "experimental-bins")]
     pub fn inject_exclusion_edges(&mut self, count: usize) -> usize {
         use rand::Rng;
         let mut rng = rand::thread_rng();
@@ -353,6 +376,26 @@ impl Graph {
         added
     }
 
+    pub fn remove_low_phi_edges(&mut self, min_phi: f64) -> usize {
+        let before = self.edges.len();
+        let keep: Vec<bool> = self.edges.iter().map(|e| self.edge_phi(e) >= min_phi).collect();
+        self.edges = self.edges.drain(..).enumerate()
+            .filter(|(i, _)| keep[*i])
+            .map(|(_, e)| e)
+            .collect();
+        let removed = before - self.edges.len();
+        if removed > 0 {
+            self.edge_map.clear();
+            self.adj = vec![Vec::new(); self.nodes.len()];
+            for (idx, e) in self.edges.iter().enumerate() {
+                self.edge_map.insert((e.from, e.to), e.weight);
+                self.edge_map.insert((e.to, e.from), e.weight);
+                self.adj[e.from].push(idx);
+                self.adj[e.to].push(idx);
+            }
+        }
+        removed
+    }
 
     /// Remove all edges while keeping nodes intact.
     /// Used by concept pruning to rebuild edges after reindexing nodes.
@@ -369,6 +412,20 @@ impl Graph {
         self.edges.len() as f64 * 0.1 + self.nodes.len() as f64 * 0.05
     }
 
+    pub fn local_edge_indices(&self, node_set: &[NodeId]) -> Vec<usize> {
+        let set: HashSet<NodeId> = node_set.iter().cloned().collect();
+        let mut seen = HashSet::new();
+        let mut result = Vec::new();
+        for &n in node_set {
+            for &ei in &self.adj[n] {
+                let e = &self.edges[ei];
+                if set.contains(&e.from) && set.contains(&e.to) && seen.insert(ei) {
+                    result.push(ei);
+                }
+            }
+        }
+        result
+    }
 }
 
 // ---------------------------------------------------------------------------

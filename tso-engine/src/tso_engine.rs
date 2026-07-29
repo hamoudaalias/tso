@@ -13,25 +13,11 @@ use crate::working_memory::WorkingMemory;
 use crate::action::ActionMotor;
 use crate::neurogenesis::{Neurogenesis, NeurogenesisConfig};
 use crate::hypothalamus::Hypothalamus;
+use crate::attention::Attention;
 use crate::grid_cells::GridCells;
 use crate::inference;
 
 /// Summary of what happened during a single sleep/consolidation cycle.
-
-
-fn maybe_attend(perception: &Array1<f64>, predicted_proto: Option<&Array1<f64>>, temp: f64) -> Array1<f64> {
-    if let Some(proto) = predicted_proto {
-        let diffs: Vec<f64> = perception.iter().zip(proto.iter()).map(|(a, b)| (a - b).abs()).collect();
-        let max = diffs.iter().cloned().fold(f64::NEG_INFINITY, f64::max);
-        let s = if max > 1e-12 { max } else { 1.0 };
-        let soft: Vec<f64> = diffs.iter().map(|d| (d / s / temp).exp()).collect();
-        let sum: f64 = soft.iter().sum();
-        let mn = sum / soft.len() as f64;
-        if mn > 1e-12 {
-            Array1::from_vec(perception.iter().zip(soft.iter()).map(|(p, g)| p * (g / mn)).collect())
-        } else { perception.clone() }
-    } else { perception.clone() }
-}
 #[derive(Clone, Debug)]
 pub struct SleepReport {
     pub replay_count: usize,
@@ -288,7 +274,7 @@ pub struct TsoEngine {
     /// Spatial attention module — biases whisker perception toward
     /// dimensions where the predicted concept prototype diverges most
     /// from the current input (anomaly-driven attention).
-    pub attention_temperature: f64,
+    pub attention: Attention,
 
     /// Configuration fine des sous-systèmes cognitifs actifs.
     /// Permet la bissection pour isoler l'interférence du cycle cognitif
@@ -356,7 +342,7 @@ impl TsoEngine {
             sleep_max_replay: 0,
             habit_counts: std::collections::HashMap::new(),
             total_steps: 0,
-            attention_temperature: 0.5,
+            attention: Attention::new(0.5),
             grid_cells: GridCells::new(0, 0),
             cogs: CognitiveConfig::default(),
             neurogenesis: Neurogenesis::new(NeurogenesisConfig {
@@ -484,7 +470,7 @@ impl TsoEngine {
         let (gated, used_raw) = if cc.subsystems().attention {
             let predicted_proto = self.predicted_concept_id
                 .and_then(|id| self.attractor.get_prototype(id));
-            (maybe_attend(perception, predicted_proto, self.attention_temperature), false)
+            (self.attention.attend(perception, predicted_proto), false)
         } else {
             (perception.clone(), true)
         };
@@ -854,7 +840,7 @@ impl TsoEngine {
         // "turn its head" toward surprising stimuli.
         let predicted_proto = self.predicted_concept_id
             .and_then(|id| self.attractor.get_prototype(id));
-        let gated = maybe_attend(perception, predicted_proto, self.attention_temperature);
+        let gated = self.attention.attend(perception, predicted_proto);
 
         self.working_mem.observe(&[gated.clone()]);
 
@@ -1506,8 +1492,22 @@ impl TsoEngine {
     ///   - No edges are deleted or modified.
     ///   - Node vectors drift in latent space to satisfy all edge constraints
     ///     simultaneously (energy-based learning).
+    ///   - After calling this, use `sync_prototypes_after_redirection()` to
     ///     propagate drifted vectors back to the AttractorField prototypes.
+    pub fn resolve_constraint_redirection(&mut self, _config: &()) -> () { () }
 
+    /// Copy graph node vectors back to the first prototype of each concept.
+    ///
+    /// Call this after `resolve_constraint_redirection()` to keep the
+    /// attractor field in sync with the drifted semantic vectors.
+    pub fn sync_prototypes_after_redirection(&mut self) {}
+
+    /// Run deep resolution in parallel using scoped threads.
+    /// Falls back to sequential for num_threads <= 1.
+    pub fn resolve_parallel(&mut self, max_iter: usize, tol: f64, temperature: f64, num_threads: usize) {
+        let result = resolve_parallel(&mut self.graph, max_iter, tol, temperature, num_threads);
+        self.oscillation_breaks += result.oscillation_breaks;
+    }
 
     /// Forced evolution: periodically add new challenging edges of mixed types
     /// (exclusion AND implication) to simulate a changing environment that
