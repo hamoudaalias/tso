@@ -16,13 +16,13 @@ pub use tso_engine::SleepReport;
 pub use neurogenesis::{Neurogenesis, NeurogenesisConfig, NeurogenesisOutcome};
 pub mod grid_world;
 pub mod grid_cells;
-pub mod multi_grid_cells;
+
 pub mod sokoban;
 pub mod terrarium;
 pub mod encoder;
 pub mod environment;
 pub mod vae;
-pub mod constraint_redirection;
+
 pub mod zigzag_grid;
 pub mod efe;
 pub mod fpi;

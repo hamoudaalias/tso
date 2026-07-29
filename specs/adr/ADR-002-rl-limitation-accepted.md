@@ -45,6 +45,26 @@ la **marche aléatoire**.
   `bfs_value=None` sont invalides (BUG-001). Correction triviale mais ne
   changera pas le résultat.
 
+## Preuve expérimentale (2026-07)
+
+Une comparaison systématique sur Terrarium 7×7 (100 train, 20 test ε=0, 10 seeds)
+confirme la limite RL de TSO :
+
+| Agent | Succès μ | σ | Entrée | Mécanismes |
+|-------|----------|---|--------|------------|
+| Q-learning tabulaire | 20.0 % | 40.0 % | Position (x,y) | Table Q 49×4, lr=0.1, γ=0.99 |
+| Actor-Critic linéaire | 49.5 % | 29.0 % | 6 whiskers | TD(λ), lr=0.3, γ=0.99 |
+| TSO complet | 48.5 % | 20.7 % | 6 whiskers | Attracteur + Φ + Curiosité + Hypothalamus |
+
+TSO obtient une moyenne comparable à l'Actor-Critic linéaire (48.5 % vs 49.5 %)
+mais une variance réduite d'un tiers (σ=20.7 % vs 29.0 %). Le gain principal
+(+28.5 %) est l'opposition TSO/AC vs QL — les whiskers portent l'information.
+Sur GridWorld 5×5, tous les agents plafonnent à 100 % — environnement non discriminant.
+
+**Conclusion.** TSO ne surpasse pas un Actor-Critic linéaire simple en performance
+moyenne. Son avantage est la **robustesse** (variance plus faible), cohérent avec
+une architecture dont la complexité vise la stabilité comportementale.
+
 ## Recommandation
 
 Pivoter vers les forces de TSO :

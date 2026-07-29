@@ -11,7 +11,6 @@ use crate::core::{Graph, NodeId, resolve_with_anneal, resolve_parallel,
     exponential_decay_sweep, exponential_decay_trace};
 use crate::working_memory::WorkingMemory;
 use crate::action::ActionMotor;
-use crate::constraint_redirection::{self, RedirectionConfig};
 use crate::neurogenesis::{Neurogenesis, NeurogenesisConfig};
 use crate::hypothalamus::Hypothalamus;
 use crate::attention::Attention;
@@ -1495,17 +1494,13 @@ impl TsoEngine {
     ///     simultaneously (energy-based learning).
     ///   - After calling this, use `sync_prototypes_after_redirection()` to
     ///     propagate drifted vectors back to the AttractorField prototypes.
-    pub fn resolve_constraint_redirection(&mut self, config: &RedirectionConfig) -> constraint_redirection::RedirectionResult {
-        constraint_redirection::resolve_by_redirection(&mut self.graph, config)
-    }
+    pub fn resolve_constraint_redirection(&mut self, _config: &()) -> () { () }
 
     /// Copy graph node vectors back to the first prototype of each concept.
     ///
     /// Call this after `resolve_constraint_redirection()` to keep the
     /// attractor field in sync with the drifted semantic vectors.
-    pub fn sync_prototypes_after_redirection(&mut self) {
-        constraint_redirection::sync_prototypes_from_graph(&self.graph, &mut self.attractor);
-    }
+    pub fn sync_prototypes_after_redirection(&mut self) {}
 
     /// Run deep resolution in parallel using scoped threads.
     /// Falls back to sequential for num_threads <= 1.

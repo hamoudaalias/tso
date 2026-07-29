@@ -1,13 +1,13 @@
 # specs/state.yaml — État de session TSO
-# Release v2.0 "Stationary Reward"
+# Release v2.1 "Pymdp bridge"
 
 active_flow: deepen-architecture
-active_epic_id: e10
-active_story_id: e10s05
-active_bug_id: BUG-001
+active_epic_id: e11
+active_story_id: e11s01
+active_bug_id: null
 
 release:
-  target_version: v2.0
+  target_version: v2.1
   last_tag: v2.0-stationary-reward
   last_publish: null
 
@@ -22,34 +22,31 @@ epic_cycle:
     - e07: "CI — GitHub Actions avec build/test/clippy/fmt"
     - e08: "Nettoyage — .gitignore, archive exprimetal"
     - e10: "Sommeil Phase 3 — Neurogenèse : 5 stories, 21 tasks, 13 tests, design validé, archi deepenée"
+    - e11: "pymdp bridge — FPI/EFE/Dirichlet/info_gain : 7 modules, 60 fichiers, +7538 lignes, merge master"
 
 git:
-  branch: feat/phase3-sleep
-  hash: 7578d33
-  head_commit: "refactor(core): add SubsystemFlags + CognitiveConfig::subsystems() accessor"
+  branch: master
+  hash: fd05997
+  head_commit: "feat(e11): integrate FPI, EFE, Dirichlet, neurogenesis, and info_gain curiosity"
   working_tree:
     modified: []
     untracked: []
 
 handoff:
-  last_step_completed: "deepen-architecture — 5 candidats identifiés, SubsystemFlags extrait, renderer GridWorld ajouté"
+  last_step_completed: "release-branch — e11/efe-integration merged, 2 ADR (008, 009) créés"
   open_decisions:
     - "e09 (VAE + Cerebellum conjoint) — 15 BCP, spec prête dans tech-stack.md, stories à découper"
-    - "ADR-002 acté : RL plafonné → forces TSO (attractor, sommeil, mémoire épisodique, vision)"
-    - "BUG-001 : rl_signal nul dans les benchmarks — signal RL=0.0, tous les résultats précédents invalides"
+    - "BUG-001 closed : rl_signal nul — root cause = attractor crée concepts hors du graphe BFS"
     - "Deepening candidat #1 : step() → 5 phases nommées (30 min)"
-    - "Deepening candidat #2 : CognitiveConfig → SubsystemFlags (✅ fait, backward compat)"
     - "Deepening candidat #3 : SleepReport / MetricsSnapshot / Outcome fusion"
     - "Deepening candidat #4 : prune_concepts → ConceptTable"
     - "Deepening candidat #5 : constraint_redirection → core.rs fusion"
   next_skill: survey-context
 
 workspace_facts:
-  - "Neurogenèse Phase 3 (e10) : 5 stories, 21 tasks, 13 tests — tout vert. Capsule archivée specs/epics/archive/"
-  - "Module neurogenesis : src/neurogenesis.rs (Design 1 Minimal + Design 2 Phases en privé)"
-  - "SubsystemFlags extrait de CognitiveConfig — accessor .subsystems() rétrocompatible"
+  - "ADR-008 : Interface Design des 7 modules pymdp — model.rs, fpi.rs, efe.rs, inference.rs, learning.rs"
+  - "ADR-009 : Intégration FPI dans le cycle cognitif — use_fpi flag, alternative à resolve_with_anneal"
+  - "compute_info_gain : KL[posterior||prior] style pymdp remplace compute_surprise scalaire"
+  - "MetricsSnapshot.mean_info_gain : monitoring temps réel de l'exploration informationnelle"
+  - "Neurogenèse Phase 3 (e10) : 5 stories, 21 tasks, 13 tests — capsule archivée"
   - "GridWorld renderer : render_ascii() + render_png() (feature=viz via crate image)"
-  - "Spike GridWorld→VAE→TSO : pipeline OK, VaeEncoder nécessaire pour latent structuré (branche e09)"
-  - "Renderer Python : scripts/collect_gridworld_frames.py (one-hot 25D → .bin)"
-  - "BUG-001 : rl_signal nul — 8 benchmarks invalides. ADR-002 : pivoter vers forces TSO"
-  - "ADR-007 : Neurogenèse structurelle — naissance, période critique, homéostasie, scaling"
