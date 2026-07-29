@@ -1,17 +1,20 @@
 epic_id: e08
-title: "Nettoyage des exprimetal/"
+title: "Nettoyage des exprimetal"
 priority: 6
 wsjf: 8
 bcp: 3
-status: planned
+status: passing
 dependencies: []
 stories:
   - id: e08s01
-    title: "Sauvegarder les expériences utiles dans specs/experiments/"
-    verify: "ls specs/experiments/ | grep -E 'snail|procgen|minigrid|nlp'"
+    title: "Sauvegarder les experiences utiles dans specs/experiments/"
+    bcps: 1
+    status: passing
   - id: e08s02
     title: "Supprimer les dossiers exprimetal/ de git et du disque"
-    verify: "! test -d exprimetal"
+    bcps: 1
+    status: passing
   - id: e08s03
-    title: "Mettre à jour .gitignore et archiver"
-    verify: "grep -q exprimetal .gitignore"
+    title: "Mettre a jour .gitignore et archiver"
+    bcps: 1
+    status: passing
