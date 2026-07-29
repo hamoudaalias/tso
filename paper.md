@@ -238,24 +238,37 @@ La jointure complète (TD → belt → VAE) est partiellement implémentée.
 
 ## 8. Limites et travaux futurs
 
-**VAE/FPI non différentiables bout en bout.** Le Gumbel-STE est implémenté dans
-le VaeEncoder mais le gradient TD ne circule pas complètement jusqu'aux poids
-du VAE. Une connexion directe (backprop_td dans step()) reste à finaliser.
+**Théorie encore floue (Φ → calcul).** Le lien entre friction Φ et déclenchement
+effectif du calcul est défini qualitativement (Φ > seuil → stabilisation active),
+mais pas quantifié : combien d'opérations sont économisées quand Φ est bas ?
+Un modèle formel liant ||E||, sparsité α et nombre d'itérations de résolution
+reste à établir. Actuellement, le step() complet s'exécute à chaque tick quel
+que soit Φ — la promesse d'un calcul événementiel n'est que partiellement tenue.
 
-**Généralisation.** MiniGrid 7×7 reste un environnement à faible variation
-visuelle. Procgen (64×64, 16 jeux) et Habitat (3D, ego-vision) sont les
-prochaines étapes pour valider la robustesse du VAE + attracteurs.
+**Différentiabilité partielle.** Le Gumbel-STE (température annealed 1.0→0.1,
+decay 0.995) permet au gradient local de circuler du choix de catégorie vers
+l'encodeur VAE. Mais la jointure complète TD → belt → VAE n'est pas active
+dans step() : le gradient de l'erreur TD (reinforce_td) ne remonte pas jusqu'aux
+poids du VAE. L'apprentissage perceptuel reste découplé de l'apprentissage par
+renforcement. Une connexion directe (backprop_td) est implémentée dans
+l'API du VaeEncoder mais pas appelée dans le cycle.
 
-**Passe à l'échelle GPU.** La complexité O(|E|) du graphe Φ ne passera pas
-sur des environnements 3D avec >10^3 concepts. Une migration GPU via wgpu
-ou burn est envisagée pour les opérations lourdes.
+**R-STDP non intégrée.** La plasticité locale R-STDP est annoncée comme
+élément central mais absente du cycle en ligne. L'apprentissage repose
+sur l'actor-critic TD(λ), qui est classique, pas neuromorphique. L'intégration
+de R-STDP dans le PerceptualBelt (remplacement de reinforce_td par mise à jour
+locale des poids du cerebellum) est une piste ouverte non implémentée.
 
-**R-STDP non implémentée dans le cycle en ligne.** La plasticité R-STDP est
-spécifiée mais pas intégrée dans le PerceptualBelt actuel. L'apprentissage
-repose sur l'actor-critic TD(λ) pour la navigation.
+**Échelle limitée.** MiniGrid 7×7 (147D RGB) est un test de principe.
+Les benchmarks Procgen (64×64, 16 jeux) et Habitat (3D, ego-vision) sont
+identifiés comme prochaines étapes mais non réalisés. Le VAE 16D latent
+et les centroides de l'attracteur sont spécialisés sur l'espace observé —
+leur robustesse face au bruit visuel massif n'est pas testée.
 
----
-
+**Complexité O(|E|).** Le graphe Φ a une complexité O(|E|) par tick de
+résolution. Le déminage et l'élagage maintiennent |E| borné sur les grilles
+5×7, mais sur des environnements 3D (>10³ concepts) une parallélisation GPU
+(wgpu, burn) ou une approximation parcimonieuse plus agressive sera nécessaire.
 ## 9. Conclusion
 
 Nous proposons que la friction topographique (Φ) explore une direction où
