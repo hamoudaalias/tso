@@ -1,6 +1,6 @@
 story_id: e10s02
 title: "R-STDP — plasticité locale remplaçant reinforce_td"
-status: failing
+status: passing
 bcps: 4
 tasks:
   - id: 1
@@ -13,7 +13,7 @@ tasks:
       Ajouter plasticity à lib.rs (pub mod plasticity).
     verify: "cd tso-engine && cargo test --test rstdp_basic 2>&1 | grep -E 'rstdp|plasticity|PASS'"
     risk: P0
-    status: failing
+    status: passing
     allure:
       severity: critical
       categories:
@@ -28,7 +28,7 @@ tasks:
       standard. Sinon, comportement actuel (reinforce_td).
     verify: "cd tso-engine && cargo run --release --bin bench_rstdp 2>&1 | grep -E 'rstdp|success|reward'"
     risk: P0
-    status: failing
+    status: passing
     allure:
       severity: critical
       categories:
@@ -42,7 +42,7 @@ tasks:
       Même protocole que bench_phi_gating.
     verify: "cd tso-engine && cargo run --release --bin bench_rstdp 2>&1 | grep -E '[0-9]+\.[0-9]+'"
     risk: P1
-    status: failing
+    status: passing
     allure:
       severity: high
       categories:

@@ -1,6 +1,6 @@
 story_id: e10s03
 title: "Gating complet — benchmark Φ actif vs passif"
-status: failing
+status: passing
 bcps: 2
 tasks:
   - id: 1
@@ -11,7 +11,7 @@ tasks:
       Comparer Φ passif (e10s01 avant) vs Φ actif (e10s01 après).
     verify: "cd tso-engine && cargo run --release --bin bench_phi_gating 2>&1 | grep -E 'phi_active|phi_passive'"
     risk: P1
-    status: failing
+    status: passing
     allure:
       severity: high
       categories:
@@ -26,7 +26,7 @@ tasks:
       Welch t-test, conclusion.
     verify: "test -f specs/experiments/phi_gating_report.md"
     risk: P2
-    status: failing
+    status: passing
     allure:
       severity: normal
       categories:

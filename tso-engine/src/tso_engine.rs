@@ -93,6 +93,8 @@ pub struct CognitiveConfig {
     pub sleep_maturation_cycles: usize,
     /// Neurogenèse : scaling synaptique
     pub sleep_synaptic_scaling: bool,
+    pub phi_gating: bool,
+    pub phi_threshold: f64,
     pub rstdp_enabled: bool,
 }
 
@@ -128,6 +130,8 @@ impl Default for CognitiveConfig {
             sleep_max_concepts: 50,
             sleep_maturation_cycles: 3,
             sleep_synaptic_scaling: true,
+            phi_gating: false,
+            phi_threshold: 0.5,
             rstdp_enabled: false,
         }
     }
@@ -462,6 +466,21 @@ impl TsoEngine {
                 let i = i;
                 if *l > best { best = *l; action_id = i; }
             }
+            if rand::random::<f64>() < self.cerebellum.epsilon {
+                action_id = rand::random::<usize>() % self.cerebellum.n_actions;
+            }
+            self.cerebellum.reinforce_td(reward, 0.99);
+            self.cerebellum.decay_trace(0.99, 0.98);
+            self.cerebellum.mark(perception, action_id);
+            return action_id;
+        }
+
+        // ── Φ GATING ─────────────────────────────────────────────────────
+        if cc.phi_gating && self.graph.compute_phi() < cc.phi_threshold {
+            let logits = self.cerebellum.forward_logits(perception);
+            let mut action_id = 0;
+            let mut best = logits[0];
+            for (i, l) in logits.iter().enumerate() { if *l > best { best = *l; action_id = i; } }
             if rand::random::<f64>() < self.cerebellum.epsilon {
                 action_id = rand::random::<usize>() % self.cerebellum.n_actions;
             }
