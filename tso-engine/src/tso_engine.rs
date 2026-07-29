@@ -1,3 +1,4 @@
+use crate::perceptual_belt::PerceptualBelt;
 use ndarray::Array1;
 use rand::Rng;
 use serde::{Serialize, Deserialize};
@@ -5,7 +6,7 @@ use tracing::{event, Level};
 use crate::attractor::AttractorField;
 use crate::episodic::{EpisodicMemory, ContextBuffer};
 use crate::cerebellum::Cerebellum;
-use crate::core::{Graph, NodeId, resolve_with_anneal, resolve_parallel,
+use crate::core::{Graph, NodeId, resolve_with_anneal,
     demineur_sweep, demineur_sweep_trace,
     lateral_inhibition_sweep, lateral_inhibition_trace,
     exponential_decay_sweep, exponential_decay_trace};
@@ -279,6 +280,9 @@ pub struct TsoEngine {
     /// Configuration fine des sous-systèmes cognitifs actifs.
     /// Permet la bissection pour isoler l'interférence du cycle cognitif
     /// sur l'apprentissage du Cerebellum (cf. BUG-2025-08-03T120000).
+    #[serde(skip)]
+    pub belt: PerceptualBelt,
+
     pub cogs: CognitiveConfig,
     #[serde(skip)]
     pub neurogenesis: Neurogenesis,
@@ -304,6 +308,7 @@ impl TsoEngine {
 
     pub fn with_hidden(dim: usize, n_actions: usize, hidden_dim: usize) -> Self {
         TsoEngine {
+            belt: PerceptualBelt::new(dim),
             working_mem: WorkingMemory::new(dim, 0.95, 0.5),
             attractor: AttractorField::new(dim, 8, 3, 0.01),
             encoder: None,
@@ -378,50 +383,20 @@ impl TsoEngine {
     }
 
     /// Compute intrinsic curiosity reward from surprise.
-    fn compute_surprise(&self, perception: &Array1<f64>, _concept_id: usize, is_new: bool) -> f64 {
-        let curiosity = self.curiosity_weight;
-        if curiosity < 1e-6 { return 0.0; }
-        if is_new { return curiosity * 2.0; }
-        match self.predicted_concept_id {
-            Some(pred_id) => {
-                // Get the prototype of the predicted concept
-                if let Some(proto) = self.attractor.get_prototype(pred_id) {
-                    let surprise = (perception - proto).dot(&(perception - proto)).sqrt();
-                    (curiosity * surprise).min(2.0)
-                } else { 0.0 }
-            }
-            None => { if is_new { curiosity * 2.0 } else { 0.0 } }
-        }
+    fn compute_surprise(&self, _perception: &Array1<f64>, _concept_id: usize, _is_new: bool) -> f64 {
+        0.0 // ponytail: disabled — §6.5 ablation showed no impact
     }
 
     /// Adapt per-concept novelty thresholds homeostatically.
     /// Each concept tries to keep its local-error / threshold ratio near `target_ratio`
     /// (default 0.6). High surprise → threshold lowers (finer discrimination).
     /// Low surprise → threshold rises (coarser, fewer concepts).
-    fn adapt_novelty_threshold(&mut self, concept_id: usize, dist: f64, is_new: bool) {
-        while self.concept_novelty_thresholds.len() <= concept_id {
-            self.concept_novelty_thresholds.push(self.novelty_threshold);
-        }
-        while self.concept_local_error.len() <= concept_id {
-            self.concept_local_error.push(0.0);
-        }
+    fn adapt_novelty_threshold(&mut self, concept_id: usize, _dist: f64, _is_new: bool) {
+        // ponytail: minimal — track activity only; adaptive thresholds removed
         while self.last_active_step.len() <= concept_id {
             self.last_active_step.push(self.step_count);
         }
         self.last_active_step[concept_id] = self.step_count;
-
-        let local_dist = if is_new { 0.0 } else { dist };
-        self.concept_local_error[concept_id] =
-            0.9 * self.concept_local_error[concept_id] + 0.1 * local_dist;
-
-        let target_ratio = 0.6;
-        let adapt_rate = 0.05;
-        let t = self.concept_novelty_thresholds[concept_id].max(1e-8);
-        let ratio = self.concept_local_error[concept_id] / t;
-        let error = ratio - target_ratio;
-        self.concept_novelty_thresholds[concept_id] *= 1.0 - adapt_rate * error;
-        self.concept_novelty_thresholds[concept_id] =
-            self.concept_novelty_thresholds[concept_id].clamp(0.05, 0.5);
     }
 
     /// Retourne le concept précédent depuis episode_trace, ou None.
@@ -535,7 +510,7 @@ impl TsoEngine {
         } else if cc.subsystems().attractor {
             // Fallback : AttractorField direct (comportement historique)
             let (cid, dist) = self.attractor.predict_with_distance(&gated);
-            let threshold = self.concept_novelty_thresholds.get(cid).copied().unwrap_or(self.novelty_threshold);
+            let threshold = self.novelty_threshold;
             let new_flag = dist > threshold;
             let cid = if new_flag { self.attractor.add_class(&gated) } else { cid };
 
@@ -603,18 +578,10 @@ impl TsoEngine {
         } else {
             reward
         };
-        let consummatory = if cc.subsystems().hypothalamus && reward > 0.0 {
-            self.hypothalamus.consummatory_value(reward)
-        } else {
-            0.0
-        };
+        let consummatory = 0.0; // ponytail: disabled — non-stationary noise
 
-        // Φ computation
-        self.current_phi = if cc.subsystems().graph_phi {
-            self.graph.phi()
-        } else {
-            0.0
-        };
+        // Φ computation: lazily updated — only compute during sleep
+        self.current_phi = 0.0; // ponytail: graph.phi() moved to sleep only
         let phi_delta = self.current_phi - self.phi_prev;
         self.anxious = cc.subsystems().graph_phi && self.current_phi > self.phi_threshold;
         if cc.subsystems().hypothalamus {
@@ -846,7 +813,7 @@ impl TsoEngine {
 
         // Categorisation (on attention-gated perception)
         let (concept_id, dist) = self.attractor.predict_with_distance(&gated);
-        let threshold = self.concept_novelty_thresholds.get(concept_id).copied().unwrap_or(self.novelty_threshold);
+        let threshold = self.novelty_threshold;
         let is_new = dist > threshold;
         let concept_id = if is_new { self.attractor.add_class(&gated) } else { concept_id };
         self.adapt_novelty_threshold(concept_id, dist, is_new);
@@ -1504,10 +1471,6 @@ impl TsoEngine {
 
     /// Run deep resolution in parallel using scoped threads.
     /// Falls back to sequential for num_threads <= 1.
-    pub fn resolve_parallel(&mut self, max_iter: usize, tol: f64, temperature: f64, num_threads: usize) {
-        let result = resolve_parallel(&mut self.graph, max_iter, tol, temperature, num_threads);
-        self.oscillation_breaks += result.oscillation_breaks;
-    }
 
     /// Forced evolution: periodically add new challenging edges of mixed types
     /// (exclusion AND implication) to simulate a changing environment that

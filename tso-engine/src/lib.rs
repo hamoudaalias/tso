@@ -3,6 +3,7 @@ pub mod neurons;
 pub mod attractor;
 pub mod episodic;
 pub mod memory;
+pub mod perceptual_belt;
 pub mod working_memory;
 pub mod action;
 pub mod replay_buffer;
@@ -23,6 +24,7 @@ pub mod encoder;
 pub mod environment;
 pub mod vae;
 
+pub mod rotating_t;
 pub mod zigzag_grid;
 pub mod efe;
 pub mod fpi;
