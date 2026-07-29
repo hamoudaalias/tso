@@ -408,6 +408,26 @@ impl Graph {
     /// Metabolic cost per tick.
     /// Proportional to graph size — more edges means more computation
     /// for phi() and resolve(). Each edge and node incurs a small cost.
+    /// Compute global friction Φ = Σ violation over all edges.
+    /// Implication (w=1): max(0, gamma - ⟨z_i, z_j⟩)
+    /// Exclusion (w=-1): max(0, ⟨z_i, z_j⟩ - epsilon)
+    /// Empty graph → 0.0
+    pub fn compute_phi(&self) -> f64 {
+        if self.edges.is_empty() {
+            return 0.0;
+        }
+        let mut phi = 0.0;
+        for e in &self.edges {
+            let dot = self.nodes[e.from].dot(&self.nodes[e.to]);
+            match e.weight {
+                1 => phi += (self.gamma - dot).max(0.0),
+                -1 => phi += (dot - self.epsilon).max(0.0),
+                _ => {}
+            }
+        }
+        phi
+    }
+
     pub fn compute_cost(&self) -> f64 {
         self.edges.len() as f64 * 0.1 + self.nodes.len() as f64 * 0.05
     }

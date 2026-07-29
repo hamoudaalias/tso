@@ -1,6 +1,6 @@
 story_id: e10s01
 title: "Φ gating — le calcul devient événementiel"
-status: failing
+status: passing
 bcps: 4
 tasks:
   - id: 1
@@ -11,7 +11,7 @@ tasks:
       Si le graphe est vide, retourne 0.0.
     verify: "cd tso-engine && cargo test --test phi_gating 2>&1 | grep -E 'compute_phi|friction'"
     risk: P0
-    status: failing
+    status: passing
     allure:
       severity: critical
       categories:
@@ -26,7 +26,7 @@ tasks:
       heartbeat() calculent Φ au début et skip si Φ < threshold.
     verify: "cd tso-engine && cargo check --lib 2>&1 | grep -v error"
     risk: P0
-    status: failing
+    status: passing
     allure:
       severity: critical
       categories:
@@ -42,7 +42,7 @@ tasks:
       cerebellum avec le perception brut.
     verify: "cd tso-engine && cargo run --release --bin bench_phi_gating 2>&1 | grep -E 'Phi|gating'"
     risk: P0
-    status: failing
+    status: passing
     allure:
       severity: critical
       categories:
@@ -56,7 +56,7 @@ tasks:
       Mesure : reward moyen, ticks partiels (Φ skipped), time/épisode.
     verify: "cd tso-engine && cargo run --release --bin bench_phi_gating 2>&1 | grep -E '[0-9]+\.[0-9]+'"
     risk: P1
-    status: failing
+    status: passing
     allure:
       severity: high
       categories:
