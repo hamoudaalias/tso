@@ -1,25 +1,31 @@
 ## 8. Limites et travaux futurs
 
-**VAE et FPI integres mais pas differentiables de bout en bout.**
-Le VaeEncoder s'entraine en ligne (train_step par tick) et le FPI
-est connecte au PerceptualBelt avec mise a jour Dirichlet. Cependant,
-le gradient ne circule pas du belt vers le VAE : la categorisation
-(argmax sur les centroids) n'est pas differentiable. Une version
-avec Gumbel-Softmax ou straight-through estimator reste a implementer.
+**Generalisation et aliasing severe.** Le benchmark MiniGrid 7x7
+(147D RGB, section 6.8) montre que TSO + VAE + FPI surpasse le
+lineaire de +100%. Cependant, MiniGrid reste un environnement a
+faible variation visuelle : les couleurs, textures et geometries
+sont fixes. Un agent entraine sur MiniGrid ne generalise pas a de
+nouvelles distributions visuelles (ex: Procgen, 16 jeux avec
+variations de couleurs/fonds/objets). Le VAE 16D latent et les
+centroids de l'attracteur sont specialises sur l'espace observe.
 
-**Evaluation insuffisante.** Les benchmarks (MiniGrid 7x7,
-Rotating-T 5x5) restent de petite taille. Les resultats §6.8
-(FPI+VAE=2.02 vs lineaire=1.13, +79 %) sont prometteurs mais
-ne remplacent pas Procgen 64x64 avec 10+ seeds.
+**L'etape ultime** est la validation sur Procgen (observations 64x64,
+16 environnements, 200 niveaux chacun) ou Habitat (3D, ego-vision,
+lumiere variable). C'est la que la robustesse du VAE + attracteurs
+face au bruit visuel massif sera testee. Actuellement, tso_env fournit
+le bridge PyO3 vers Python, mais les benchmarks n'ont pas ete menes.
 
-**Phi non valide en aliasing severe.** La preuve de concept de la
-tension cognitive est etablie (section 5), mais pas sur POMDP
-visuels complexes (ex: MiniGrid DoorKey avec aliasing structurel).
+**Passe a l'echelle GPU.** Le graphe Phi a une complexite O(|E|) CPU.
+Dans un environnement 3D avec >10^3 concepts, la resolution de
+contraintes necessite un passage GPU (wgpu ou burn).
 
-**Pistes :** (1) Gumbel-Softmax dans le belt pour la differentiabilite.
-(2) Benchmark Procgen 64x64 (PyO3/tso_env). (3) Validation Phi sur
-POMDP. (4) Release tso-bench standardise.
-## Résumé
+**VAE non differentiable bout en bout.** Le gradient TD ne circule
+pas jusqu'aux poids du VAE. Le Gumbel-STE est implemente mais le
+call dans step() n'est pas actif.
+
+**Pistes :** (1) Benchmark Procgen 64x64 via tso_env (10 seeds).
+(2) Port resolution Phi sur GPU (wgpu). (3) Connexion TD-VAE.
+(4) Release tso-bench standardise.## Résumé
 
 Nous présentons **TSO (Tension-Solving Organism)**, une architecture
 cognitive bio-inspirée implémentée en Rust. TSO modélise un agent
