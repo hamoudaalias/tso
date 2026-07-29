@@ -336,6 +336,7 @@ impl Graph {
     /// Inject many random exclusion edges between random node pairs.
     /// Used to stress-test the resolution and pruning machinery.
     /// Returns the number of edges added.
+    #[cfg(feature = "experimental-bins")]
     pub fn inject_exclusion_edges(&mut self, count: usize) -> usize {
         use rand::Rng;
         let mut rng = rand::thread_rng();
