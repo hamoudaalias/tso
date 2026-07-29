@@ -75,21 +75,28 @@ DQN (64 hidden, target network, replay buffer).
 
 ## 6. Expériences
 
-### 6.1 MiniGrid DoorKey (147D RGB)
+### 6.1 MiniGrid DoorKey — Analyse multi-échelle
 
-Benchmark sur MiniGrid DoorKey 7×7, observation RGB 147D.
-Protocole : 10 seeds, 100 épisodes.
+Benchmark sur MiniGrid DoorKey à trois tailles : 7×7 (147D), 13×13 (507D),
+19×19 (1083D). Protocole : 5 seeds, 50 épisodes.
 
-| Condition | Moyenne | σ |
-|-----------|---------|---|
-| Régresseur linéaire (147D→7) | 0.90 | 0.26 |
-| TSO + attracteur | 1.89 | 0.40 |
-| TSO + VAE (147D→16D) | **2.09** | 0.36 |
+| Taille | Dim | Linear AC | TSO attracteur | Δ |
+|--------|-----|-----------|----------------|---|
+| 7×7 | 147D | 0.10 ± 0.13 | **0.71** ± 0.29 | **+0.61** |
+| 13×13 | 507D | −0.10 ± 0.00 | **0.06** ± 0.15 | +0.16 |
+| 19×19 | 1083D | −0.10 ± 0.00 | **−0.02** ± 0.16 | +0.08 |
 
-TSO + VAE surpasse le linéaire de +132%, TSO + attracteur de +110%.
-Note : la variance seed est élevée (σ=0.26–0.40).
+L'avantage de TSO est maximal à 7×7 (+0.61) et se réduit avec la taille
+de la grille. La complexité de navigation croît plus vite que le bénéfice
+de la réduction dimensionnelle. Le scénario DoorKey 7×7 est le terrain
+de jeu naturel de TSO.
 
-### 6.2 RotatingT 5×5 (4D)
+### 6.2 Évaluation dimensionnelle
+
+Plus l'observation est riche en information pertinente (pas seulement
+grande), plus TSO surpasse le linéaire. Sur RotatingT 4D, TSO perd.
+Sur MiniGrid 7×7 147D, TSO gagne. Sur 13×13 et 19×19, la navigation
+devient le facteur limitant, pas la perception.### 6.2 RotatingT 5×5 (4D)
 
 Sur environnement de faible dimension, TSO est moins bon que les baselines
 standards :

@@ -1,11 +1,15 @@
 /// Pure Rust MiniGrid: 7x7 grid with visual observation (RGB 7x7x3).
 use ndarray::Array1;
 
-const W: usize = 7;
-const H: usize = 7;
-const MAX_STEPS: usize = 50;
+pub const DEFAULT_W: usize = 7;
+pub const DEFAULT_H: usize = 7;
+
+
 
 pub struct MiniGridEnv {
+    pub w: usize,
+    pub h: usize,
+    pub max_steps: usize,
     pub agent: (usize, usize),
     pub goal: (usize, usize),
     pub door: (usize, usize),
@@ -18,16 +22,21 @@ pub struct MiniGridEnv {
 
 impl MiniGridEnv {
     pub fn new() -> Self {
-        // door blocked by key: must pick key first, then open door to reach goal
+        Self::with_size(DEFAULT_W, DEFAULT_H)
+    }
+
+    pub fn with_size(w: usize, h: usize) -> Self {
         MiniGridEnv {
+            w, h,
+            max_steps: w * h,
             agent: (1, 1),
-            goal: (W - 2, H - 2),
-            door: (3, 3),
-            key: (1, 5),
+            goal: (w - 2, h - 2),
+            door: (w / 2, h / 2),
+            key: (1, h / 2 + 2),
             has_key: false,
             steps: 0,
             done: false,
-            obs_buf: Array1::zeros(W * H * 3),
+            obs_buf: Array1::zeros(w * h * 3),
         }
     }
 
@@ -54,7 +63,7 @@ impl MiniGridEnv {
         let ny = self.agent.1 as isize + dy;
 
         // Move if within bounds and not through a locked door
-        if nx >= 0 && nx < W as isize && ny >= 0 && ny < H as isize {
+        if nx >= 0 && nx < self.w as isize && ny >= 0 && ny < self.h as isize {
             let (nxu, nyu) = (nx as usize, ny as usize);
             // Door blocks unless player has key
             if (nxu, nyu) == self.door && !self.has_key {
@@ -74,7 +83,7 @@ impl MiniGridEnv {
             self.door = (0, 0); // door removed
         }
 
-        let done = self.steps >= MAX_STEPS || self.agent == self.goal;
+        let done = self.steps >= self.max_steps || self.agent == self.goal;
         let reward = if self.agent == self.goal { 10.0 } else { -0.1 };
 
         (reward, self.render_obs(), done)
@@ -82,39 +91,39 @@ impl MiniGridEnv {
 
     /// RGB observation: 7x7x3 flattened to 147D
     fn render_obs(&self) -> Array1<f64> {
-        let mut obs = Array1::zeros(W * H * 3);
-        for y in 0..H {
-            for x in 0..W {
-                let idx = (y * W + x) * 3;
+        let mut obs = Array1::zeros(self.w * self.h * 3);
+        for y in 0..self.h {
+            for x in 0..self.w {
+                let idx = (y * self.w + x) * 3;
                 // Floor = brown [0.4, 0.2, 0.0]
                 obs[idx] = 0.4;
                 obs[idx+1] = 0.2;
                 obs[idx+2] = 0.0;
 
                 // Walls on border
-                if x == 0 || y == 0 || x == W-1 || y == H-1 {
+                if x == 0 || y == 0 || x == self.w-1 || y == self.h-1 {
                     obs[idx] = 0.0; obs[idx+1] = 0.0; obs[idx+2] = 0.0;
                 }
             }
         }
         // Agent = red
-        let ai = (self.agent.1 * W + self.agent.0) * 3;
+        let ai = (self.agent.1 * self.w + self.agent.0) * 3;
         obs[ai] = 1.0; obs[ai+1] = 0.0; obs[ai+2] = 0.0;
 
         // Key = blue
-        let ki = (self.key.1 * W + self.key.0) * 3;
+        let ki = (self.key.1 * self.w + self.key.0) * 3;
         if self.key != (0,0) {
             obs[ki] = 0.0; obs[ki+1] = 0.0; obs[ki+2] = 1.0;
         }
 
         // Door = green
-        let di = (self.door.1 * W + self.door.0) * 3;
+        let di = (self.door.1 * self.w + self.door.0) * 3;
         if self.door != (0,0) {
             obs[di] = 0.0; obs[di+1] = 1.0; obs[di+2] = 0.0;
         }
 
         // Goal = yellow
-        let gi = (self.goal.1 * W + self.goal.0) * 3;
+        let gi = (self.goal.1 * self.w + self.goal.0) * 3;
         obs[gi] = 1.0; obs[gi+1] = 1.0; obs[gi+2] = 0.0;
 
         obs
