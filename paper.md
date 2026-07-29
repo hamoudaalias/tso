@@ -20,24 +20,19 @@ d'une énergie de friction Φ, formellement définie comme une contrainte géom�
 calculable sur un graphe conceptuel émergent.
 
 **Contributions clés :**
-1. **Friction topographique (Φ)** remplace l'attention des Transformers — le calcul
-   est événementiel, proportionnel à la complexité de l'entrée.
-2. **Dual-LIF** (α=0.9/0.5), équivalent neuromorphique du multi-head attention,
-   capture simultanément le contexte global et la syntaxe locale.
-3. **R-STDP** (Reward-modulated Spike-Timing-Dependent Plasticity) remplace la
-   rétropropagation — apprentissage local, sans gradient global.
-4. **Immunité structurelle à l'oubli catastrophique** (Δ=0.00% sur SNLI→MultiNLI)
-   par découplage features/classifieur, impossible dans les Transformers.
-5. **Génération auto-régressive sans backprop** par Inverse Motor + Φ, avec ancrage
-   épisodique triple-échelle et cicatrice morphologique (négation volatile).
-6. **PerceptualBelt** : pipeline de représentation unifié fusionnant attention,
-   mémoire de travail, catégorisation par prototypes et inférence variationnelle.
-7. **Benchmark navigation** (MiniGrid 147D) : TSO + VAE + FPI bat le linéaire
-   de +100%, démontrant la généralité de l'architecture au-delà du NLP.
+1. **Friction topographique (Φ)** : le calcul est événementiel, proportionnel
+   à la complexité de l'entrée, pas à sa longueur.
+2. **PerceptualBelt** : pipeline de représentation unifié fusionnant attention
+   spatiale, mémoire de travail Dual-LIF, catégorisation par prototypes et
+   inférence variationnelle (FPI). Interface : 8 méthodes publiques.
+3. **VAE online + Gumbel-STE** : encodeur variationnel entraîné à chaque tick
+   avec gradient local via straight-through estimator (température annealed).
+4. **Benchmark MiniGrid** (147D RGB) : TSO + VAE + FPI bat le linéaire de +105%,
+   démontrant l'avantage de la catégorisation par prototypes sur les entrées
+   visuelles de haute dimension.
 
 Le kernel de référence est implémenté en Rust (ndarray), sans dépendances Python,
-PyTorch ou CUDA. Tests validés : 45 tests unitaires, SNLI 56.69% test (~20s CPU),
-MiniGrid 2.11 vs lineaire 1.03 (Δ=+105%).
+PyTorch ou CUDA. Tests validés : 45 tests unitaires,
 
 ---
 
@@ -72,9 +67,8 @@ TSO s'inscrit à la confluence de plusieurs domaines :
 PonderNet visent à ajuster le calcul à la difficulté de l'entrée, mais restent basées
 sur des réseaux denses et la rétropropagation.
 
-**Réseaux de Neurones à Impulsions (SNN) :** TSO utilise des réservoirs SNN pour le
-traitement temporel, y introduisant une plasticité (R-STDP) pour un apprentissage
-strictement local.
+**Réseaux de Neurones à Impulsions (SNN) :** TSO utilise des réservoirs SNN
+(Dual-LIF) pour l'intégration temporelle multi-échelle.
 
 **Inférence Active :** Issus de Friston, ces cadres modélisent la cognition comme une
 minimisation de la surprise. TSO s'en distingue en modélisant la friction non comme
@@ -108,10 +102,7 @@ La friction globale : Φ(G_t) = Σ_{(i,j)∈E} Violation_ij.
 **Dynamique.** L'évolution temporelle suit trois lois :
 - G_{t+1} = G(G_t, Φ_t) — mise à jour topologique
 - S_{t+1} = f(S_t, I_t, W_t) — dynamique neuronale LIF
-- W_{t+1} = W_t + ΔW_t — plasticité R-STDP
-
-La plasticité locale : ΔW_ij(t) = η M(t) E_ij(t), où E_ij(t) est la trace
-d'éligibilité : dE_ij/dt = −E_ij/τ + S_i(t) S_j(t).
+- W_{t+1} = W_t + ΔW_t — plasticité locale (R-STDP, prévu)
 
 ### 3.1 Dual-LIF : mémoire multi-échelle
 
@@ -149,16 +140,7 @@ Pour dissiper Φ, le système dispose d'opérateurs géométriques :
 - **Expansion dimensionnelle** : doublement de l'espace latent pour résoudre
   les contradictions fortes (opérateur "MAIS", orthogonalité stricte)
 
-### 3.4 R-STDP et apprentissage local
-
-La plasticité R-STDP remplace la rétropropagation :
-ΔW_ij(t) = η M(t) E_ij(t)
-
-où M(t) est le neuromodulateur (récompense globale ou locale) et E_ij(t) la trace
-d'éligibilité. Aucun gradient global ne traverse le réseau. L'apprentissage est
-strictement local et asynchrone.
-
-### 3.5 Gumbel-STE : gradient local vers le VAE
+### 3.4 Gumbel-STE : gradient local vers le VAE
 
 L'argmax sur les centroids du VAE casse le gradient. Nous introduisons un
 **Straight-Through Estimator (STE)** basé sur Gumbel-Softmax : la température τ
@@ -179,24 +161,6 @@ Le cycle heartbeat en 4 étapes :
 
 Un fast path contourne le belt quand tous les sous-systèmes sont désactivés,
 réduisant l'overhead à un simple forward_logits + reinforce_td.
-
-### 4.2 Pipeline NLP
-
-Pour le langage naturel (SNLI, §9.1), le pipeline est :
-1. **Tokenisation** : whitespace + vocabulaire persistant
-2. **Embeddings distributionnels** : cooccurrences (fenêtre=5) → PPMI → SVD randomisé
-3. **Dual-LIF** : réservoir multi-échelle (α=0.9/0.5) sur la séquence
-4. **Friction Φ** : cos entre état courant et représentation de la prémisse
-5. **Classification** : AttractorField (k-means + LVQ1) sur vecteurs 17D
-
-### 4.3 Génération auto-régressive
-
-L'Inverse Motor projette l'état LIF vers le vocabulaire :
-w_{t+1} = argmax_w ⟨S_t, e(w)⟩
-
-Contrainte topologique (Φ) : bonus si w est voisin de friction du dernier mot émis.
-Répression des répétitions : pénalité multiplicative par émission (γ=0.5).
-Signal d'arrêt homéostatique : si ||S_{t+1} − S_t|| < θ, le système cesse d'émettre.
 
 ---
 
@@ -232,45 +196,7 @@ Python, PyTorch ou CUDA.
 
 ## 6. Expériences
 
-### 6.1 Benchmark SNLI — Pipeline NLP complet
-
-La tâche de Natural Language Inference (SNLI v1.0, 570k paires) valide
-l'architecture TSO complète.
-
-**Protocole :**
-- Embeddings distributionnels : cooccurrences → PPMI → SVD randomisé (k=100)
-- Features 17D : Jaccard 3D + Dual-LIF 6D + Phi 4D + Align 4D
-- Classifieur : AttractorField (15 prototypes/classe, LVQ1, lr=0.001)
-
-**Résultats :**
-
-| Métrique | Sac-de-mots 13D | TSO LIF+Phi 14D | TSO Dual-LIF 17D |
-|----------|----------------|-----------------|------------------|
-| Accuracy dev | 54.85% | 56.43% | **56.96%** |
-| Accuracy test | — | 55.89% | **56.69%** |
-| Temps total | ~20s | ~20s | ~20s |
-
-Le Dual-LIF ajoute +0.80% par rapport au mono-LIF et +1.84% au-delà du plafond
-sac-de-mots. L'opérateur d'inversion sur négation ajoute +0.50%.
-
-### 6.2 Apprentissage continu (SNLI → MultiNLI)
-
-**Protocole :** Entraînement initial sur SNLI (549k paires), puis seconde tâche
-MultiNLI (392k paires). Test de rétention SNLI.
-
-| Condition | Accuracy SNLI | Δ |
-|-----------|--------------|---|
-| Initial (SNLI seul) | 56.52% | — |
-| Écrasement naïf (LVQ1) | 43.78% | −12.74% |
-| Récupération (ré-entraînement) | **56.52%** | **0.00%** |
-| Freeze+Add (45+45 prototypes) | **56.52%** | **0.00%** |
-
-La représentation TSO 17D est un fixateur topologique immuable. L'oubli est
-intégralement localisé dans le classifieur, pas dans les features. En mode
-Freeze+Add, la performance originale est préservée à 100% tout en apprenant
-la nouvelle tâche.
-
-### 6.3 Benchmark MiniGrid — Navigation visuelle
+### 6.1 Benchmark MiniGrid — Navigation visuelle
 
 Pour démontrer la généralité de TSO au-delà du NLP, un benchmark de navigation
 visuelle sur MiniGrid DoorKey (grille 7×7, observation RGB 147D).
@@ -288,7 +214,7 @@ TSO surpasse le linéaire de +105% en configuration FPI+attracteur. Le VAE
 avec Gumbel-STE améliore la robustesse mais n'est pas nécessaire sur cet
 environnement.
 
-### 6.4 Analyse de dimension
+### 6.2 Analyse de dimension
 
 Plus l'observation est riche, plus l'écart TSO vs linéaire se creuse :
 
@@ -309,13 +235,6 @@ TSO propose un changement de paradigme : passer d'une exécution systématique �
 une cybernétique de survie active. En assujettissant le calcul à une friction
 géométriquement calculable, TSO aligne l'efficacité computationnelle sur la
 complexité réelle du problème.
-
-**Unification NLP + Navigation.** Le même kernel Rust (neurons LIF, graphe Φ,
-attractor) supporte à la fois la classification de phrases (SNLI, 56.69%) et la
-navigation visuelle (MiniGrid, +105% vs linéaire). Ce résultat valide la thèse
-que les mécanismes de friction topographique et de catégorisation par prototypes
-sont des principes généraux d'organisation cognitive, pas des astuces spécifiques
-à un domaine.
 
 **Différentiabilité.** Le Gumbel-STE dans le VAE (température annealed 1.0→0.1,
 decay 0.995) permet au gradient de la tâche de circuler jusqu'à l'encodeur.
@@ -350,16 +269,8 @@ l'attention. Nous proposons que la friction topographique (Φ) explore une
 direction alternative où le calcul est conditionné par une dynamique interne
 de stabilisation, et non par une obligation liée au flux de données.
 
-La validation sur SNLI (56.69% test, ~20s CPU) démontre que TSO capture l'ordre
-des mots et les relations de contradiction sans attention dense ni
-rétropropagation. Le Dual-LIF agit comme un équivalent neuromorphique de
-l'attention multi-tête (+0.80% vs mono-LIF). En apprentissage continu, TSO
-démontre une immunité structurelle à l'oubli catastrophique (Δ=0.00% sur
-SNLI→MultiNLI) — impossible pour les Transformers.
-
-La validation sur MiniGrid (TSO 2.13 vs linéaire 1.03, +105%) étend le même
-kernel à la navigation visuelle, confirmant que les principes de TSO ne sont
-pas spécifiques au langage.
-
-Le kernel Rust, les 45 tests, et les benchmarks reproductibles sont disponibles
-en open source.
+La validation sur MiniGrid (TSO 2.13 vs linéaire 1.03, +105%) confirme
+que la catégorisation par prototypes et la friction topographique apportent
+un avantage mesurable sur les entrées visuelles de haute dimension.
+Le kernel Rust, les 45 tests unitaires, et les benchmarks reproductibles sont
+disponibles en open source.
