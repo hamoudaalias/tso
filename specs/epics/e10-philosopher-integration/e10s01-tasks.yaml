@@ -1,0 +1,64 @@
+story_id: e10s01
+title: "Φ gating — le calcul devient événementiel"
+status: failing
+bcps: 4
+tasks:
+  - id: 1
+    description: >
+      Ajouter compute_phi() dans Graph (core.rs) — retourne la friction
+      globale Φ = Σ max(0, γ - ⟨z_i,z_j⟩) pour les arêtes d'implication
+      + Σ max(0, ⟨z_i,z_j⟩ - ε) pour les arêtes d'exclusion.
+      Si le graphe est vide, retourne 0.0.
+    verify: "cd tso-engine && cargo test --test phi_gating 2>&1 | grep -E 'compute_phi|friction'"
+    risk: P0
+    status: failing
+    allure:
+      severity: critical
+      categories:
+        - "Phi"
+        - "Core"
+
+  - id: 2
+    description: >
+      Ajouter CognitiveConfig.phi_gating: bool, phi_threshold: f64,
+      max_resolution_steps: usize. Par défaut phi_gating=false
+      (comportement actuel, pas de régression). Quand true, step() et
+      heartbeat() calculent Φ au début et skip si Φ < threshold.
+    verify: "cd tso-engine && cargo check --lib 2>&1 | grep -v error"
+    risk: P0
+    status: failing
+    allure:
+      severity: critical
+      categories:
+        - "Config"
+        - "Core"
+
+  - id: 3
+    description: >
+      Modifier step() et heartbeat_dt() dans tso_engine.rs pour implémenter
+      le gating : calculer Φ via self.graph.compute_phi() après le fast path
+      existant. Si phi_gating=true et Φ < phi_threshold, court-circuiter
+      les étapes (catégorisation, FPI, belt) et exécuter uniquement le
+      cerebellum avec le perception brut.
+    verify: "cd tso-engine && cargo run --release --bin bench_phi_gating 2>&1 | grep -E 'Phi|gating'"
+    risk: P0
+    status: failing
+    allure:
+      severity: critical
+      categories:
+        - "Phi"
+        - "Heartbeat"
+
+  - id: 4
+    description: >
+      Créer bench_phi_gating.rs : 10 seeds, MiniGrid 7×7,
+      2 configs (phi_gating=false vs true, threshold=0.5).
+      Mesure : reward moyen, ticks partiels (Φ skipped), time/épisode.
+    verify: "cd tso-engine && cargo run --release --bin bench_phi_gating 2>&1 | grep -E '[0-9]+\.[0-9]+'"
+    risk: P1
+    status: failing
+    allure:
+      severity: high
+      categories:
+        - "Benchmark"
+        - "Phi"

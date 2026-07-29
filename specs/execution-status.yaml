@@ -1,0 +1,13 @@
+# specs/execution-status.yaml — État d'exécution build-epic
+# Généré automatiquement par build-epic skill
+
+active_epic_id: null
+active_phase: null
+phase_started_at: null
+phase_completed_at: null
+
+epics:
+  e11:
+    status: merged
+    merged_at: ~
+    branch: e11/efe-integration

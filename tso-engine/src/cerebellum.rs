@@ -9,7 +9,7 @@ pub struct Cerebellum {
     pub noise_std: f64,
     pub epsilon: f64,
     dim: usize,
-    n_actions: usize,
+    pub n_actions: usize,
     hidden_dim: usize,
     is_linear: bool,
 

@@ -1,0 +1,50 @@
+story_id: e10s02
+title: "R-STDP — plasticité locale remplaçant reinforce_td"
+status: failing
+bcps: 4
+tasks:
+  - id: 1
+    description: >
+      Créer plasticity.rs avec struct RstdpPlasticity {
+        learning_rate: f64, eligibility_trace_decay: f64,
+        reward_decay: f64 }. Implémenter update(δ: f64, pre: &[f64],
+        post: &[f64]) -> Vec<f64> qui retourne Δw = lr × δ × e_trace,
+        où e_trace = decay × e_trace + pre × post.T.
+      Ajouter plasticity à lib.rs (pub mod plasticity).
+    verify: "cd tso-engine && cargo test --test rstdp_basic 2>&1 | grep -E 'rstdp|plasticity|PASS'"
+    risk: P0
+    status: failing
+    allure:
+      severity: critical
+      categories:
+        - "R-STDP"
+        - "Core"
+
+  - id: 2
+    description: >
+      Ajouter CognitiveConfig.rstdp_enabled: bool (default false).
+      Dans Cerebellum.reinforce_td(), si rstdp_enabled=true, appeler
+      plasticity.update(δ, pre, post) au lieu de la mise à jour poids
+      standard. Sinon, comportement actuel (reinforce_td).
+    verify: "cd tso-engine && cargo run --release --bin bench_rstdp 2>&1 | grep -E 'rstdp|success|reward'"
+    risk: P0
+    status: failing
+    allure:
+      severity: critical
+      categories:
+        - "R-STDP"
+        - "Cerebellum"
+
+  - id: 3
+    description: >
+      Créer bench_rstdp.rs : 10 seeds, MiniGrid 7×7,
+      comparer reinforce_td (TDλ) vs R-STDP sur reward moyen.
+      Même protocole que bench_phi_gating.
+    verify: "cd tso-engine && cargo run --release --bin bench_rstdp 2>&1 | grep -E '[0-9]+\.[0-9]+'"
+    risk: P1
+    status: failing
+    allure:
+      severity: high
+      categories:
+        - "Benchmark"
+        - "R-STDP"

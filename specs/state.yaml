@@ -25,12 +25,24 @@ epic_cycle:
     - e11: "pymdp bridge — FPI/EFE/Dirichlet/info_gain : 7 modules, 60 fichiers, +7538 lignes, merge master"
 
 git:
-  branch: master
+  branch: e11/efe-integration
   hash: fd05997
   head_commit: "feat(e11): integrate FPI, EFE, Dirichlet, neurogenesis, and info_gain curiosity"
   working_tree:
-    modified: []
-    untracked: []
+    modified:
+      - tso-engine/Cargo.toml
+      - tso-engine/src/core.rs
+      - tso-engine/src/lib.rs
+      - tso-engine/src/memory.rs
+      - tso-engine/src/tso_engine.rs
+      - tso-engine/src/working_memory.rs
+      - tso-engine/src/bin/debug_rl.rs (deleted)
+      - tso-engine/src/bin/eval_minigrid.rs (deleted)
+      - tso-engine/src/bin/weakness_game_v3.rs (deleted)
+    untracked:
+      - tso-engine/src/action_selection.rs
+      - tso-engine/src/perceptual_belt.rs
+      - tso-engine/src/rotating_t.rs
 
 handoff:
   last_step_completed: "release-branch — e11/efe-integration merged, 2 ADR (008, 009) créés"
@@ -50,3 +62,4 @@ workspace_facts:
   - "MetricsSnapshot.mean_info_gain : monitoring temps réel de l'exploration informationnelle"
   - "Neurogenèse Phase 3 (e10) : 5 stories, 21 tasks, 13 tests — capsule archivée"
   - "GridWorld renderer : render_ascii() + render_png() (feature=viz via crate image)"
+  - "Nouveaux modules : action_selection.rs, perceptual_belt.rs, rotating_t.rs (non commit)"

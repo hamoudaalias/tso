@@ -1,0 +1,15 @@
+# specs/planning-status.yaml — État du discover phase
+# Généré par run-planning skill
+
+discover_phase:
+  status: completed
+  steps:
+    - survey-context: done
+    - scope-work: done
+    - research-first: done
+    - elaborate-spec: done
+    - plan-release: done
+    - slice-tasks: done
+  last_updated: ~
+
+current_initiative: null

@@ -1,0 +1,33 @@
+story_id: e10s03
+title: "Gating complet — benchmark Φ actif vs passif"
+status: failing
+bcps: 2
+tasks:
+  - id: 1
+    description: >
+      Run bench_phi_gating avec la config du plan de benchmark
+      (e33-BENCHMARK_PLAN_LATEST.md, SC-P0-04 → SC-P0-08).
+      10 seeds, MiniGrid DoorKey 7×7, reward moyen par épisode.
+      Comparer Φ passif (e10s01 avant) vs Φ actif (e10s01 après).
+    verify: "cd tso-engine && cargo run --release --bin bench_phi_gating 2>&1 | grep -E 'phi_active|phi_passive'"
+    risk: P1
+    status: failing
+    allure:
+      severity: high
+      categories:
+        - "Benchmark"
+        - "Phi"
+        - "MiniGrid"
+
+  - id: 2
+    description: >
+      Reporter les résultats dans specs/experiments/phi_gating_report.md :
+      tableau comparatif des 3 métriques (reward, ticks partiels, time/ép),
+      Welch t-test, conclusion.
+    verify: "test -f specs/experiments/phi_gating_report.md"
+    risk: P2
+    status: failing
+    allure:
+      severity: normal
+      categories:
+        - "Reporting"

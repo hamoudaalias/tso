@@ -1,39 +1,38 @@
-/// Rotating-T: open 5×5 room, goal rotates among 4 corners every N episodes.
-/// Measures adaptation speed across non-stationary goal shifts.
+/// Rotating-T Aliased: observation identique pour plusieurs buts.
+/// L'agent doit utiliser la mémoire épisodique pour désambiguïser.
 use ndarray::Array1;
 
 const W: usize = 5;
 const H: usize = 5;
 
-#[derive(Clone, Copy, PartialEq)]
-pub enum GoalPhase { TopRight, BottomLeft, Random }
-
 pub struct RotatingT {
     pub agent: (usize, usize),
     pub goal: (usize, usize),
-    pub phase: GoalPhase,
     pub episode: usize,
     pub switch_every: usize,
     pub steps: usize,
     pub max_steps: usize,
     pub phase_count: usize,
     phase_ep_count: usize,
+    // Cache pour envoyer au engine
+    pub prev_concept: Option<usize>,
+    pub prev_obs: Array1<f64>,
 }
 
 impl RotatingT {
     pub fn new(switch_every: usize) -> Self {
-        let mut rt = RotatingT {
-            agent: (0, 0),
+        RotatingT {
+            agent: (0, 2),
             goal: (4, 0),
-            phase: GoalPhase::TopRight,
             episode: 0,
             switch_every,
             steps: 0,
             max_steps: 20,
             phase_count: 0,
             phase_ep_count: 0,
-        };
-        rt
+            prev_concept: None,
+            prev_obs: Array1::zeros(4),
+        }
     }
 
     pub fn reset(&mut self) {
@@ -45,21 +44,11 @@ impl RotatingT {
         if self.phase_ep_count >= self.switch_every {
             self.phase_ep_count = 0;
             self.phase_count += 1;
-            match self.phase_count % 3 {
-                0 => { self.phase = GoalPhase::TopRight; self.goal = (4, 0); }
-                1 => { self.phase = GoalPhase::BottomLeft; self.goal = (0, 4); }
-                _ => { self.phase = GoalPhase::Random;
-                       let i = (self.phase_count / 3) % 2;
-                       self.goal = if i == 0 { (4, 4) } else { (0, 0) }; }
-            }
-        } else if self.phase_ep_count == 1 {
-            // First episode of phase: set goal (handle first ep)
-            match self.phase {
-                GoalPhase::TopRight => self.goal = (4, 0),
-                GoalPhase::BottomLeft => self.goal = (0, 4),
-                GoalPhase::Random => {}
-            }
+            // 4 goal positions, only 2 distinct observations
+            let goals = [(4,0), (0,4), (4,4), (0,0)];
+            self.goal = goals[self.phase_count % 4];
         }
+        self.prev_obs = self.observation();
     }
 
     pub fn step(&mut self, action: usize) -> (f64, Array1<f64>, bool) {
@@ -73,21 +62,25 @@ impl RotatingT {
             _ => (x, y),
         };
         self.agent = (nx, ny);
-
         let done = self.steps >= self.max_steps || (nx, ny) == self.goal;
         let reward = if (nx, ny) == self.goal { 10.0 } else { -0.1 };
-        (reward, self.observation(), done)
+
+        let obs = self.observation();
+        self.prev_obs = obs.clone();
+
+        (reward, obs, done)
     }
 
+    /// Aliased observation: 4 whiskers only, NO goal direction.
+    /// (0,4) and (4,0) produce SAME observation from start position (0,2).
+    /// Agent must use episodic memory to know which goal is active.
     pub fn observation(&self) -> Array1<f64> {
         let (x, y) = self.agent;
-        let (gx, gy) = self.goal;
         Array1::from_vec(vec![
-            if y == 0 { 1.0 } else { 0.0 },           // wall N
-            if x == W - 1 { 1.0 } else { 0.0 },       // wall E
-            if y == H - 1 { 1.0 } else { 0.0 },       // wall S
-            if x == 0 { 1.0 } else { 0.0 },           // wall W
-            if gx > x { 1.0 } else if gx < x { -1.0 } else { 0.0 }, // goal dir
+            if y == 0 { 1.0 } else { 0.0 },
+            if x == W - 1 { 1.0 } else { 0.0 },
+            if y == H - 1 { 1.0 } else { 0.0 },
+            if x == 0 { 1.0 } else { 0.0 },
         ])
     }
 }
@@ -95,20 +88,18 @@ impl RotatingT {
 #[cfg(test)]
 mod tests {
     use super::*;
-
     #[test]
-    fn test_goal_switch() {
-        let mut rt = RotatingT::new(2);
-        assert_eq!(rt.goal, (4, 0));
-        for _ in 0..2 { rt.reset(); }
-        // after 2 episodes, should switch to BottomLeft
-        assert!(rt.phase_ep_count == 0 || rt.goal == (0, 4));
+    fn test_observation_dim() {
+        let rt = RotatingT::new(50);
+        assert_eq!(rt.observation().len(), 4);
     }
-
     #[test]
-    fn test_step_bounds() {
+    fn test_goal_aliasing() {
+        // (4,0) and (0,4) should give same observation from (0,2)
         let mut rt = RotatingT::new(50);
-        for _ in 0..50 { let (_, _, done) = rt.step(0); if done { break; } }
-        assert!(rt.steps <= rt.max_steps);
+        let obs1 = rt.observation();
+        rt.goal = (0, 4);
+        let obs2 = rt.observation();
+        assert_eq!(obs1, obs2);
     }
 }

@@ -1,0 +1,20 @@
+epic_id: e10
+title: "Architecture événementielle — Φ gating et R-STDP"
+priority: 4
+wsjf: 28
+bcp: 12
+status: planned
+dependencies: [e03]
+stories:
+  - id: e10s01
+    title: "Φ gating — le calcul devient événementiel"
+    bcps: 4
+    status: planned
+  - id: e10s02
+    title: "R-STDP — plasticité locale remplaçant reinforce_td"
+    bcps: 4
+    status: planned
+  - id: e10s03
+    title: "Gating complet — benchmark Φ actif vs passif"
+    bcps: 2
+    status: planned
