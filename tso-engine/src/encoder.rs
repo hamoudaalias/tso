@@ -173,6 +173,8 @@ pub struct VaeEncoder {
     pub lr: f64,
     pub temperature: f64,
     pub softmax_weights: Vec<f64>,
+    pub last_z: Vec<f64>,
+    pub last_best_centroid_idx: usize,
     /// Gèle la mise à jour des centroids (true = inférence seule).
     pub freeze: bool,
     /// Dernières stats VAE (pour interrogation externe).
@@ -180,6 +182,23 @@ pub struct VaeEncoder {
 }
 
 impl VaeEncoder {
+    /// Backprop TD error to VAE encoder weights (end-to-end gradient).
+    /// Called after reinforce_td with the well-being as scalar signal.
+    /// Gradient: dW = -α·δ·(z - centroid[idx]) · z^T
+    pub fn backprop_td(&mut self, delta: f64) {
+        if self.last_z.is_empty() { return; }
+        let idx = self.last_best_centroid_idx;
+        if idx >= self.centroids.len() { return; }
+        let lr = self.lr * 0.1;
+        let t = self.temperature.max(0.1);
+        for k in 0..self.last_z.len().min(self.vae.w_mu.len()) {
+            let g = -delta * (self.last_z[k] - self.centroids[idx][k]) / t;
+            for j in 0..self.vae.w_mu[k].len().min(self.last_z.len()) {
+                self.vae.w_mu[k][j] -= lr * g * self.last_z[j];
+            }
+        }
+    }
+
     pub fn new(input_dim: usize, hidden_dim: usize, latent_dim: usize, novelty_threshold: f64) -> Self {
         VaeEncoder {
             vae: crate::vae::Vae::new(input_dim, hidden_dim, latent_dim),
@@ -189,6 +208,8 @@ impl VaeEncoder {
             lr: 0.001,
             temperature: 1.0,
             softmax_weights: Vec::new(),
+            last_z: Vec::new(),
+            last_best_centroid_idx: 0,
             freeze: false,
             last_stats: None,
         }
@@ -259,6 +280,8 @@ impl Encoder for VaeEncoder {
         let best_dist = dists[best_idx];
 
         // Anneal temperature after each call
+        self.last_z = z.clone();
+        self.last_best_centroid_idx = best_idx;
         self.anneal_temperature(0.995);
 
         if best_dist > self.novelty_threshold {
