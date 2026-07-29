@@ -509,21 +509,19 @@ impl TsoEngine {
 
         // ── 2. CATEGORIZATION (encoder / attractor) ─────────────────────
         let (concept_id, _is_new, intrinsic, shaping) = if cc.subsystems().use_fpi {
-            // FPI inference: posterior -> argmax -> concept
-            let A_ident: Vec<ndarray::ArrayD<f64>> = vec![ndarray::Array2::eye(self.dim).into_dyn()];
-            let obs_onehot: Vec<ndarray::Array1<f64>> = vec![gated.clone()];
-            let result = crate::inference::infer_states(
-                &A_ident, &obs_onehot, None, 10
+            // FPI via PerceptualBelt
+            let percept = self.belt.process(
+                if used_raw { &gated } else { perception }, bfs_value, bfs_bias,
+                true, cc.subsystems().attractor,
+                cc.subsystems().episodic_curiosity, cc.subsystems().attention,
             );
-            let cid = result.concept_id;
+            let cid = percept.concept_id;
             self.current_concept_id = Some(cid);
             self.episode_trace.push(cid);
             while self.concept_values.len() <= cid {
                 self.concept_values.push(0.0);
             }
-            let surp = 0.0;
-            let shp = 0.0;
-            (cid, false, surp, shp)
+            (cid, percept.is_new, percept.intrinsic, percept.shaping)
         } else if let Some(enc) = &mut self.encoder {
             // Utilise l'encodeur interchangeable (AttractorEncoder ou VaeEncoder)
             let result = enc.encode_raw(&gated);
