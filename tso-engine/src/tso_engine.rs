@@ -1,3 +1,4 @@
+use crate::plasticity::RstdpPlasticity;
 use crate::perceptual_belt::PerceptualBelt;
 use ndarray::Array1;
 use rand::Rng;
@@ -92,6 +93,7 @@ pub struct CognitiveConfig {
     pub sleep_maturation_cycles: usize,
     /// Neurogenèse : scaling synaptique
     pub sleep_synaptic_scaling: bool,
+    pub rstdp_enabled: bool,
 }
 
 impl CognitiveConfig {
@@ -126,6 +128,7 @@ impl Default for CognitiveConfig {
             sleep_max_concepts: 50,
             sleep_maturation_cycles: 3,
             sleep_synaptic_scaling: true,
+            rstdp_enabled: false,
         }
     }
 }
@@ -302,8 +305,18 @@ pub struct TsoEngine {
 }
 
 impl TsoEngine {
+    fn init_rstdp(&mut self) {
+        if self.cogs.rstdp_enabled {
+            let n_act = self.cerebellum.n_actions;
+            let r = RstdpPlasticity::new(self.dim, self.dim, n_act, 0.01);
+            self.cerebellum.rstdp = Some(r);
+        }
+    }
+
     pub fn new(dim: usize, n_actions: usize) -> Self {
-        Self::with_hidden(dim, n_actions, 0)
+        let mut e = Self::with_hidden(dim, n_actions, 0);
+        e.init_rstdp();
+        e
     }
 
     pub fn with_hidden(dim: usize, n_actions: usize, hidden_dim: usize) -> Self {

@@ -10,6 +10,7 @@ pub mod replay_buffer;
 pub mod cerebellum;
 pub mod hypothalamus;
 pub mod attention;
+pub mod plasticity;
 pub mod tso_engine;
 pub use tso_engine::CognitiveConfig;
 pub use tso_engine::TsoEngine;

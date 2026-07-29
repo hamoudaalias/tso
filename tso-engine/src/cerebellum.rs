@@ -1,3 +1,4 @@
+use crate::plasticity::RstdpPlasticity;
 use ndarray::Array1;
 use rand::Rng;
 use serde::{Serialize, Deserialize};
@@ -36,6 +37,7 @@ pub struct Cerebellum {
     lr_critic: f64,
     /// Cached V(h_t) from the last mark() — used for TD-error computation
     v_prev: f64,
+    pub rstdp: Option<RstdpPlasticity>,
 
     /// Experience replay buffer — stocke les transitions pour
     /// un apprentissage TD stable sans bruit d'exploration.
@@ -100,6 +102,7 @@ impl Cerebellum {
 
         Cerebellum { lr, noise_std, epsilon, dim, n_actions, hidden_dim: hd, is_linear,
             w_lin, e_lin, w1, b1, w2, b2, h, e1, e2, w_v, b_v, lr_critic: lr, v_prev: 0.0,
+            rstdp: None,
             replay: ReplayBuffer::new(10000), replay_lr: 0.05, replay_only: false, delta_clip: 0.0 }
     }
 
@@ -284,6 +287,9 @@ impl Cerebellum {
         // --- Actor update with δ ---
         let clipped_delta = if self.delta_clip > 0.0 { delta.abs().min(self.delta_clip) } else { delta.abs() };
         let step_a = self.lr * clipped_delta;
+        // R-STDP
+        if let Some(ref r) = self.rstdp { r.apply(&mut self.w_lin, &mut self.w1, &mut self.w2, delta); }
+
         let sign_a = if delta > 0.0 { 1.0 } else { -1.0 };
 
         for a in 0..self.n_actions {
