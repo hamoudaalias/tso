@@ -45,3 +45,7 @@ path = "src/bin/bench_all.rs"
 [[bin]]
 name = "bench_ablation"
 path = "src/bin/bench_ablation.rs"
+
+[[bin]]
+name = "bench_adapt"
+path = "src/bin/bench_adapt.rs"
