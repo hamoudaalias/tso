@@ -1,5 +1,7 @@
 ## 8. Limites et travaux futurs
 
+**VAE et Active Inference non integres en ligne.** Le VaeEncoder fonctionne en mode freeze=true et deterministic=true car l'entrainement en ligne est instable : la retropropagation du gradient a travers l'encodeur variationnel conflue avec la mise a jour des prototypes de l'attractor, creant un feedback loop non convergeant. L'infERENCE FPI/EFE (pymdp) est un module separe, non connecte au PerceptualBelt : le flag use_fpi alterne entre les deux architectures au lieu de les combiner. La promesse d'un pipeline differentiable de bout en bout (pixels -> latents -> categories -> actions -> gradients) n'est pas tenue. Deux axes de travail sont identifies : (1) un entrainement alterné VAE + attracteur (batch hors ligne, puis gel, puis inference) similaire au pretrain EM ; (2) une connexion FPI -> belt ou l'inference variationnelle remplace la categorisation par attracteur dans le cycle eveille.
+
 **Evaluation insuffisante.** Les benchmarks actuels (Terrarium 7x7,
 Rotating-T 5x5, GridWorld 5x5) restent de petite taille et ne
 couvrent pas les environnements a fort aliasing ou grande echelle.
