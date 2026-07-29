@@ -25,6 +25,7 @@ pub mod environment;
 pub mod vae;
 
 pub mod rotating_t;
+pub mod minigrid_env;
 pub mod zigzag_grid;
 pub mod efe;
 pub mod fpi;
