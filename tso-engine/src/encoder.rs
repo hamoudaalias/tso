@@ -171,6 +171,8 @@ pub struct VaeEncoder {
     /// Active APRÈS pré-entraînement hors ligne pour une stabilité parfaite.
     pub deterministic: bool,
     pub lr: f64,
+    pub temperature: f64,
+    pub softmax_weights: Vec<f64>,
     /// Gèle la mise à jour des centroids (true = inférence seule).
     pub freeze: bool,
     /// Dernières stats VAE (pour interrogation externe).
@@ -185,6 +187,8 @@ impl VaeEncoder {
             novelty_threshold,
             deterministic: false,
             lr: 0.001,
+            temperature: 1.0,
+            softmax_weights: Vec::new(),
             freeze: false,
             last_stats: None,
         }
@@ -193,6 +197,12 @@ impl VaeEncoder {
     /// Distance euclidienne entre deux latents.
     fn latent_dist(a: &[f64], b: &[f64]) -> f64 {
         a.iter().zip(b.iter()).map(|(x, y)| (x - y).powi(2)).sum::<f64>().sqrt()
+    }
+}
+
+impl VaeEncoder {
+    pub fn anneal_temperature(&mut self, rate: f64) {
+        self.temperature = (self.temperature * rate).max(0.1);
     }
 }
 
@@ -221,13 +231,35 @@ impl Encoder for VaeEncoder {
             return EncodeResult { category_id: 0, novelty, is_new: true };
         }
 
-        // Trouver le centroid le plus proche
-        let mut best_idx = 0;
-        let mut best_dist = Self::latent_dist(&z, &self.centroids[0]);
-        for (i, c) in self.centroids.iter().enumerate().skip(1) {
-            let d = Self::latent_dist(&z, c);
-            if d < best_dist { best_dist = d; best_idx = i; }
+        // Softmax straight-through: argmax forward, softmax gradient in centroid update
+        let n_cent = self.centroids.len();
+        let mut dists = vec![0.0; n_cent];
+        for (i, c) in self.centroids.iter().enumerate() {
+            dists[i] = Self::latent_dist(&z, c);
         }
+        // Gumbel-Softmax weights: softmax over negative distances
+        let tau = self.temperature.max(0.01);
+        let max_d = dists.iter().cloned().fold(f64::NEG_INFINITY, f64::max);
+        let mut exps = vec![0.0; n_cent];
+        let mut sum_exp = 0.0;
+        for (i, d) in dists.iter().enumerate() {
+            exps[i] = (-(d - max_d) / tau).exp();
+            sum_exp += exps[i];
+        }
+        let mut softmax_w = vec![0.0; n_cent];
+        for (i, e) in exps.iter().enumerate() {
+            softmax_w[i] = e / sum_exp;
+        }
+        self.softmax_weights = softmax_w.clone();
+
+        // Hard assignment (argmin) for category_id
+        let best_idx = dists.iter().enumerate()
+            .min_by(|(_, a), (_, b)| a.partial_cmp(b).unwrap())
+            .map(|(i, _)| i).unwrap();
+        let best_dist = dists[best_idx];
+
+        // Anneal temperature after each call
+        self.anneal_temperature(0.995);
 
         if best_dist > self.novelty_threshold {
             let new_id = self.centroids.len();
@@ -235,11 +267,15 @@ impl Encoder for VaeEncoder {
             self.last_stats = Some(VaeStats { mu, logvar, elbo: mse + kl * 0.001, kl, mse });
             EncodeResult { category_id: new_id, novelty, is_new: true }
         } else {
-            // Soft update du centroid sauf en mode freeze (inférence seule)
+            // Soft update via Gumbel weights (straight-through: softmax weights, argmax forward)
             if !self.freeze {
                 let rate = 0.1;
                 for k in 0..self.vae.latent_dim {
-                    self.centroids[best_idx][k] += rate * (z[k] - self.centroids[best_idx][k]);
+                    let mut update = 0.0;
+                    for (i, w) in softmax_w.iter().enumerate() {
+                        update += w * (z[k] - self.centroids[i][k]);
+                    }
+                    self.centroids[best_idx][k] += rate * update;
                 }
             }
             self.last_stats = Some(VaeStats { mu, logvar, elbo: mse + kl * 0.001, kl, mse });
