@@ -775,6 +775,7 @@ impl TsoEngine {
     /// Heartbeat with real-time delta `dt` (seconds since last tick).
     /// Homeostasis drifts proportionally to actual wall-clock time.
     pub fn heartbeat_dt(&mut self, perception: &Array1<f64>, external_reward: f64, dt: f64) -> usize {
+        let _span = tracing::span!(tracing::Level::TRACE, "heartbeat", step = self.step_count).entered();
         self.step_count += 1;
         self.total_steps += 1;
 
@@ -956,6 +957,19 @@ impl TsoEngine {
             .map(|(i, _)| i).unwrap();
         self.cerebellum.mark(&decision_state, action_id);
         self.prev_action = Some(action_id);
+        // Export metrics
+        if self.step_count % 50 == 0 {
+            event!(
+                Level::INFO,
+                step = self.step_count,
+                phi = self.current_phi,
+                phi_threshold = self.phi_threshold,
+                anxious = self.anxious,
+                n_concepts = self.attractor.n_classes(),
+                n_edges = self.graph.edges.len(),
+                last_reward = external_reward,
+            );
+        }
         action_id
     }
 
