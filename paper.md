@@ -22,10 +22,7 @@ calculable sur un graphe conceptuel émergent.
 **Contributions clés :**
 1. **Friction topographique (Φ)** : le calcul est événementiel, proportionnel
    à la complexité de l'entrée, pas à sa longueur.
-2. **PerceptualBelt** : pipeline de représentation unifié fusionnant attention
-   spatiale, mémoire de travail Dual-LIF, catégorisation par prototypes et
-   inférence variationnelle (FPI). Interface : 8 méthodes publiques.
-3. **VAE online + Gumbel-STE** : encodeur variationnel entraîné à chaque tick
+2. **VAE online + Gumbel-STE** : encodeur variationnel entraîné à chaque tick
    avec gradient local via straight-through estimator (température annealed).
 4. **Benchmark MiniGrid** (147D RGB) : TSO + VAE + FPI bat le linéaire de +105%,
    démontrant l'avantage de la catégorisation par prototypes sur les entrées
@@ -111,18 +108,7 @@ Chaque mot met à jour les deux mémoires simultanément. Les features résultan
 
 ### 3.2 PerceptualBelt : pipeline de représentation unifié
 
-Le PerceptualBelt (refactorisation v2.1) encapsule cinq modules de représentation
-qui étaient auparavant éparpillés :
 
-- **Attention spatiale** : gain multiplicatif par erreur de prédiction
-- **Mémoire de travail** : Dual-LIF + mémoire associative
-- **Catégorisation** : trois backends interchangeables — attracteur à prototypes,
-  encodeur variationnel (VAE, entraîné en ligne, lr=0.001), inférence FPI
-- **Cellules de grille** : augmentation perceptive pour la navigation
-- **Encodeur interchangeable** : trait Encoder (VaeEncoder, AttractorEncoder)
-
-Interface publique : 8 méthodes (process, recall, reset, lif_state, configure,
-extra_dim, num_concepts, set_encoder).
 
 ### 3.3 Opérateurs cognitifs
 
@@ -145,16 +131,17 @@ des centroids, et le gradient peut circuler de la tâche vers l'encodeur.
 
 ## 4. Architecture TSO
 
-### 4.1 Cycle cognitif (mode navigation)
+### 4.1 Cycle cognitif
 
 Le cycle heartbeat en 4 étapes :
-1. **Perception** : entrée sensorielle → PerceptualBelt.process()
-2. **Catégorisation** : attracteur / VAE / FPI → concept_id
-3. **Action** : sélection par Cerebellum (TD) ou EFE (active inference)
-4. **Apprentissage** : reinforce_td + R-STDP locale
+1. **Catégorisation** : attracteur / VAE / FPI → concept_id
+2. **Action** : sélection par Cerebellum (TD) ou EFE (active inference)
+3. **Apprentissage** : reinforce_td (TD(λ))
+4. **Φ passif** : la friction est calculée mais ne contrôle pas encore le cycle
 
-Un fast path contourne le belt quand tous les sous-systèmes sont désactivés,
-réduisant l'overhead à un simple forward_logits + reinforce_td.
+Le PerceptualBelt (pipeline fusionnant attention, Dual-LIF, attracteur, VAE,
+FPI) est implémenté comme module distinct mais n'est pas intégré au step().
+L'intégration du belt et le gating par Φ sont la priorité immédiate.
 
 ---
 
