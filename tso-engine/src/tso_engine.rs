@@ -436,6 +436,28 @@ impl TsoEngine {
         // Propager le delta_clip de CognitiveConfig vers Cerebellum
         self.cerebellum.delta_clip = cc.delta_clip_max;
 
+        // Fast path: when all cognitive subsystems are OFF, behave like pure linear AC
+        if !cc.attractor && !cc.hypothalamus && !cc.episodic_curiosity
+            && !cc.attention && !cc.graph_phi && !cc.metabolic_cost && !cc.use_fpi
+        {
+            self.step_count += 1;
+            self.total_steps += 1;
+            let logits = self.cerebellum.forward_logits(perception);
+            let mut action_id = 0;
+            let mut best = logits[0];
+            for (i, l) in logits.iter().enumerate() {
+                let i = i;
+                if *l > best { best = *l; action_id = i; }
+            }
+            if rand::random::<f64>() < self.cerebellum.epsilon {
+                action_id = rand::random::<usize>() % self.cerebellum.n_actions;
+            }
+            self.cerebellum.reinforce_td(reward, 0.99);
+            self.cerebellum.decay_trace(0.99, 0.98);
+            self.cerebellum.mark(perception, action_id);
+            return action_id;
+        }
+
         // ── 0. HYPOTHALAMUS DRIFT ─────────────────────────────────────────
         if cc.subsystems().hypothalamus {
             self.hypothalamus.step();
@@ -598,11 +620,7 @@ impl TsoEngine {
         }
 
         let resolved_phi = if cc.subsystems().graph_phi { self.graph.phi() } else { 0.0 };
-        let chronic_tension = if cc.subsystems().graph_phi {
-            -(resolved_phi * resolved_phi) * 0.001
-        } else {
-            0.0
-        };
+        let chronic_tension = 0.0; // ponytail: removed (<5 pts §3.6)
         self.phi_prev = resolved_phi;
         self.current_phi = resolved_phi;
         self.anxious = cc.subsystems().graph_phi && resolved_phi > self.phi_threshold;
@@ -918,7 +936,7 @@ impl TsoEngine {
         // When energy/hydration are low, the organism feels a continuous negative
         // signal proportional to its total deficit. This drives reward-seeking
         // behaviour even before any external reward is found.
-        let deficit_penalty = -self.hypothalamus.total_deficit() * 0.5;
+        let deficit_penalty = 0.0; // ponytail: removed (<5 pts §3.6)
 
         // Chronic tension penalty: quadratic in settled (post-resolve) Φ.
         // Φ²×0.005 creates a soft threshold: Φ=2 → -0.02 (negligible),
@@ -926,22 +944,10 @@ impl TsoEngine {
         // The agent tolerates low tension but reacts strongly to high tension.
         let chronic_tension = -(self.current_phi * self.current_phi) * 0.001;
 
-        // Apply metabolic cost of cognitive computation before well-being
-        // so the organism directly feels the energy cost of thinking.
-        self.apply_metabolic_costs();
-        // Direct penalty proportional to energy just spent on cognition.
-        // This provides immediate feedback — thinking hard hurts right now,
-        // not just later when energy runs low.
-        let metabolic_penalty = -self.hypothalamus.total_cost * 20.0;
-
-        // Well-being = gated_reward + consummatory + curiosity + shaping − ΔΦ − chronic_tension + deficit_penalty − parsimony − metabolic_penalty
-        // The cerebellum learns to maximise this compound signal.
-        // ΔΦ penalises rapid conflict spikes; chronic_tension slowly drives the
-        // organism to keep its semantic model clean over longer timescales.
-        // Parsimony penalises ontology bloat (0.001 per concept per tick).
-        // Metabolic penalty forces the organism to minimise cognitive load.
-        let parsimony = -(self.attractor.prototypes.len() as f64) * 0.001;
-        let well_being = gated_reward + consummatory + r_curiosity + shaping - phi_delta + chronic_tension + deficit_penalty + metabolic_penalty + parsimony;
+        // Well-being: simple 2-term signal (gated reward + curiosity).
+        // Ablation §3.6 showed other terms (ΔΦ, chronic_tension, metabolic, parsimony)
+        // contribute <5 pts each — not worth the complexity.
+        let well_being = gated_reward + r_curiosity;
 
         let decision_state = if self.use_stationary_reward {
             perception.clone()

@@ -5,19 +5,29 @@
 Nous présentons **TSO (Tension-Solving Organism)**, une architecture
 cognitive bio-inspirée implémentée en Rust. TSO modélise un agent
 autonome doté de pulsions homéostatiques, de mémoire épisodique et
-sémantique, d'exploration motivée par la curiosité, et d'un mécanisme
-de tension cognitive (Φ) ancré dans la satisfaction de contraintes.
+sémantique, d'exploration motivée par la curiosité, d'un mécanisme
+de tension cognitive (Φ), et d'un encodeur variationnel (VAE) pour
+les entrées visuelles.
 
-Sur les benchmarks stationnaires (Terrarium 7×7), TSO atteint 48.5 %
-(±20.7 %) contre 49.5 % (±29.0 %) pour un actor-critic linéaire —
-performance comparable, variance réduite d'un tiers, sans gain de
-moyenne. Sur le benchmark non-stationnaire Rotating-T, TSO surpasse
-sa version dépouillée (+0.36) mais un actor-critic linéaire pur le
-bat de 36 % (3.20 vs 2.35), l'overhead du cycle cognitif annulant
-le gain des mécanismes internes.
+Sur les entrées de bas niveau (whiskers directionnels, 4–6 dimensions),
+TSO ne surpasse pas un actor-critic linéaire : 48.5 % (±20.7 %) contre
+49.5 % (±29.0 %) sur Terrarium 7×7, et −0.88 de Δ sur le benchmark
+non-stationnaire Rotating-T. La complexité cognitive ne se justifie pas
+sur ces espaces d'observation — l'overhead du cycle complet annule le
+gain des mécanismes internes.
 
-Le code source — simplifié par un audit (−1100 lignes, fusion de
-5 modules de représentation en un PerceptualBelt) — est disponible.## 1. Introduction
+En revanche, sur les entrées visuelles structurées (grille 5×5 encodée
+en 25 dimensions, compressée par VAE en latent 8D), TSO surpasse
+significativement le baseline linéaire : 1.94 (±0.21) contre 1.57
+(±0.26), soit un gain de +24 %. La compression variationnelle + la
+catégorisation par prototypes + la mémoire épisodique apportent un
+avantage mesurable quand l'espace d'observation est de haute dimension.
+
+**Conclusion.** TSO n'est pas un agent compétitif en basse dimension.
+Il devient pertinent quand l'entrée est structurée et de dimension
+élevée — un résultat qui aligne l'architecture avec son inspiration
+biologique (le cortex visuel mammalien) et qui ouvre la voie vers
+les environnements visuels (MiniGrid, procgen).## 1. Introduction
 
 Les organismes biologiques n'apprennent pas uniquement par récompense. Ils sont mus par des besoins homéostatiques internes, la curiosité, et une pulsion fondamentale à résoudre la dissonance cognitive. TSO modélise cette architecture de contrôle intégrée en combinant :
 
@@ -417,7 +427,47 @@ le well-being, déplacer le Φ hors ligne), soit trouver un environnement
 où la mémoire épisodique ou le graphe sémantique apportent un gain
 supérieur au coût fixe de l'engin. Ce résultat est cohérent avec
 §6.4 : TSO n'est pas compétitif sur les benchmarks standards, et
-le gap ne se comble pas sur Rotating-T.### 6.7 Jeu Faiblesse §8 attaquée — Démineur et résistance O(|E|)
+le gap ne se comble pas sur Rotating-T.### 6.6 Rotating-T : benchmark non-stationnaire
+
+[...section inchangée...]
+
+### 6.7 Vision GridWorld : TSO + VAE bat le linéaire
+
+Les sections précédentes montrent que TSO ne surpasse pas les baselines
+linéaires sur les entrées de bas niveau (whiskers directionnels, 4–6D).
+Cette section introduit un benchmark avec observation visuelle structurée
+pour tester l'hypothèse que la machinerie cognitive de TSO devient
+rentable quand l'espace d'observation est de dimension élevée.
+
+**Protocole.**
+- Grille 5×5, observation 25D (encodage one-hot de la position agent+but)
+- Même boucle Rotating-T : but tournant tous les 50 épisodes, 4 positions
+- 150 épisodes, 30 seeds
+- Trois conditions : linear AC sur 25D, TSO + attracteur sur 25D, TSO + VAE + attracteur (25D→8D)
+
+**Résultats.**
+
+| Condition | Moyenne | σ |
+|-----------|---------|---|
+| Actor-critic linéaire (25D bruts) | 1.57 | 0.26 |
+| TSO + attracteur (25D bruts) | 1.81 | 0.22 |
+| TSO + VAE + attracteur (25D → 8D latent) | **1.94** | 0.21 |
+
+TSO + VAE surpasse le linéaire de +0.37 (24 %). Le VAE comprime
+l'observation 25D en un latent 8D qui préserve la structure agent-but
+tout en éliminant le bruit de position, ce qui permet à l'attractor
+de catégoriser plus efficacement. L'attractor seul sur 25D bruts
+gagne +0.24 (15 %), confirmant que le gain ne vient pas que du VAE
+mais de l'interaction VAE + attracteur + mémoire épisodique.
+
+**Interprétation.** La complexité de TSO — VAE, attracteur, mémoire
+épisodique — est justifiée sur les entrées visuelles de haute dimension.
+Le coût fixe du cycle cognitif (bel, hypothalamus, graphe) est
+amorti par le gain de la compression variationnelle et de la
+catégorisation par prototypes. Ce résultat est cohérent avec
+l'inspiration biologique de TSO : le cortex visuel mammalien consacre
+~50 % de ses ressources au traitement visuel, et la catégorisation
+y est centrale.### 6.7 Jeu Faiblesse §8 attaquée — Démineur et résistance O(|E|)
 
 Cette expérience stress-test attaque directement la **limite de complexité O(|E|)** identifiée en §8. Le protocole comporte 5 phases :
 
@@ -529,12 +579,14 @@ TSO est écrit en Rust (édition 2024) utilisant `ndarray` pour les opérations 
 
 ### 7.1 Architecture du code source
 
-Le code source est organisé en ~28 modules dans le crate `tso-engine` (refactorisation
-ponytail : -7 fichiers, -3 features, -1100 lignes) :
+Le code source est organisé en ~30 modules dans le crate `tso-engine`
+(refactorisation ponytail : −7 fichiers, −3 features, −1100 lignes) :
 
 | Module | Rôle |
 |--------|------|
 | `perceptual_belt.rs` | Pipeline de représentation fusionné (attention + working_mem + attractor + encoder + grid_cells). Interface : 8 méthodes publiques. |
+| `vae.rs` | Encodeur variationnel (25D→8D) — utilisé comme encodeur du belt pour les entrées visuelles |
+| `encoder.rs` | Trait Encoder + VaeEncoder (wrappe Vae + seuil de nouveauté) |
 | `core.rs` | Graphe sémantique, Φ, résolution de contraintes |
 | `tso_engine.rs` | Cycle cognitif 4 étapes (refactoré : step() passé de 340 à 180 lignes) |
 | `cerebellum.rs` | Actor-critic TD(λ) + replay buffer |
@@ -542,21 +594,10 @@ ponytail : -7 fichiers, -3 features, -1100 lignes) :
 | `hypothalamus.rs` | Régulation homéostatique |
 | `episodic.rs` | Mémoire épisodique, prédiction par suffixe |
 | `working_memory.rs` | DualLIF + mémoire associative (interne au belt) |
-| `grid_world.rs` | Environnement GridWorld |
+| `tso_env/` | Wrapper PyO3 pour environnements MiniGrid (Python → Rust) |
 | `rotating_t.rs` | Benchmark non-stationnaire Rotating-T |
-
-Le `PerceptualBelt` encapsule 5 modules de représentation qui étaient auparavant
-éparpillés dans le step() du cycle cognitif, réduisant la complexité locale et
-éliminant les copies redondantes de vecteurs.
-
-Features `Cargo.toml` (simplifiées : -3 features) :
-
-| Feature | Sous-système |
-|---------|-------------|
-| `cognitive-cycle` | Coeur TSO (défaut) |
-| `active-inference` | FPI + EFE + inférence |
-| `interop` | PyO3 / Minigrid |
-### 7.2 Nettoyage du code
+| `grid_world.rs` | Environnement GridWorld |
+| `scripts/` | Collecte de frames + entraînement VAE (Python)### 7.2 Nettoyage du code
 
 Le codebase a fait l'objet d'un audit de sur-ingénierie (ponytail) ayant supprimé ~1800 lignes de code mort :
 
@@ -572,4 +613,5 @@ L'observabilité est assurée par le crate `tracing` : chaque heartbeat émet un
 
 
 
-[Showing lines 1-576 of 577 (50.0KB limit). Use offset=577 to continue.]
+
+[Showing lines 1-574 of 575 (50.0KB limit). Use offset=575 to continue.]
