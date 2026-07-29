@@ -41,3 +41,7 @@ path = "src/bin/bench_scale.rs"
 [[bin]]
 name = "bench_all"
 path = "src/bin/bench_all.rs"
+
+[[bin]]
+name = "bench_ablation"
+path = "src/bin/bench_ablation.rs"
