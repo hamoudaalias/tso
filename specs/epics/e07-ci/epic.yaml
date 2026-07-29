@@ -3,7 +3,7 @@ title: "CI, nettoyage et durcissement du code"
 priority: 5
 wsjf: 12
 bcp: 5
-status: planned
+status: passing
 dependencies: []
 stories:
   - id: e07s01

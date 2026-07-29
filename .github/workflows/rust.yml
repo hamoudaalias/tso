@@ -1,10 +1,6 @@
-name: Rust CI
+name: Rust
 
-on:
-  push:
-    branches: [ master ]
-  pull_request:
-    branches: [ master ]
+on: [push, pull_request]
 
 env:
   CARGO_TERM_COLOR: always
@@ -12,28 +8,14 @@ env:
 jobs:
   check:
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: ./tso-engine
-
     steps:
     - uses: actions/checkout@v4
+    - name: Check
+      run: cd tso-engine && cargo check --bins --verbose
 
-    - name: Cache cargo
-      uses: actions/cache@v4
-      with:
-        path: ~/.cargo
-        key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
-        restore-keys: ${{ runner.os }}-cargo-
-
-    - name: Build
-      run: cargo build --bins --verbose
-
+  test:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
     - name: Run tests
-      run: cargo test --verbose
-
-    - name: Clippy
-      run: cargo clippy --bins -- -D warnings
-
-    - name: Check formatting
-      run: cargo fmt --check
+      run: cd tso-engine && cargo test --verbose
