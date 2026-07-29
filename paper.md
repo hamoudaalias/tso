@@ -1,36 +1,24 @@
 ## 8. Limites et travaux futurs
 
-**VAE et Active Inference non integres en ligne.** Le VaeEncoder fonctionne en mode freeze=true et deterministic=true car l'entrainement en ligne est instable : la retropropagation du gradient a travers l'encodeur variationnel conflue avec la mise a jour des prototypes de l'attractor, creant un feedback loop non convergeant. L'infERENCE FPI/EFE (pymdp) est un module separe, non connecte au PerceptualBelt : le flag use_fpi alterne entre les deux architectures au lieu de les combiner. La promesse d'un pipeline differentiable de bout en bout (pixels -> latents -> categories -> actions -> gradients) n'est pas tenue. Deux axes de travail sont identifies : (1) un entrainement alterné VAE + attracteur (batch hors ligne, puis gel, puis inference) similaire au pretrain EM ; (2) une connexion FPI -> belt ou l'inference variationnelle remplace la categorisation par attracteur dans le cycle eveille.
+**VAE et FPI integres mais pas differentiables de bout en bout.**
+Le VaeEncoder s'entraine en ligne (train_step par tick) et le FPI
+est connecte au PerceptualBelt avec mise a jour Dirichlet. Cependant,
+le gradient ne circule pas du belt vers le VAE : la categorisation
+(argmax sur les centroids) n'est pas differentiable. Une version
+avec Gumbel-Softmax ou straight-through estimator reste a implementer.
 
-**Evaluation insuffisante.** Les benchmarks actuels (Terrarium 7x7,
-Rotating-T 5x5, GridWorld 5x5) restent de petite taille et ne
-couvrent pas les environnements a fort aliasing ou grande echelle.
-Les resultats de section 6.7 (TSO + VAE sur entree 25D) sont prometteurs
-mais ne remplacent pas une evaluation sur MiniGrid ou Procgen avec
-observations visuelles reelles, 10+ seeds, intervalles de confiance.
-Le faible nombre de seeds (5-30 selon les experiences) limite la
-generalisation statistique des resultats.
+**Evaluation insuffisante.** Les benchmarks (MiniGrid 7x7,
+Rotating-T 5x5) restent de petite taille. Les resultats §6.8
+(FPI+VAE=2.02 vs lineaire=1.13, +79 %) sont prometteurs mais
+ne remplacent pas Procgen 64x64 avec 10+ seeds.
 
-**La tension cognitive Phi n'est pas validee en aliasing severe.**
-La preuve de concept de Phi comme mecanisme de detection de conflit
-est etablie sur grilles 5x5 (section 5), mais son apport sur des POMDP
-visuels complexes n'est pas mesure. Une experience sur MiniGrid avec
-observations partielles (ex: MiniGrid-DoorKey-5x5-v0) ou l'aliasing
-est structurel et non positionnel est necessaire pour valider que Phi
-resolve de vrais problemes d'ambiguite perceptuelle.
+**Phi non valide en aliasing severe.** La preuve de concept de la
+tension cognitive est etablie (section 5), mais pas sur POMDP
+visuels complexes (ex: MiniGrid DoorKey avec aliasing structurel).
 
-**Pistes pour la suite :**
-1. Benchmark MiniGrid (observations visuelles 7x7x3, VAE vers 16D)
-   avec 10 seeds, intervalles de confiance, ablation de chaque
-   sous-systeme (VAE, attracteur, episodique, Phi).
-2. Passage a Procgen (environnements 64x64) via le bridge PyO3
-   existant (tso_env), avec evaluation systematique sur les
-   16 jeux de Procgen.
-3. Analyse de sensibilite complete de Phi sur POMDP : est-ce que le
-   graphe semantique detecte les changements de contexte mieux qu'une
-   ligne de base avec simple memoire de travail (fenetre de contexte) ?
-4. Release d'un benchmark standardise tso-bench avec seeds fixes,
-   intervalles de confiance, et scripts de reproduction automatiques.
+**Pistes :** (1) Gumbel-Softmax dans le belt pour la differentiabilite.
+(2) Benchmark Procgen 64x64 (PyO3/tso_env). (3) Validation Phi sur
+POMDP. (4) Release tso-bench standardise.
 ## Résumé
 
 Nous présentons **TSO (Tension-Solving Organism)**, une architecture
@@ -266,6 +254,15 @@ L'inférence calcule le **postérieur variationnel** q(s) qui minimise la VFE (V
 
 Le résultat (`InferenceResult`) fournit q(s), le concept_id = argmax du premier facteur, et la VFE. Dans le cycle TSO, le flag `use_fpi` active cette voie alternative : `step()` appelle `inference::infer_states()` au lieu de `attractor.predict()`.
 
+
+Depuis la version v2.1, l'inference FPI est integree dans le
+PerceptualBelt : quand le flag use_fpi est actif, belt.process()
+construit un modele generatif A/B/C/D (identite pour A et B,
+priors uniformes) et appelle infer_states() pour obtenir la
+distribution posterieure. Le modele est mis a jour en ligne par
+Dirichlet (update_obs_likelihood_dirichlet) a chaque tick.
+Combinee avec le VaeEncoder, FPI atteint 2.02 sur MiniGrid 147D
+(§6.8), soit la meilleure performance de toutes les configurations.
 ### 3.9 Sélection d'action par Expected Free Energy (EFE)
 
 La sélection d'action intègre un second mécanisme : l'**Expected Free Energy** (EFE), qui combine utilité attendue et valeur épistémique. Le score G pour une politique π est :
@@ -604,11 +601,5 @@ Deux mécanismes sont ajoutés :
 
 Ce résultat valide la solution au problème de « dépendance au bruit d'exploration » identifié dans le Test A original (§6.3) : un replay buffer associé à un bruit d'exploration minimal permet une exploitation parfaite.
 
-**Environnement Sokoban.** Un second environnement de test, **Sokoban** (poussée de caisses sur cibles), a été implémenté avec 6 niveaux prédéfinis de difficulté croissante (5×5 à 8×8, 1 à 4 caisses). Chaque niveau est garanti solvable. La perception inclut 4 moustaches + détection de caisse adjacente + direction de caisse + proximité de cible + éventuel `cell_id`. Les niveaux 4+ (7×7 et 8×8) activent automatiquement les cellules de grille.
 
-### 6.10 δ-clip : validation multi-seeds de la stabilisation du TD online
-
-Cette expérience (epic e03) adresse le problème de **l'instabilité du TD en ligne** identifiée dans le refactoring du moteur : l'absence de clip sur `|δ|` dans la mise à jour de l'acteur (`step_a = lr · |δ|`) provoquait un effondrement de la politique (98% → 22%) dans le cycle TSO complet.
-
-
-[Showing lines 1-610 of 630 (50.0KB limit). Use offset=611 to continue.]
+[Showing lines 1-606 of 614 (50.0KB limit). Use offset=607 to continue.]

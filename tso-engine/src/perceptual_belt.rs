@@ -50,6 +50,8 @@ pub struct PerceptualBelt {
 
     // Encoding dimension from environment
     dim: usize,
+    /// Generative model for FPI inference (built lazily)
+    pub(crate) model: Option<crate::model::GenerativeModel>,
 }
 
 /// Output of a single process() tick: what TsoEngine needs to continue
@@ -82,6 +84,7 @@ impl PerceptualBelt {
             last_active_step: Vec::new(),
             concept_maturation: Vec::new(),
             last_percept: None,
+            model: None,
             dim,
         }
     }
@@ -172,10 +175,36 @@ impl PerceptualBelt {
 
 
     fn categorize_fpi(&mut self, gated: &Array1<f64>, _bfs_value: Option<f64>) -> (usize, bool, f64, f64) {
-        let A_ident: Vec<ndarray::ArrayD<f64>> = vec![ndarray::Array2::eye(self.dim).into_dyn()];
+        if self.model.is_none() {
+            let n_states = self.attractor.n_classes().max(4);
+            self.model = Some(crate::model::GenerativeModel {
+                A: vec![ndarray::Array2::eye(self.dim).into_dyn()],
+                B: vec![ndarray::Array3::from_shape_vec((n_states, n_states, 4), vec![1.0; n_states * n_states * 4]).unwrap()],
+                C: vec![ndarray::Array1::zeros(self.dim)],
+                D: vec![ndarray::Array1::from_elem(n_states, 1.0 / n_states as f64)],
+                A_dependencies: vec![vec![0]],
+                B_dependencies: vec![vec![0]],
+                n_factors: 1,
+            });
+        }
+        let model = self.model.as_mut().unwrap();
         let obs_onehot: Vec<ndarray::Array1<f64>> = vec![gated.clone()];
-        let result = inference::infer_states(&A_ident, &obs_onehot, None, 10);
+        let result = crate::inference::infer_states(&model.A, &obs_onehot, None, 10);
         let cid = result.concept_id;
+
+        if cid < self.concept_values.len() {
+            let qs = result.qs;
+            let obs_as_state = ndarray::Array1::from_vec(vec![cid as f64]);
+            for (m, q) in qs.iter().enumerate() {
+                if m < model.A.len() {
+                    let (pA_new, A_new) = crate::learning::update_obs_likelihood_dirichlet_m(
+                        model.A[m].clone(), &obs_as_state, &qs, &model.A_dependencies[m], 0.1,
+                    );
+                    model.A[m] = A_new;
+                }
+            }
+        }
+
         (cid, false, 0.0, 0.0)
     }
 

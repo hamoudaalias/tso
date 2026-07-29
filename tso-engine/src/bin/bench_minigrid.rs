@@ -7,7 +7,7 @@ use tso_engine::encoder::VaeEncoder;
 
 fn main() {
     let n_ep = 100;
-    let seeds = 30;
+    let seeds = 10;
 
     println!("=== MiniGrid DoorKey (147D RGB, {seeds} seeds) ===\n");
 
@@ -25,7 +25,14 @@ fn main() {
 
     println!();
     println!("Δ TSO-VAE – linear:         {:7.2}", t.0 - b.0);
+    // TSO + FPI
+    let f = bench_tso_fpi(n_ep, seeds);
+    println!("TSO + FPI:                   {:7.2} ± {:5.2}", f.0, f.1);
+
+    println!();
+    println!("Δ TSO-VAE – linear:         {:7.2}", t.0 - b.0);
     println!("Δ TSO-VAE – TSO-raw:        {:7.2}", t.0 - r.0);
+    println!("Δ TSO-FPI – TSO-raw:        {:7.2}", f.0 - r.0);
 }
 
 fn bench_linear(n_ep: usize, seeds: usize) -> (f64, f64) {
@@ -98,6 +105,33 @@ fn bench_tso_raw(n_ep: usize, seeds: usize) -> (f64, f64) {
         engine.cogs.episodic_curiosity = true;
         engine.cogs.hypothalamus = false;
         engine.cogs.graph_phi = false;
+        let mut env = MiniGridEnv::new();
+        let mut total = 0.0;
+        for _ in 0..n_ep {
+            let mut obs = env.reset();
+            let mut prev_r = 0.0;
+            loop {
+                let action = engine.step(&obs, prev_r, None, &[]);
+                let (reward, next_obs, done) = env.step(action);
+                obs = next_obs;
+                prev_r = reward;
+                if done { break; }
+            }
+            total += prev_r;
+        }
+        scores.push(total / n_ep as f64);
+    }
+    stats(&scores)
+}
+
+fn bench_tso_fpi(n_ep: usize, seeds: usize) -> (f64, f64) {
+    let mut scores = Vec::new();
+    for _ in 0..seeds {
+        let mut engine = TsoEngine::new(147, 4);
+        engine.cogs.use_fpi = true;
+        engine.cogs.attractor = true;
+        engine.cogs.episodic_curiosity = true;
+        engine.belt.set_encoder(Box::new(tso_engine::encoder::VaeEncoder::new(147, 32, 16, 0.3)));
         let mut env = MiniGridEnv::new();
         let mut total = 0.0;
         for _ in 0..n_ep {
