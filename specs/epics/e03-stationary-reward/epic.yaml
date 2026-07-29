@@ -3,7 +3,7 @@ title: "Stabiliser le signal de bien-être"
 priority: 1
 wsjf: 30
 bcp: 13
-status: in_progress
+status: passing
 dependencies: []
 stories:
   - id: e03s00
