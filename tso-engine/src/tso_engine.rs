@@ -522,92 +522,25 @@ impl TsoEngine {
                 self.concept_values.push(0.0);
             }
             (cid, percept.is_new, percept.intrinsic, percept.shaping)
-        } else if let Some(enc) = &mut self.encoder {
-            // Utilise l'encodeur interchangeable (AttractorEncoder ou VaeEncoder)
-            let result = enc.encode_raw(&gated);
-            let cid = result.category_id;
-            let new_flag = result.is_new;
-
+        } else if self.encoder.is_some() || cc.subsystems().attractor {
+            // Catégorisation via PerceptualBelt (encodeur ou attracteur)
+            let percept = self.belt.process(
+                if used_raw { &gated } else { perception }, bfs_value, bfs_bias,
+                false, true,
+                cc.subsystems().episodic_curiosity, cc.subsystems().attention,
+            );
+            let cid = percept.concept_id;
             self.current_concept_id = Some(cid);
             self.episode_trace.push(cid);
-
             while self.concept_values.len() <= cid {
                 self.concept_values.push(0.0);
             }
-            if new_flag {
+            if percept.is_new {
                 if let Some(bv) = bfs_value {
                     self.concept_values[cid] = bv;
                 }
             }
-
-            let prev_concept = if self.episode_trace.len() >= 2 {
-                Some(self.episode_trace[self.episode_trace.len() - 2])
-            } else {
-                None
-            };
-            let shp = match prev_concept {
-                Some(p) if p < self.concept_values.len() && cid < self.concept_values.len() => {
-                    self.concept_values[cid] - self.concept_values[p]
-                }
-                _ => 0.0,
-            };
-
-            let surp = if cc.subsystems().episodic_curiosity {
-                self.compute_surprise(if used_raw { &gated } else { perception }, cid, new_flag)
-            } else {
-                0.0
-            };
-
-            (cid, new_flag, surp, shp)
-        } else if cc.subsystems().attractor {
-            // Fallback : AttractorField direct (comportement historique)
-            let (cid, dist) = self.attractor.predict_with_distance(&gated);
-            let threshold = self.novelty_threshold;
-            let new_flag = dist > threshold;
-            let cid = if new_flag { self.attractor.add_class(&gated) } else { cid };
-
-            // Boost de la période critique : lr × 3 et seuil × 0.5
-            let lr_saved = self.attractor.lr;
-            let threshold_saved = self.novelty_threshold;
-            if cid < self.concept_maturation.len() && self.concept_maturation[cid] > 0 {
-                self.attractor.lr *= 3.0;
-                self.novelty_threshold *= 0.5;
-            }
-
-            self.adapt_novelty_threshold(cid, dist, new_flag);
-            self.attractor.train_step(&gated, cid);
-
-            // Restaurer lr et threshold
-            self.attractor.lr = lr_saved;
-            self.novelty_threshold = threshold_saved;
-
-            let prev_concept = self.current_concept_id;
-            self.current_concept_id = Some(cid);
-            self.episode_trace.push(cid);
-
-            while self.concept_values.len() <= cid {
-                self.concept_values.push(0.0);
-            }
-            if new_flag {
-                if let Some(bv) = bfs_value {
-                    self.concept_values[cid] = bv;
-                }
-            }
-
-            let shp = match prev_concept {
-                Some(p) if p < self.concept_values.len() && cid < self.concept_values.len() => {
-                    self.concept_values[cid] - self.concept_values[p]
-                }
-                _ => 0.0,
-            };
-
-            let surp = if cc.subsystems().episodic_curiosity {
-                self.compute_surprise(if used_raw { &gated } else { perception }, cid, new_flag)
-            } else {
-                0.0
-            };
-
-            (cid, new_flag, surp, shp)
+            (cid, percept.is_new, percept.intrinsic, percept.shaping)
         } else {
             // Pas de catégorisation : concept factice 0, pas de shaping
             let cid = 0usize;
