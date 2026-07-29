@@ -1,0 +1,19 @@
+# SCOPE — Papier TSO
+
+## IN
+1. **Architecture TSO** — cycle cognitif, Dual-LIF, attracteur field, Φ comme mécanisme interne (pas comme "théorie")
+2. **Benchmark MiniGrid** (147D RGB, +105%) — seul résultat quantitatif, central
+3. **Implémentation Rust** — kernel pur, 45 tests, open-source
+4. **Discussion honnête des limites** — un benchmark ne valide pas une théorie
+5. **Positionnement ciblé** — architecture neuromorphique mini-maliste, pas "nouvelle théorie de la cognition"
+
+## OUT
+1. **CDT comme théorie complète** — garder les définitions minimales, supprimer la portée philosophique
+2. **VAE online comme contribution** — c'est un composant technique, pas une découverte
+3. **Comparaisons ACT/PonderNet/SNN/Active Inference** — supprimer ou réduire à une phrase sans quantification
+4. **Travaux futurs détaillés** → 2 lignes max
+5. **Claims sur le traitement du langage naturel (SNLI)** — pas de preuve
+6. **Références padding** — chaque référence doit être citée dans le corps
+
+## Transformation
+Le papier passe de "nouvelle théorie de la cognition" à "architecture neuromorphique concrète avec un benchmark".

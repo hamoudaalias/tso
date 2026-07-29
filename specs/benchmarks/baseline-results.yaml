@@ -1,0 +1,18 @@
+# Baseline Comparison — RotatingT 5×5
+
+## Benchmarks (30–100 seeds, 150 episodes)
+
+| Baseline | Reward | ±σ | Δ vs TSO |
+|----------|--------|----|----------|
+| **DQN** (64 hidden, ε=0.1) | **3.57** | 0.47 | **+1.63** |
+| Linear AC | 3.08 | 0.30 | +1.14 |
+| MLP AC (64 hidden) | 2.89 | 0.84 | +0.92 |
+| **TSO-full** | **1.94** | 0.27 | — |
+| TSO all-off | 1.84 | 0.29 | −0.10 |
+
+## Conclusions
+1. **TSO est le moins bon** — toutes les baselines le battent sur RotatingT.
+2. **DQN domine** (3.57) : target network + replay buffer font la différence.
+3. **Linear AC** (3.08) bat MLP AC (2.89) : sur 4D, la non-linéarité n'aide pas.
+4. **Les mécanismes TSO** (attracteur, Φ, hypothalamus) n'apportent pas de gain
+   sur cet environnement simple.

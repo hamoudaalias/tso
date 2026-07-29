@@ -1,44 +1,41 @@
-/// MiniGrid DoorKey: TSO + VAE vs linear AC on 147D visual observations.
-use ndarray::Array1;
+//! MiniGrid DoorKey: TSO + baselines on 147D visual observations.
+//! Usage: cargo run --release --bin bench_minigrid -- [--seeds N]
+
 use tso_engine::minigrid_env::MiniGridEnv;
 use tso_engine::tso_engine::TsoEngine;
 use tso_engine::cerebellum::Cerebellum;
-use tso_engine::encoder::VaeEncoder;
+use tso_engine::baselines::dqn::DqnAgent;
 
 fn main() {
     let n_ep = 100;
-    let seeds = 10;
+    let seeds = std::env::args().nth(2).and_then(|a| a.parse().ok()).unwrap_or(10);
+    let dim = 147;
+    let n_actions = 7;
 
-    println!("=== MiniGrid DoorKey (147D RGB, {seeds} seeds) ===\n");
+    println!("=== MiniGrid DoorKey (147D RGB, {seeds} seeds, {n_ep} episodes) ===");
 
-    // Linear AC on raw 147D
-    let b = bench_linear(n_ep, seeds);
+    let b = bench_linear(seeds, n_ep);
     println!("linear-AC (raw 147D):        {:7.2} ± {:5.2}", b.0, b.1);
 
-    // TSO + VAE (147D → 16D latent)
-    let t = bench_tso_vae(n_ep, seeds);
-    println!("TSO + VAE (147D→16D):       {:7.2} ± {:5.2}", t.0, t.1);
+    let t = bench_tso(seeds, n_ep);
+    println!("TSO attractor (raw 147D):    {:7.2} ± {:5.2}", t.0, t.1);
 
-    // TSO attractor on raw 147D
-    let r = bench_tso_raw(n_ep, seeds);
-    println!("TSO attractor (raw 147D):    {:7.2} ± {:5.2}", r.0, r.1);
+    
+    
 
-    println!();
-    println!("Δ TSO-VAE – linear:         {:7.2}", t.0 - b.0);
-    // TSO + FPI
-    let f = bench_tso_fpi(n_ep, seeds);
-    println!("TSO + FPI:                   {:7.2} ± {:5.2}", f.0, f.1);
+    
+    
 
     println!();
-    println!("Δ TSO-VAE – linear:         {:7.2}", t.0 - b.0);
-    println!("Δ TSO-VAE – TSO-raw:        {:7.2}", t.0 - r.0);
-    println!("Δ TSO-FPI – TSO-raw:        {:7.2}", f.0 - r.0);
+    println!("Δ TSO – linear:             {:+.2}", t.0 - b.0);
+    
+    
 }
 
-fn bench_linear(n_ep: usize, seeds: usize) -> (f64, f64) {
+fn bench_linear(seeds: usize, n_ep: usize) -> (f64, f64) {
     let mut scores = Vec::new();
     for _ in 0..seeds {
-        let mut cb = Cerebellum::new(147, 4, 0.01, 0.3, 0.1, 0);
+        let mut cb = Cerebellum::new(147, 7, 0.01, 0.3, 0.1, 0);
         let mut env = MiniGridEnv::new();
         let mut total = 0.0;
         for _ in 0..n_ep {
@@ -47,7 +44,7 @@ fn bench_linear(n_ep: usize, seeds: usize) -> (f64, f64) {
             loop {
                 let logits = cb.forward_logits(&obs);
                 let action = if rand::random::<f64>() < cb.epsilon {
-                    rand::random::<usize>() % 4
+                    rand::random::<usize>() % 7
                 } else {
                     logits.iter().enumerate()
                         .max_by(|(_, a), (_, b)| a.partial_cmp(b).unwrap())
@@ -68,20 +65,16 @@ fn bench_linear(n_ep: usize, seeds: usize) -> (f64, f64) {
     stats(&scores)
 }
 
-fn bench_tso_vae(n_ep: usize, seeds: usize) -> (f64, f64) {
+fn bench_tso(seeds: usize, n_ep: usize) -> (f64, f64) {
     let mut scores = Vec::new();
     for _ in 0..seeds {
-        let mut engine = TsoEngine::new(147, 4);
-        let vae_enc = VaeEncoder::new(147, 32, 16, 0.3);
-        engine.belt.set_encoder(Box::new(vae_enc));
+        let mut engine = TsoEngine::with_hidden(147, 7, 0);
         engine.cogs.attractor = true;
-        engine.cogs.episodic_curiosity = true;
-        engine.cogs.hypothalamus = false;
-        engine.cogs.graph_phi = false;
         let mut env = MiniGridEnv::new();
         let mut total = 0.0;
         for _ in 0..n_ep {
             let mut obs = env.reset();
+            engine.end_episode();
             let mut prev_r = 0.0;
             loop {
                 let action = engine.step(&obs, prev_r, None, &[]);
@@ -97,18 +90,17 @@ fn bench_tso_vae(n_ep: usize, seeds: usize) -> (f64, f64) {
     stats(&scores)
 }
 
-fn bench_tso_raw(n_ep: usize, seeds: usize) -> (f64, f64) {
+fn _bench_tso_vae(seeds: usize, n_ep: usize) -> (f64, f64) {
     let mut scores = Vec::new();
     for _ in 0..seeds {
-        let mut engine = TsoEngine::new(147, 4);
+        let mut engine = TsoEngine::with_hidden(147, 7, 0);
         engine.cogs.attractor = true;
-        engine.cogs.episodic_curiosity = true;
-        engine.cogs.hypothalamus = false;
-        engine.cogs.graph_phi = false;
+        engine.cogs.use_fpi = false;
         let mut env = MiniGridEnv::new();
         let mut total = 0.0;
         for _ in 0..n_ep {
             let mut obs = env.reset();
+            engine.end_episode();
             let mut prev_r = 0.0;
             loop {
                 let action = engine.step(&obs, prev_r, None, &[]);
@@ -124,22 +116,20 @@ fn bench_tso_raw(n_ep: usize, seeds: usize) -> (f64, f64) {
     stats(&scores)
 }
 
-fn bench_tso_fpi(n_ep: usize, seeds: usize) -> (f64, f64) {
+fn _bench_dqn(seeds: usize, n_ep: usize) -> (f64, f64) {
     let mut scores = Vec::new();
     for _ in 0..seeds {
-        let mut engine = TsoEngine::new(147, 4);
-        engine.cogs.use_fpi = true;
-        engine.cogs.attractor = true;
-        engine.cogs.episodic_curiosity = true;
-        engine.belt.set_encoder(Box::new(tso_engine::encoder::VaeEncoder::new(147, 32, 16, 0.3)));
+        let mut agent = DqnAgent::new(147, 7, 64, 0.001, 0.1);
         let mut env = MiniGridEnv::new();
         let mut total = 0.0;
         for _ in 0..n_ep {
             let mut obs = env.reset();
             let mut prev_r = 0.0;
             loop {
-                let action = engine.step(&obs, prev_r, None, &[]);
+                let action = agent.act(&obs);
                 let (reward, next_obs, done) = env.step(action);
+                agent.store(&obs, action, prev_r, &next_obs, done);
+                agent.train(32);
                 obs = next_obs;
                 prev_r = reward;
                 if done { break; }
@@ -151,8 +141,8 @@ fn bench_tso_fpi(n_ep: usize, seeds: usize) -> (f64, f64) {
     stats(&scores)
 }
 
-fn stats(s: &[f64]) -> (f64, f64) {
-    let m = s.iter().sum::<f64>() / s.len() as f64;
-    let v = s.iter().map(|x| (x - m).powi(2)).sum::<f64>() / s.len() as f64;
-    (m, v.sqrt())
+fn stats(v: &[f64]) -> (f64, f64) {
+    let m = v.iter().sum::<f64>() / v.len() as f64;
+    let var = v.iter().map(|x| (x - m).powi(2)).sum::<f64>() / v.len() as f64;
+    (m, var.sqrt())
 }

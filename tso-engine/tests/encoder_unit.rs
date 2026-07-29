@@ -87,3 +87,15 @@ fn test_encoder_polymorphism() {
         eprintln!("Encoder test: cat={}, novelty={:.4}", r.category_id, r.novelty);
     }
 }
+
+
+#[test]
+fn test_vae_encoder_weights_frozen_on_encode() {
+    // Vérifie que encode_raw ne modifie pas les poids internes du VAE.
+    let mut enc = VaeEncoder::new(4, 8, 2, 0.5);
+    // Accès aux poids via les champs publics du Vae interne
+    let snap_w_enc = enc.vae.w_enc.clone();
+    let p = ndarray::Array1::from_vec(vec![0.2, 0.5, 0.8, 0.1]);
+    let _r = enc.encode_raw(&p);
+    assert_eq!(enc.vae.w_enc, snap_w_enc, "VAE weights unchanged by encode_raw");
+}

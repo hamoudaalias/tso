@@ -21,3 +21,15 @@ default = ["cognitive-cycle"]
 cognitive-cycle = []
 active-inference = []
 interop = []
+
+[[bin]]
+name = "bench_vs_mlp"
+path = "src/bin/bench_vs_mlp.rs"
+
+[[bin]]
+name = "bench_prototypes"
+path = "src/bin/bench_prototypes.rs"
+
+[[bin]]
+name = "bench_dqn"
+path = "src/bin/bench_dqn.rs"

@@ -33,3 +33,19 @@ fn test_step_phi_gating() {
     let action = tso.step(&obs, 0.0, None, &[]);
     assert!(action < 4);
 }
+
+
+#[test]
+fn test_phi_gate_skip_executes_without_panic() {
+    // Vérifie que phi_gating=true ne panique pas et qu'un step s'exécute.
+    let mut cogs = CognitiveConfig::default();
+    cogs.phi_gating = true;
+    cogs.phi_threshold = 0.5;
+    let mut tso = TsoEngine::with_hidden(10, 4, 0);
+    tso.cogs = cogs;
+    let obs = ndarray::Array1::zeros(10);
+    for _ in 0..50 {
+        let action = tso.step(&obs, 0.0, None, &[]);
+        assert!(action < 4);
+    }
+}

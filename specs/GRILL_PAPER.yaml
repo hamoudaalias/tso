@@ -1,0 +1,40 @@
+# Grill-Me — Stress Test des claims du papier TSO
+
+## Claim 1 : "Friction Φ déclenche le calcul, pas l'arrivée de donnée"
+**Question** — Le phi_gating est activé dans le benchmark MiniGrid ou pas ? Si non, ce claim est purement architectural, pas empirique.
+**Réponse attendue** — Si phi_gating n'est pas isolé dans les résultats, retirer le claim du résumé.
+
+## Claim 2 : "+105% de reward moyen par rapport à un actor-critic linéaire"
+**Question** — Le baseline linéaire est une couche unique. Un MLP à 2 couches (disons 147→64→4 donnerait quoi ? Si le baseline est le plus faible possible, le +105% est artificiel.
+**Réponse attendue** — Comparer explicitement TSO vs MLP dans le papier, ou qualifier le baseline ("par rapport à une régression logistique").
+
+## Claim 3 : "VAE online + Gumbel-STE"
+**Question** — L'ADR-001-encoder-classifier-separation dit que le VAE nécessite pré-entraînement hors-ligne. "Online" est faux. Gumbel-STE n'est pas un algorithme en ligne.
+**Réponse attendue** — Renommer : "VAE avec Gumbel-STE (entraîné hors-ligne, inférence en ligne)" ou retirer si pas utilisé.
+
+## Claim 4 : "Catégorisation par prototypes apporte un avantage mesurable sur les entrées visuelles de haute dimension"
+**Question** — Comparé à quoi ? K-means ? Un classifieur naïf bayésien ? L'avantage est vs *rien* (raw 147D → linear), pas vs une autre méthode de catégorisation.
+**Réponse attendue** — Ajouter au moins une comparaison avec K-means ou un classifieur minimal.
+
+## Claim 5 : "Le gradient est coupé" (non-dit dans le papier)
+**Question** — Le texte ne mentionne pas que VAE et Cerebellum sont deux branches parallèles sans gradient partagé. C'est un détail architectural majeur qui affaiblit le claim d'apprentissage intégré.
+**Réponse attendue** — Mentionner explicitement la coupure du gradient.
+
+## Claim 6 : "45 tests unitaires valident le cycle cognitif complet"
+**Question** — Un test unitaire valide une fonction, pas un comportement émergent. 45 tests ça dit quoi sur la validité de la cognition ?
+**Réponse attendue** — Reformuler : "45 tests unitaires couvrent les composants du cycle."
+
+## Claim 7 : "10 seeds, 100 épisodes"
+**Question** — Avec σ=0.34 et 10 seeds, le +105% est-il statistiquement significatif ? Un test de Welch ou Mann-Whitney le confirme-t-il ?
+**Réponse attendue** — Ajouter un p-value ou retirer le claim de supériorité.
+
+## Verdict
+Le papier fait 7 claims non-vérifiables ou exagérés. Actions correctives :
+
+1. Retirer "déclenché par Φ" → remplacer par "inclut un mécanisme de gating Φ (non isolé dans les résultats)"
+2. Qualifier le baseline : "+105% vs régresseur linéaire" (pas "actor-critic linéaire")
+3. Renommer "VAE online" → "VAE (entraîné hors-ligne)"
+4. Ajouter comparaison K-means comme baseline de catégorisation
+5. Mentionner la coupure de gradient VAE↔Cerebellum
+6. Reformuler "45 tests valident" → "45 tests couvrent"
+7. Ajouter test statistique (Welch) ou retirer le claim de supériorité

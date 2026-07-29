@@ -72,3 +72,23 @@ fn test_vae_training_reduces_loss() {
         "loss increased: {:.6} → {:.6}", loss_before, loss_after
     );
 }
+
+
+#[test]
+fn test_vae_weights_frozen_without_train_step() {
+    // Vérifie que forward seul ne modifie pas les poids du VAE.
+    let mut vae = Vae::new(4, 8, 2);
+    let snap = (
+        vae.w_enc.clone(), vae.b_enc.clone(),
+        vae.w_mu.clone(), vae.b_mu.clone(),
+        vae.w_logvar.clone(), vae.b_logvar.clone(),
+    );
+    let x = ndarray::Array1::from_vec(vec![0.2, 0.5, 0.8, 0.1]);
+    let _x_recon = vae.forward(&x);
+    assert_eq!(vae.w_enc, snap.0, "w_enc unchanged by forward");
+    assert_eq!(vae.b_enc, snap.1, "b_enc unchanged by forward");
+    assert_eq!(vae.w_mu, snap.2, "w_mu unchanged by forward");
+    assert_eq!(vae.b_mu, snap.3, "b_mu unchanged by forward");
+    assert_eq!(vae.w_logvar, snap.4, "w_logvar unchanged by forward");
+    assert_eq!(vae.b_logvar, snap.5, "b_logvar unchanged by forward");
+}

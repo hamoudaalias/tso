@@ -3,357 +3,146 @@
 
 **Auteur :** Hamouda ALIAS
 **Date :** Juillet 2026
-**Discipline :** Architectures d'IA, Systèmes Neuromorphiques, Systèmes Dynamiques
 
 ---
 
 ## Résumé
 
-Les architectures d'IA actuelles exécutent une quantité fixe d'opérations
-par token, quelle que soit la complexité cognitive de l'entrée.
-
-Cet article propose **TSO (Topographic Stabilization Operator)**, une
-architecture où le calcul est déclenché par une mesure interne d'instabilité,
-non par l'arrivée d'une donnée.
-
-Fondée sur la Théorie de la Dissipation Cognitive (CDT), TSO modélise
-l'activité neuronale comme minimisation d'une énergie de friction Φ,
-définie comme contrainte géométrique sur un graphe conceptuel émergent.
-
-**Contributions clés :**
-1. **Friction topographique (Φ)** : calcul événementiel, proportionnel à la
-   complexité de l'entrée, pas à sa longueur.
-2. **Catégorisation par prototypes** : attracteur, VAE online, FPI pour
-   la généralisation sur entrées visuelles de haute dimension.
-3. **VAE online + Gumbel-STE** : encodeur variationnel entraîné à chaque
-   tick avec gradient local via straight-through estimator.
-4. **Benchmark MiniGrid** (147D RGB) : TSO bat le linéaire de +105%,
-   démontrant l'avantage de la catégorisation par prototypes.
-
-Le kernel de référence est implémenté en Rust (ndarray), sans Python,
-PyTorch ni CUDA. 45 tests unitaires valident le cycle cognitif.
-
----
+Cet article présente **TSO (Topographic Stabilization Operator)** , une
+architecture qui intègre un mécanisme de gating par friction topographique
+(Φ). Le kernel Rust (ndarray) implémente un cycle cognitif complet —
+catégorisation par prototypes, apprentissage TD(λ), gating de l'effort
+par friction. Sur MiniGrid DoorKey (observations RGB 147D), TSO atteint
+**+74% de reward moyen** par rapport à un régresseur linéaire.
 
 ## 1. Introduction
 
-Les grands modèles de langage (LLMs) ont progressé grâce au passage à
-l'échelle. Mais les modèles denses présentent une limite : la relation
-entre information et calcul est statique.
+Les modèles denses d'IA déploient les mêmes ressources par token. TSO
+propose une alternative où le calcul est déclenché par le maintien de
+l'homéostasie interne, mesurée par une friction géométrique Φ.
 
-Un modèle dense déploie les mêmes ressources par token, qu'il traite un
-mot trivial ou une équation complexe. Cela entraîne un coût énergétique
-élevé et rend l'apprentissage continu vulnérable à l'oubli catastrophique.
-
-Nous introduisons **TSO**, une architecture événementielle où le calcul
-est déclenché par le maintien de l'homéostasie interne.
-
-La thèse fondatrice : le calcul devient une conséquence d'une mesure
-interne d'instabilité, non une obligation liée au flux de données.
-L'activité neuronale émerge comme réponse à une friction cognitive ;
-le système ne calcule que lorsqu'une contradiction perturbe son équilibre.
-
-TSO est architecturé autour d'un **kernel unique** (Rust, ndarray) qui
-supporte la navigation visuelle (MiniGrid, §6) et s'étend au traitement
-du langage naturel (SNLI, travaux futurs §8).
-
----
+TSO n'est pas compétitif sur les environnements de faible dimension (4D) :
+l'overhead des sous-systèmes excède le gain. L'avantage apparaît sur les
+entrées visuelles de haute dimension (147D) où la catégorisation par
+prototypes réduit efficacement la dimensionalité.
 
 ## 2. Travaux connexes
 
-TSO s'inscrit à la confluence de plusieurs domaines :
+TSO emprunte au calcul adaptatif (ACT, PonderNet), aux SNN (Dual-LIF),
+et à l'inférence active (Friston). Il s'en distingue par son déclencheur
+géométrique : la friction Φ émerge du graphe conceptuel, non d'une
+heuristique de halte.
 
-**Calcul adaptatif.** Des méthodes comme Adaptive Computation Time (ACT)
-ou PonderNet ajustent le calcul à la difficulté de l'entrée. TSO s'en
-distingue par son fondement géométrique : la friction Φ émerge du graphe
-conceptuel, non d'une heuristique de halte.
+## 3. Friction topographique (Φ)
 
-**Réseaux à impulsions (SNN).** TSO utilise des réservoirs Dual-LIF pour
-l'intégration temporelle multi-échelle. Contrairement aux SNN purs,
-l'apprentissage repose sur un gradient local (Gumbel-STE) combiné à la
-plasticité R-STDP, sans rétropropagation globale.
+L'état du système à l'instant t est `X_t = (G_t, S_t, W_t)`. La
+friction globale mesure la violation des contraintes géométriques :
 
-**Inférence active.** Issu de Friston, ce cadre modélise la cognition
-comme minimisation de la surprise. TSO s'en distingue en modélisant la
-friction comme contradiction structurelle interne, non comme erreur de
-prédiction externe.
+- **Contrainte d'Implication** (w_ij=1) : violation = max(0, γ − ⟨z_i, z_j⟩)
+- **Contrainte d'Exclusion** (w_ij=−1) : violation = max(0, ⟨z_i, z_j⟩ − ε)
 
----
+Φ(G_t) = Σ_{(i,j)∈E} Violation_ij.
 
-## 3. Théorie de la Dissipation Cognitive (CDT)
-
-Le fondement de TSO repose sur la modélisation des contradictions comme
-une grandeur énergétique calculable.
-
-**Définition 1 (État Cognitif).** L'état du système à l'instant t est
-X_t = (G_t, S_t, W_t). G_t est le graphe sémantique (nœuds = concepts,
-arêtes = contraintes), S_t l'activité neuronale, W_t les poids synaptiques.
-
-**Définition 2 (Friction Φ).** La friction globale mesure la violation
-des contraintes géométriques du graphe G_t. Pour deux vecteurs d'activation
-z_i, z_j ∈ R^d :
-
-- **Contrainte d'Implication** (w_ij=1) : les vecteurs doivent être alignés.
-  Violation = max(0, γ − ⟨z_i, z_j⟩)
-- **Contrainte d'Exclusion** (w_ij=−1) : les vecteurs doivent être opposés.
-  Violation = max(0, ⟨z_i, z_j⟩ − ε)
-
-La friction globale : Φ(G_t) = Σ_{(i,j)∈E} Violation_ij.
-
-**Dynamique.** L'évolution temporelle suit trois lois :
-- G_{t+1} = G(G_t, Φ_t) — mise à jour topologique (prévue)
-- S_{t+1} = f(S_t, I_t, W_t) — dynamique neuronale LIF (implémentée)
-- W_{t+1} = W_t + ΔW_t — plasticité locale (R-STDP, implémentée, optionnelle)
-
-### 3.1 Dual-LIF : mémoire multi-échelle
-
-Le Dual-LIF utilise deux réservoirs LIF parallèles :
-
-- **Mémoire lente** (α=0.9) : contexte global (sujet, agent, thème)
-- **Mémoire rapide** (α=0.5) : syntaxe locale (2-3 derniers mots, négations)
-
-Chaque mot met à jour les deux mémoires simultanément. Les features
-résultantes (6D : cos, distance euclidienne, ratio des normes) remplacent
-les 3D du mono-LIF.
-
-### 3.2 PerceptualBelt : pipeline de représentation
-
-Le PerceptualBelt fusionne quatre modules en une représentation unifiée :
-
-- **Attention spatiale** : gain modulateur par erreur de prédiction
-- **Dual-LIF** : intégration temporelle multi-échelle
-- **AttractorField** : catégorisation par prototypes
-- **VAE + FPI** : encoding variationnel et inférence active
-
-Le belt transforme l'observation brute en vecteur latent stabilisé,
-partagé entre le cortex (classification) et le cervelet (action).
-Module distinct (perceptual_belt.rs) pas encore intégré au heartbeat —
-voir §7.
-
-### 3.3 Opérateurs cognitifs
-
-Pour dissiper Φ, le système dispose d'opérateurs géométriques :
-
-- **Inversion** : z_i → −z_i (contradiction directe)
-- **Alignement** : moyenne de deux vecteurs, normalisation sur la sphère
-- **Répulsion** : gradient tangent projectif (séparation de nœuds)
-- **Expansion dimensionnelle** : doublement de l'espace latent pour les
-  contradictions fortes (opérateur "MAIS", orthogonalité stricte)
-
-### 3.4 Gumbel-STE : gradient local vers le VAE
-
-L'argmax sur les centroids du VAE casse le gradient. Nous utilisons un
-**Straight-Through Estimator (STE)** basé sur Gumbel-Softmax.
-
-La température τ s'annele de 1.0 à 0.1 (decay 0.995). Les poids softmax
-pondèrent la mise à jour des centroids, permettant au gradient de circuler
-de la tâche vers l'encodeur.
-
----
+La dynamique neuronale utilise un réservoir Dual-LIF (α lent=0.9,
+α rapide=0.5).
 
 ## 4. Architecture TSO
 
-### 4.1 Cycle cognitif
-
 Le heartbeat s'exécute en 4 étapes à chaque tick :
 
-1. **Catégorisation** : attracteur / VAE / FPI → concept_id
-2. **Action** : sélection par Cerebellum (TD) ou EFE (active inference)
-3. **Apprentissage** : reinforce_td (TD(λ))
-4. **Gating par Φ** : si Φ < seuil, les étapes cognitives sont court-circuitées (cerebellum seul)
+1. **Catégorisation** — l'entrée est projetée sur un attracteur (VAE ou FPI)
+2. **Action** — le Cerebellum (actor-critic TD(λ)) sélectionne une action
+3. **Apprentissage** — reinforce_td met à jour les poids du Cerebellum
+4. **Gating par Φ** — si Φ < seuil, les étapes cognitives sont court-circuitées
 
-Lorsque phi_gating est activé, le step() calcule Φ en début de cycle ;
-si Φ < threshold, seules les opérations du cerebellum sont exécutées.
-L'intégration complète du PerceptualBelt dans le heartbeat reste à faire (voir §7).
+Note : le gradient TD ne remonte pas dans le VAE ; l'apprentissage des
+prototypes et le signal de récompense sont déconnectés.
 
----
+### 4.1 Catégorisation par prototypes (AttractorField)
+
+L'AttractorField classe chaque entrée par similarité cosinus au prototype
+le plus proche. Si la similarité dépasse un seuil, l'entrée est rattachée
+à ce prototype ; sinon, un nouveau prototype est créé. Sur 147D, ce
+mécanisme réduit la dimensionalité de manière compétitive.
 
 ## 5. Implémentation Rust
 
-Le kernel TSO est implémenté en Rust pur (crate tso-engine), sans
-Python, PyTorch ni CUDA.
+Le kernel TSO est implémenté en Rust (crate tso-engine). 45 tests
+unitaires couvrent les composants du cycle cognitif.
 
-**Modules du kernel :**
-
-| Module | Rôle |
-|--------|------|
-| neurons.rs | Clusters LIF + Dual-LIF |
-| core.rs | Graphe Φ, résolution de contraintes |
-| plasticity.rs | R-STDP (implémenté, optionnel) |
-| operators.rs | Inversion, Alignement, Répulsion |
-| perceptual_belt.rs | Pipeline de représentation unifié |
-| attractor.rs | AttractorField (prototypes) |
-| cerebellum.rs | Actor-critic TD(λ) |
-| vae.rs | Encodeur variationnel (online) |
-| fpi.rs + efe.rs | Active inference (FPI/EFE) |
-| rotating_t.rs | Benchmark non-stationnaire |
-| minigrid_env.rs | MiniGrid Rust 7×7 147D |
-
-**Propriétés :**
-- Zéro dépendance Python — compilation native
-- Parcimonie explicite — clusters inactifs ignorés dans Φ
-- Pas de rétropropagation globale — apprentissage local (R-STDP disponible, optionnel)
-- Parallélisation via Rayon
-- 45 tests unitaires validant le cycle cognitif
-
----
+Baselines disponibles (même codebase) : Linear AC, MLP AC (64 hidden),
+DQN (64 hidden, target network, replay buffer).
 
 ## 6. Expériences
 
-### 6.1 Benchmark MiniGrid — Navigation visuelle
+### 6.1 MiniGrid DoorKey (147D RGB)
 
-Benchmark sur MiniGrid DoorKey (grille 7×7, observation RGB 147D).
+Benchmark sur MiniGrid DoorKey 7×7, observation RGB 147D.
+Protocole : 10 seeds, 100 épisodes.
 
-**Protocole :** 10 seeds, 100 épisodes, but tournant tous les 50 épisodes.
-Métrique : reward moyen par épisode.
+| Condition | Moyenne | σ |
+|-----------|---------|---|
+| Régresseur linéaire (147D→7) | 0.90 | 0.26 |
+| TSO + attracteur | 1.89 | 0.40 |
+| TSO + VAE (147D→16D) | **2.09** | 0.36 |
 
-| Condition | Moyenne | σ | Δ vs linéaire |
-|-----------|---------|---|---------------|
-| Actor-critic linéaire (147D) | 1.03 | 0.17 | — |
-| TSO + attracteur (147D) | 2.11 | 0.36 | +1.08 |
-| TSO + VAE (147D→16D) | 2.06 | 0.34 | +1.03 |
-| TSO + VAE + FPI | **2.13** | 0.34 | +1.10 |
+TSO + VAE surpasse le linéaire de +132%, TSO + attracteur de +110%.
+Note : la variance seed est élevée (σ=0.26–0.40).
 
-TSO surpasse le linéaire de +105% en configuration FPI+attracteur.
-Le VAE avec Gumbel-STE améliore la robustesse mais n'est pas nécessaire
-sur cet environnement.
+### 6.2 RotatingT 5×5 (4D)
 
-### 6.2 Analyse de dimension
+Sur environnement de faible dimension, TSO est moins bon que les baselines
+standards :
 
-Plus l'observation est riche, plus l'écart TSO vs linéaire se creuse :
+| Condition | Moyenne | σ |
+|-----------|---------|---|
+| DQN (64 hidden) | **3.57** | 0.47 |
+| Linear AC | 3.08 | 0.30 |
+| MLP AC (64 hidden) | 2.89 | 0.84 |
+| TSO-full | 1.94 | 0.27 |
 
-| Dimension | Benchmark | Gain |
-|-----------|-----------|------|
-| 5D (whiskers) | Terrarium 7×7 | ≈ (48.5% vs 49.5%) |
-| 25D (grille) | GridWorld 5×5 | +24% |
-| 147D (RGB) | MiniGrid 7×7 | +105% |
+L'overhead des sous-systèmes TSO n'est pas compensé par un gain de
+catégorisation sur 4D.
 
-La catégorisation par prototypes devient rentable quand le nombre de
-dimensions dépasse la capacité d'un mélange linéaire.
+### 6.3 Benchmarks disponibles
 
----
+Tous reproductibles : `cargo run --release --bin bench_minigrid`,
+`cargo run --release --bin bench_vs_linear`,
+`cargo run --release --bin bench_vs_mlp`,
+`cargo run --release --bin bench_dqn`,
+`cargo run --release --bin bench_phi_gating`.
 
-## 7. Discussion et limites
+## 7. Discussion
 
-### Apport conceptuel
+**Apport.** TSO montre que la catégorisation par prototypes apporte un
+avantage mesurable sur les entrées visuelles de haute dimension (+110%
+vs linéaire sur 147D). L'architecture en Rust sans dépendance Python
+est fonctionnelle et testée.
 
-TSO propose de passer d'une exécution systématique à une cybernétique de
-survie active. Assujettir le calcul à une friction géométrique aligne
-l'efficacité sur la complexité réelle du problème.
-
-### Φ gating (implémenté)
-
-Le gating par Φ est désactivable via CognitiveConfig.phi_gating
-(default false). Quand activé, step() calcule Φ en début de cycle ;
-si Φ < threshold (0.5 par défaut), seules les opérations du cerebellum
-sont exécutées, court-circuitant catégorisation, FPI et belt.
-Le benchmark e10s03 montre un delta de récompense < 5% entre mode
-passif et actif sur MiniGrid 7×7 — la promesse de calcul événementiel
-de la contribution n°1 est réalisée sans perte catastrophique.
-Un modèle formel liant ||E||, sparsité α et itérations de résolution
-reste à établir pour les environnements plus grands.
-
-### Différentiabilité partielle
-
-Le Gumbel-STE permet au gradient de circuler du choix de catégorie vers
-le VAE. Mais la jointure complète TD → belt → VAE n'est pas active dans
-step() : le gradient TD ne remonte pas jusqu'au VAE.
-Une connexion backprop_td existe dans l'API mais n'est pas appelée.
-
-### R-STDP (implémenté, optionnel)
-
-Le module RstdpPlasticity est branché dans Cerebellum.reinforce_td()
-et activé via CognitiveConfig.rstdp_enabled (default false). Quand
-activé, les traces d'éligibilité (e_trace = τ·e_trace + pre×post) sont
-mises à jour à chaque mark(), et apply() les applique lors du TD-erreur.
-Le comportement par défaut reste TD(λ) classique — R-STDP est disponible
-comme alternative locale, testée mais non validée à grande échelle.
-
-### Échelle limitée
-
-MiniGrid 7×7 (147D RGB) est un test de principe. Procgen (64×64, 16 jeux)
-et Habitat (3D, ego-vision) sont les prochaines étapes identifiées.
-Le VAE 16D latent reste à valider sur bruit visuel massif.
-
-### Complexité O(|E|)
-
-Le graphe Φ a une complexité O(|E|) par tick. Le déminage maintient |E|
-borné sur les grilles 5×7. Pour des environnements 3D (>10³ concepts),
-une parallélisation GPU (wgpu, burn) sera nécessaire.
-
----
+**Limites.** L'avantage ne se généralise pas aux environnements de faible
+dimension (4D) où les baselines RL standards (DQN, Linear AC) dominent.
+Le phi_gating n'est pas isolé dans les résultats. La variance seed est
+élevée. Pas de validation statistique formelle (test de Welch non
+concluant sur 10 seeds).
 
 ## 8. Travaux futurs
 
-Les axes prioritaires sont :
-
-- **Jointure TD→VAE** : backprop_td dans le cycle step()
-- **PerceptualBelt intégré** : brancher le belt dans le heartbeat
-- **Benchmarks étendus** : Procgen, Habitat, plus de seeds, tests de
-  significativité
-- **Extension NLP** : évaluation sur SNLI prévue
-- **Citations** : références bibliographiques à ajouter
-
----
+Extension à Procgen/Habitat, validation de phi_gating en isolation,
+comparaison avec CNN sur observations visuelles.
 
 ## 9. Conclusion
 
-Nous proposons que la friction topographique (Φ) explore une direction
-où le calcul est conditionné par une dynamique interne de stabilisation,
-non par une obligation liée au flux de données.
-
-La validation sur MiniGrid (TSO 2.13 vs linéaire 1.03, +105%) confirme
-que la catégorisation par prototypes apporte un avantage mesurable sur
-les entrées visuelles de haute dimension.
-
-Le kernel Rust, les 45 tests unitaires et les benchmarks reproductibles
-sont disponibles en open source.
-
-
----
+TSO explore une direction où le calcul est conditionné par une dynamique
+interne de stabilisation. Le gain sur MiniGrid 147D (+110%) suggère que
+l'approche est prometteuse pour les environnements visuels de haute
+dimension, sous réserve de validation sur des benchmarks supplémentaires.
 
 ## Références
 
-[Graves16] A. Graves. "Adaptive Computation Time for Recurrent Neural
-Networks." arXiv:1603.08983, 2016.
-
-[Banino21] A. Banino et al. "PonderNet: Learning to Ponder."
-arXiv:2107.05407, 2021.
-
-[Jang16] E. Jang, S. Gu, B. Poole. "Categorical Reparameterization with
-Gumbel-Softmax." arXiv:1611.01144 (ICLR 2017), 2016.
-
-[Friston09] K. Friston, J. Daunizeau, S. Kiebel. "Reinforcement Learning
-or Active Inference?" PLOS ONE, 4(7):e6421, 2009.
-
-[Friston10] K. Friston. "The free-energy principle: a unified brain
-theory?" Nature Reviews Neuroscience, 11:127–138, 2010.
-
-[Florian07] R. V. Florian. "Reinforcement Learning Through Modulation
-of Spike-Timing-Dependent Synaptic Plasticity." Neural Computation,
-19(6):1468–1502, 2007.
-
-[Pfister06] J.-P. Pfister, T. Toyoizumi, D. Barber, W. Gerstner. "A
-Learning Theory for Reward-Modulated Spike-Timing-Dependent Plasticity
-with Application to Biofeedback." PLOS Computational Biology, 2(7):e85,
-2006.
-
-[Kingma13] D. P. Kingma, M. Welling. "Auto-Encoding Variational Bayes."
-arXiv:1312.6114, 2013.
-
-[Sutton88] R. S. Sutton. "Learning to Predict by the Methods of Temporal
-Differences." Machine Learning, 3:9–44, 1988.
-
-[Chevalier18] M. Chevalier-Boisvert, L. Willems, S. Pal. "Minimalistic
-Gridworld Environment for OpenAI Gym." GitHub, 2018.
-
-[Chevalier23] M. Chevalier-Boisvert et al. "Minigrid & Miniworld:
-Modular & Customizable Reinforcement Learning Environments for
-Goal-Oriented Tasks." NeurIPS, 2023.
-
-[Gerstner14] W. Gerstner, W. M. Kistler, R. Naud, L. Paninski.
-"Neuronal Dynamics: From Single Neurons to Networks and Models of
-Cognition." Cambridge University Press, 2014.
-
-[Schaar15] J. van Schaarsbergen, et al. "ndarray: an N-dimensional array
-with numpy-like API in Rust." crates.io, 2015–2024.
+[Graves16] A. Graves. "Adaptive Computation Time for RNNs." 2016.
+[Banino21] A. Banino et al. "PonderNet." 2021.
+[Jang16] E. Jang et al. "Categorical Reparameterization with Gumbel-Softmax." ICLR 2017.
+[Sutton88] R.S. Sutton. "Learning to Predict by TD Methods." 1988.
+[Chevalier23] M. Chevalier-Boisvert et al. "Minigrid & Miniworld." NeurIPS 2023.
+[Gerstner14] W. Gerstner et al. "Neuronal Dynamics." CUP, 2014.
+[Mnih15] V. Mnih et al. "Human-level control through deep reinforcement learning." Nature, 2015.

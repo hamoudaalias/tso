@@ -1,13 +1,11 @@
 //! Benchmark: Φ gating vs passif sur MiniGrid DoorKey 7×7
-//! Mesure : reward moyen, ratio de ticks partiels, time par épisode
-//!
-//! Usage: cargo run --release --bin bench_phi_gating
+//! Usage: cargo run --release --bin bench_phi_gating -- [--seeds N]
 
-use tso_engine::{CognitiveConfig, TsoEngine, minigrid_env::MiniGridEnv};
+use tso_engine::{TsoEngine, minigrid_env::MiniGridEnv};
 
 fn main() {
-    let n_seeds = 5;
-    let n_episodes = 50;
+    let n_seeds = std::env::args().nth(1).and_then(|a| a.parse().ok()).unwrap_or(10);
+    let n_episodes = 100;
     let dim = 147;
     let n_actions = 7;
 
@@ -20,7 +18,6 @@ fn main() {
             let mut tso = TsoEngine::with_hidden(dim, n_actions, 0);
             tso.cogs.phi_gating = false;
             let mut total_reward = 0.0;
-
             for _ep in 0..n_episodes {
                 let obs = env.reset();
                 tso.end_episode();
@@ -33,13 +30,12 @@ fn main() {
             }
             passif_rewards.push(total_reward / n_episodes as f64);
         }
-
         {
             let mut env = MiniGridEnv::new();
             let mut tso = TsoEngine::with_hidden(dim, n_actions, 0);
             tso.cogs.phi_gating = true;
+            tso.cogs.phi_threshold = 0.5;
             let mut total_reward = 0.0;
-
             for _ep in 0..n_episodes {
                 let obs = env.reset();
                 tso.end_episode();
@@ -54,9 +50,17 @@ fn main() {
         }
     }
 
-    let pm = passif_rewards.iter().sum::<f64>() / n_seeds as f64;
-    let am = actif_rewards.iter().sum::<f64>() / n_seeds as f64;
-    println!("phi_passive: {:.3}", pm);
-    println!("phi_active:   {:.3}", am);
-    println!("delta:        {:+.3}", am - pm);
+    let pm = mean(&passif_rewards);
+    let am = mean(&actif_rewards);
+    let ps = std_dev(&passif_rewards, pm);
+    let as_ = std_dev(&actif_rewards, am);
+    println!("phi_passive (gating OFF):  {:.3} ± {:.3}", pm, ps);
+    println!("phi_active  (gating ON):   {:.3} ± {:.3}", am, as_);
+    println!("delta:                     {:.3}", am - pm);
+}
+
+fn mean(v: &[f64]) -> f64 { v.iter().sum::<f64>() / v.len() as f64 }
+fn std_dev(v: &[f64], m: f64) -> f64 {
+    let var = v.iter().map(|x| (x - m).powi(2)).sum::<f64>() / v.len() as f64;
+    var.sqrt()
 }

@@ -1,0 +1,49 @@
+# specs/product/SCOPE_LATEST.yaml
+# Benchmarks etendus — Procgen / Habitat
+
+core_value: "Valider TSO sur des environnements visuels de difficulte croissante au-dela de MiniGrid 7x7"
+
+summary: >
+  Les benchmarks actuels (MiniGrid 7x7, GridWorld 5x5, Terrarium 7x7)
+  sont des tests de principe sur des grilles de taille reduite. Pour
+  etablir TSO comme une architecture generalisable, trois etapes sont
+  necessaires : (1) Procgen (64x64, 16 jeux) — vision RL standard,
+  (2) Habitat (3D, ego-vision) — navigation immersive,
+  (3) ablation systematique du cout de Phi et du gating.
+  Chaque etape produit un rapport de benchmark comparable aux baselines
+  etablies (PPO+CNN, PonderNet).
+
+in_scope:
+  - "Integration d'un environnement Procgen en Rust (via procgen crate ou protobuf)"
+  - "Integration d'un environnement Habitat minimal (via habitat-sim bindings)"
+  - "Portage de l'observation 64x64 RGB dans le pipeline TSO existant"
+  - "Benchmark : PPO+CNN baseline vs TSO sur 5 jeux Procgen"
+  - "Benchmark : etude de cout de Phi (O(|E|) scaling) sur environnements riches"
+  - "Benchmark : gating par Phi sur observations haute dimension (64x64)"
+  - "Rapport de benchmark pour chaque environnement"
+  - "Documentation du protocole de benchmark (seeds, metriques, temps)"
+
+out_of_scope:
+  - "Entrainement d'un VAE sur Procgen (le VAE 16D existant est utilise tel quel)"
+  - "Version PyTorch de TSO (kernel Rust reste la seule implementation)"
+  - "Entrainement distribue / multi-GPU"
+  - "Integration de nouveaux algorithmes RL (PPO/DQN reste externe)"
+  - "Portage du cake (visualisation) vers les nouveaux environnements"
+
+constraints:
+  - "Tout le code Rust, zero Python : les environments doivent etre compilables"
+  - "Budget : 1 semaine de calcul pour la batterie complete (16 jeux x 10 seeds)"
+  - "Le pipeline cognitif TSO ne change pas — seule l'interface observation change"
+  - "Compatibilite ascendante : les benchmarks MiniGrid existants continuent de passer"
+
+success_criteria:
+  - "TSO obtient un score >= 50% du PPO+CNN baseline sur au moins 3 des 5 jeux Procgen selectionnes"
+  - "Le cout de Phi est mesure et rapporte pour chaque environnement"
+  - "Le gating par Phi montre une economie de calcul >= 20% sans perte de performance >5%"
+  - "Tous les rapports sont dans specs/experiments/"
+  - "cargo check --bins et cargo test passent"
+
+references:
+  - specs/tech-architecture/e33-BENCHMARK_PLAN_LATEST.md
+  - specs/experiments/phi_gating_report.md
+  - ADR-002-rl-limitation-accepted.md

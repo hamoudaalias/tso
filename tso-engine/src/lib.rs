@@ -34,3 +34,5 @@ pub mod model;
 pub mod inference;
 pub mod learning;
 pub mod neurogenesis;
+
+pub mod baselines;

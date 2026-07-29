@@ -1,54 +1,34 @@
-# Refactor Plan: Environment trait + Minigrid integration + scaling metrics
+# REFACTOR — Papier TSO
 
-## Problem Statement
-Le moteur TSO est couplé à `grid_world.rs` (hard-coded Env5x5). Impossible de changer d'environnement (Minigrid, Procgen, Habitat) sans modifier le code du moteur. Le trait `Encoder` a déjà montré que l'architecture à trait interchangeable fonctionne. Même pattern pour l'environnement.
+## Stratégie : "Fixer d'abord le périmètre, puis réduire les claims aux preuves"
 
-## Solution
-1. Définir un trait `Environment` (step, reset, action_space, obs_dim).
-2. Implémenter pour GridWorld (adapter `grid_world.rs` existant).
-3. Ajouter un champ `env: Box<dyn Environment>` à `TsoEngine`.
-4. Adapter `step()` et le binaire `main` pour boucler sur `self.env` au lieu de l'env local.
-5. Mesurer le gap de scaling (dim=4→64→4096, nombre de steps).
+### Commit 1 — Retirer le cadre CDT comme "théorie"
+- Supprimer §3 titré "Théorie de la Dissipation Cognitive"
+- Renommer en "§3. Friction topographique (Φ)"
+- Garder les définitions mathématiques (minimales), supprimer le narratif "fondement théorique"
+- Déplacer la dynamique Dual-LIF sous Architecture (§4)
 
-## Commits
+### Commit 2 — Supprimer les comparaisons non-chiffrées
+- §2 "Travaux connexes" : remplacer le texte positionnel par max 1 phrase. "TSO emprunte à ACT, SNN, Active Inference mais s'en distingue par la friction comme déclencheur."
+- Supprimer toute phrase de type "TSO bat/surpasse/se distingue"
 
-```
-1. Définir Environment trait dans src/environment.rs
-   → verify: cargo check --lib
+### Commit 3 — Réduire les contributions listées
+- Dans le Résumé, supprimer la liste à 4 contributions
+- Remplacer par 2 max : "(i) Architecture à friction topographique, (ii) Benchmark MiniGrid"
+- VAE online + Gumbel-STE passe en sous-section technique dans Architecture
 
-2. Implémenter pour GridWorld (env5x5 -> TsoGridEnv)
-   → verify: cargo test --test env_grid 2>&1 | grep PASS
+### Commit 4 — Nettoyer les claims non-supportés
+- Partout remplacer "montre que", "démontre", "prouve" par "suggère", "indique", "permet"
+- Quantifier précisément chaque claim avec le nombre de benchmarks qui le soutiennent
 
-3. Ajouter env: Option<Box<dyn Environment>> à TsoEngine
-   Modifier step() pour utiliser self.env.step(action) si Some
-   → verify: cargo check --bins
+### Commit 5 — Redimensionner les travaux futurs
+- 2 lignes max : "Extension à Procgen/Habitat en cours. Code sur GitHub."
+- Supprimer les 6 axes détaillés
 
-4. Adapter experiment_e03.rs pour utiliser l'Environment trait
-   → verify: cargo run --bin experiment_e03 2>&1 | grep '100.0%'
+### Commit 6 — Nettoyer les références
+- Chaque référence citée dans le corps doit être utilisée
+- Ne garder que celles qui sont citées au moins une fois
 
-5. Créer MinigridEnv (wrapper PyO3) dans tso_env/src/environment.rs
-   Implémenter le trait Environment pour MinigridEnv
-   → verify: cargo check --manifest-path tso_env/Cargo.toml
-
-6. Benchmark : Environment trait × 3 implantations (GridWorld, Minigrid, random)
-   Mesurer : µs/step, µs/reset, bandwidth (octets/step)
-   → verify: cargo run --bin bench_env 2>&1 | grep -E 'GridWorld|Minigrid'
-```
-
-## Decision Document
-- `Environment` trait : `step(action: usize) → (obs: Vec<f64>, reward: f64, done: bool)`
-- `reset() → Vec<f64>` (observation initiale)
-- `action_space() → usize`, `observation_dim() → usize`
-- `Box<dyn Environment>` dans `TsoEngine` (serde skip)
-- Encoder trait + Environment trait sont indépendants (pas de couplage entre eux)
-- MinigridEnv utilise PyO3 (dépendance Python runtime)
-
-## Testing Decisions
-- Tests unitaires de l'Environment trait sur GridWorld (reset, step, actions valides)
-- Test de regression : GridWorld via Environment doit produire les mêmes résultats qu'avant
-- Les tests de scaling mesurent le throughput, pas la justesse
-
-## Out of Scope
-- Habitat integration (nécessite PyO3 + images, futur)
-- Environment multi-agent
-- Render (sortie visuelle, pas nécessaire pour le moteur)
+### Commit 7 — Renforcer le benchmark
+- Section Expériences : ajouter explicitement les limites (10 seeds seulement, un seul scénario, pas d'ensemble de validation)
+- Ne pas cacher que c'est le seul benchmark
