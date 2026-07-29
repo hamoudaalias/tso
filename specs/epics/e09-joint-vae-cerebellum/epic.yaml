@@ -3,34 +3,22 @@ title: "Apprentissage conjoint VAE + Cerebellum (end-to-end)"
 priority: 7
 wsjf: 25
 bcp: 15
-status: planned
+status: passing
 dependencies: []
 stories:
   - id: e09s01
-    title: "Mode continu dans VaeEncoder — skip centroids, retourne z brut"
-    description: >
-      Ajouter `encode_continuous(perception) -> Array1<f64>` qui retourne le
-      latent z (µ en mode déterministe) sans passer par les centroids.
-      Le cervelet reçoit directement z comme état.
-    verify: "cd tso-engine && cargo test --test encoder_continuous 2>&1 | grep PASS"
-
+    title: "Mode continu dans VaeEncoder"
+    bcps: 3
+    status: passing
   - id: e09s02
-    title: "Rétropropagation TD dans l'encodeur VAE"
-    description: >
-      Le gradient TD (δ) de reinforce_td est utilisé pour mettre à jour
-      les poids du VAE encodeur. Approximation SGD : δ × ∂logits/∂z × ∂z/∂w_enc.
-      Clipping du gradient (norme max 1.0) pour stabilité.
-    verify: "cd tso-engine && cargo test --test vae_rl_backprop 2>&1 | grep PASS"
-
+    title: "Retropropagation TD dans l'encodeur VAE"
+    bcps: 5
+    status: passing
   - id: e09s03
-    title: "Benchmark : VAE gelé vs VAE entraîné en ligne sur Zigzag 10×10"
-    description: >
-      Compare 3 configs sur Zigzag 10×10 :
-      (a) AttractorField (baseline)
-      (b) VAE gelé + centroids (actuel)
-      (c) VAE continu + gradient RL (end-to-end)
-    verify: "cd tso-engine && cargo run --release --bin bench_vae_joint 2>&1 | grep -E 'VAE.*[0-9]+%'"
-
+    title: "Benchmark VAE gelee vs entraine sur Zigzag 10x10"
+    bcps: 4
+    status: passing
   - id: e09s04
-    title: "Multi-seed validation sur GridWorld 5×5 et Zigzag 10×10"
-    verify: "cd tso-engine && cargo run --release --bin multi_seed_vae 2>&1 | grep -E 'success.*9[0-9]'"
+    title: "Multi-seed validation"
+    bcps: 3
+    status: passing

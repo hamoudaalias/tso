@@ -991,6 +991,11 @@ impl TsoEngine {
         // ── Step 4 : Hebbian Learning ────────────────────────────
         // TD-error update with well-being as the reward signal
         self.cerebellum.reinforce_td(well_being, 0.99);
+        // Backprop TD gradient into encoder (VAE/Attractor)
+        if let Some(ref mut enc) = self.encoder {
+            let d = self.cerebellum.last_delta;
+            if d.abs() > 1e-8 { enc.backprop_td(d); }
+        }
         self.cerebellum.decay_trace(0.99, 0.98);
 
         // REPLAY BUFFER : store (s_{t-1}, a_{t-1}, r_t, s_t)

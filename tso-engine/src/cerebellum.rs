@@ -37,6 +37,8 @@ pub struct Cerebellum {
     lr_critic: f64,
     /// Cached V(h_t) from the last mark() — used for TD-error computation
     v_prev: f64,
+    /// Last TD-error (δ), stored for backprop into encoder
+    pub last_delta: f64,
     pub rstdp: Option<RstdpPlasticity>,
 
     /// Experience replay buffer — stocke les transitions pour
@@ -102,6 +104,7 @@ impl Cerebellum {
 
         Cerebellum { lr, noise_std, epsilon, dim, n_actions, hidden_dim: hd, is_linear,
             w_lin, e_lin, w1, b1, w2, b2, h, e1, e2, w_v, b_v, lr_critic: lr, v_prev: 0.0,
+            last_delta: 0.0,
             rstdp: None,
             replay: ReplayBuffer::new(10000), replay_lr: 0.05, replay_only: false, delta_clip: 0.0 }
     }
@@ -282,6 +285,7 @@ impl Cerebellum {
         let v_next = self.predict_value();
         // v_prev was cached during last mark()
         let delta = reward + gamma * v_next - self.v_prev;
+        self.last_delta = delta;
         if delta.abs() < 1e-8 { return; }
 
         // --- Actor update with δ ---

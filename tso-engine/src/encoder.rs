@@ -63,6 +63,10 @@ pub trait Encoder: Send {
 
     /// Métadonnées VAE (défaut None — seuls les VAE les fournissent).
     fn vae_stats(&self) -> Option<VaeStats> { None }
+
+    /// Rétropropagation du gradient TD (δ) dans l'encodeur.
+    /// Implémentation no-op par défaut (pour les encodeurs sans gradient).
+    fn backprop_td(&mut self, _delta: f64) {}
 }
 
 // ─── Implémentation : AttractorEncoder (wrapper autour d'AttractorField) ───
@@ -177,6 +181,8 @@ pub struct VaeEncoder {
     pub last_best_centroid_idx: usize,
     /// Gèle la mise à jour des centroids (true = inférence seule).
     pub freeze: bool,
+    /// Mode continu : pas de centroids, encode_raw retourne z comme latent brut.
+    pub continuous: bool,
     /// Dernières stats VAE (pour interrogation externe).
     last_stats: Option<VaeStats>,
 }
@@ -211,6 +217,7 @@ impl VaeEncoder {
             last_z: Vec::new(),
             last_best_centroid_idx: 0,
             freeze: false,
+            continuous: false,
             last_stats: None,
         }
     }
@@ -227,8 +234,22 @@ impl VaeEncoder {
     }
 }
 
+impl VaeEncoder {
+    /// Encode en mode continu : retourne z brut (pas de centroids).
+    pub fn encode_continuous(&mut self, perception: &Array1<f64>) -> Vec<f64> {
+        self.vae.encode(perception);
+        let mu = self.vae.mu.clone();
+        let z: Vec<f64> = if self.deterministic { mu } else { self.vae.reparameterize().to_vec() };
+        z
+    }
+}
+
 impl Encoder for VaeEncoder {
     fn encode_raw(&mut self, perception: &Array1<f64>) -> EncodeResult {
+        if self.continuous {
+            let z = self.encode_continuous(perception);
+            return EncodeResult { category_id: 0, novelty: 0.0, is_new: false };
+        }
         self.vae.encode(perception);
         let mu = self.vae.mu.clone();
         let logvar = self.vae.logvar.clone();

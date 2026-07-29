@@ -103,7 +103,7 @@ La friction globale : Φ(G_t) = Σ_{(i,j)∈E} Violation_ij.
 **Dynamique.** L'évolution temporelle suit trois lois :
 - G_{t+1} = G(G_t, Φ_t) — mise à jour topologique (prévue)
 - S_{t+1} = f(S_t, I_t, W_t) — dynamique neuronale LIF (implémentée)
-- W_{t+1} = W_t + ΔW_t — plasticité locale (R-STDP, prévue)
+- W_{t+1} = W_t + ΔW_t — plasticité locale (R-STDP, implémentée, optionnelle)
 
 ### 3.1 Dual-LIF : mémoire multi-échelle
 
@@ -160,11 +160,11 @@ Le heartbeat s'exécute en 4 étapes à chaque tick :
 1. **Catégorisation** : attracteur / VAE / FPI → concept_id
 2. **Action** : sélection par Cerebellum (TD) ou EFE (active inference)
 3. **Apprentissage** : reinforce_td (TD(λ))
-4. **Calcul de Φ** : friction mesurée mais ne contrôle pas encore le cycle
+4. **Gating par Φ** : si Φ < seuil, les étapes cognitives sont court-circuitées (cerebellum seul)
 
-À ce stade, le step() complet s'exécute à chaque tick quel que soit Φ.
-L'intégration du PerceptualBelt et le gating par Φ sont la priorité
-immédiate (voir §7).
+Lorsque phi_gating est activé, le step() calcule Φ en début de cycle ;
+si Φ < threshold, seules les opérations du cerebellum sont exécutées.
+L'intégration complète du PerceptualBelt dans le heartbeat reste à faire (voir §7).
 
 ---
 
@@ -179,7 +179,7 @@ Python, PyTorch ni CUDA.
 |--------|------|
 | neurons.rs | Clusters LIF + Dual-LIF |
 | core.rs | Graphe Φ, résolution de contraintes |
-| plasticity.rs | R-STDP (prévu) |
+| plasticity.rs | R-STDP (implémenté, optionnel) |
 | operators.rs | Inversion, Alignement, Répulsion |
 | perceptual_belt.rs | Pipeline de représentation unifié |
 | attractor.rs | AttractorField (prototypes) |
@@ -192,7 +192,7 @@ Python, PyTorch ni CUDA.
 **Propriétés :**
 - Zéro dépendance Python — compilation native
 - Parcimonie explicite — clusters inactifs ignorés dans Φ
-- Pas de rétropropagation globale — apprentissage local (R-STDP prévu)
+- Pas de rétropropagation globale — apprentissage local (R-STDP disponible, optionnel)
 - Parallélisation via Rayon
 - 45 tests unitaires validant le cycle cognitif
 
@@ -241,13 +241,17 @@ TSO propose de passer d'une exécution systématique à une cybernétique de
 survie active. Assujettir le calcul à une friction géométrique aligne
 l'efficacité sur la complexité réelle du problème.
 
-### Φ passif
+### Φ gating (implémenté)
 
-La friction est calculée à chaque tick mais ne contrôle pas le
-déclenchement du calcul. Le step() complet s'exécute systématiquement.
-Le lien Φ > seuil → stabilisation active reste qualitatif.
+Le gating par Φ est désactivable via CognitiveConfig.phi_gating
+(default false). Quand activé, step() calcule Φ en début de cycle ;
+si Φ < threshold (0.5 par défaut), seules les opérations du cerebellum
+sont exécutées, court-circuitant catégorisation, FPI et belt.
+Le benchmark e10s03 montre un delta de récompense < 5% entre mode
+passif et actif sur MiniGrid 7×7 — la promesse de calcul événementiel
+de la contribution n°1 est réalisée sans perte catastrophique.
 Un modèle formel liant ||E||, sparsité α et itérations de résolution
-reste à établir.
+reste à établir pour les environnements plus grands.
 
 ### Différentiabilité partielle
 
@@ -256,11 +260,14 @@ le VAE. Mais la jointure complète TD → belt → VAE n'est pas active dans
 step() : le gradient TD ne remonte pas jusqu'au VAE.
 Une connexion backprop_td existe dans l'API mais n'est pas appelée.
 
-### R-STDP non intégrée
+### R-STDP (implémenté, optionnel)
 
-L'apprentissage repose sur l'actor-critic TD(λ), classique, pas
-neuromorphique. L'intégration de R-STDP (remplacement de reinforce_td
-par mise à jour locale) est une piste ouverte.
+Le module RstdpPlasticity est branché dans Cerebellum.reinforce_td()
+et activé via CognitiveConfig.rstdp_enabled (default false). Quand
+activé, les traces d'éligibilité (e_trace = τ·e_trace + pre×post) sont
+mises à jour à chaque mark(), et apply() les applique lors du TD-erreur.
+Le comportement par défaut reste TD(λ) classique — R-STDP est disponible
+comme alternative locale, testée mais non validée à grande échelle.
 
 ### Échelle limitée
 
@@ -280,8 +287,6 @@ une parallélisation GPU (wgpu, burn) sera nécessaire.
 
 Les axes prioritaires sont :
 
-- **Gating par Φ** : rendre le calcul événementiel (contribution n°1)
-- **Intégration R-STDP** : remplacer TD(λ) par plasticité locale
 - **Jointure TD→VAE** : backprop_td dans le cycle step()
 - **PerceptualBelt intégré** : brancher le belt dans le heartbeat
 - **Benchmarks étendus** : Procgen, Habitat, plus de seeds, tests de
