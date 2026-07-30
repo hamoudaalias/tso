@@ -90,7 +90,8 @@ fn run_test(use_encoder: bool, seed: u64) -> f64 {
     engine.cerebellum.replay_only = false;
     engine.sleep_every_n_episodes = 0;
     engine.use_stationary_reward = true;
-    engine.cogs = CognitiveConfig::default(); // attractor enabled, δ-clip default
+    engine.cogs = CognitiveConfig::default();
+    engine.cogs.homeostatic_drive_bonus = 0.0;
 
     if use_encoder {
         engine.encoder = Some(Box::new(AttractorEncoder::new(PERCEPTION_DIM)));

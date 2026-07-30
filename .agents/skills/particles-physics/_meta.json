@@ -1,0 +1,19 @@
+{
+  "name": "particles-physics",
+  "description": "Physics simulation for particle systems—forces (gravity, wind, drag), attractors/repulsors, velocity fields, turbulence, and collision. Use when particles need realistic or artistic motion, swarm behavior, or field-based animation.",
+  "tags": [
+    "3d",
+    "three.js",
+    "code-generation"
+  ],
+  "sub_skills": [],
+  "source": "claude-user",
+  "type": "template",
+  "depends_on": [
+    "particles-gpu"
+  ],
+  "enhances": [],
+  "last_reviewed_at": "2026-06-26",
+  "review_score": 60,
+  "relevance_tier": "A"
+}

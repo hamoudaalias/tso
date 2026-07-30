@@ -17,6 +17,12 @@ cd tso-engine && cargo check --bins
 # Build release
 cd tso-engine && cargo build --release
 
+# Quick-start (30s)
+cd tso-engine && cargo run --release --bin demo
+
+# Demo avec config et JSON
+cd tso-engine && cargo run --release --bin demo -- --attractor --graph_phi --threshold 0.3 --json
+
 # Lancer un binaire spécifique
 cd tso-engine && cargo run --bin debug_rl
 

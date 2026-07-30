@@ -74,6 +74,16 @@ impl WorkingMemory {
     pub fn has_target(&self) -> bool {
         self.assoc.size() > 0
     }
+
+    pub fn membrane_potential(&self) -> (Array1<f64>, Array1<f64>) {
+        (self.lif.slow.state.clone(), self.lif.fast.state.clone())
+    }
+
+    pub fn spike_rate(&self) -> (f64, f64) {
+        let slow_rate = self.lif.slow.state.mapv(|x| x.max(0.0)).mean().unwrap_or(0.0);
+        let fast_rate = self.lif.fast.state.mapv(|x| x.max(0.0)).mean().unwrap_or(0.0);
+        (slow_rate, fast_rate)
+    }
 }
 
 
@@ -136,4 +146,106 @@ fn cosine_sim(a: &Array1<f64>, b: &Array1<f64>) -> f64 {
     let na = a.dot(a).sqrt().max(1e-12);
     let nb = b.dot(b).sqrt().max(1e-12);
     dot / (na * nb)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn approx_eq(a: f64, b: f64, eps: f64) -> bool {
+        (a - b).abs() < eps
+    }
+
+    #[test]
+    fn test_pulse_response_fast_dominates() {
+        let mut wm = WorkingMemory::new(4, 0.9, 0.5);
+
+        let (s0, f0) = wm.membrane_potential();
+        assert!(s0.iter().all(|x| *x == 0.0));
+        assert!(f0.iter().all(|x| *x == 0.0));
+
+        let pulse = Array1::from_vec(vec![1.0, 1.0, 1.0, 1.0]);
+        wm.observe(&[pulse]);
+
+        let (slow, fast) = wm.membrane_potential();
+        let slow_mag = slow.dot(&slow);
+        let fast_mag = fast.dot(&fast);
+
+        assert!(fast_mag > slow_mag, "fast should integrate more of the pulse than slow");
+        assert!(slow[0] > 0.0, "slow should have non-zero state after pulse");
+        assert!(fast[0] > 0.0, "fast should have non-zero state after pulse");
+
+        assert!(approx_eq(slow[0], (1.0 - 0.9) * 1.0, 1e-6));
+        assert!(approx_eq(fast[0], (1.0 - 0.5) * 1.0, 1e-6));
+    }
+
+    #[test]
+    fn test_decay_rates_differ() {
+        let mut wm = WorkingMemory::new(4, 0.9, 0.5);
+
+        let pulse = Array1::from_vec(vec![1.0, 0.0, 0.0, 0.0]);
+        wm.observe(&[pulse]);
+
+        let zero = Array1::zeros(4);
+        for _ in 0..10 {
+            wm.observe(&[zero.clone()]);
+        }
+
+        let (slow, fast) = wm.membrane_potential();
+        let slow_mag = slow.dot(&slow);
+        let fast_mag = fast.dot(&fast);
+
+        assert!(slow_mag > fast_mag, "after decay, slow should retain more than fast");
+        assert!(fast_mag < 0.01, "fast should decay near zero: {}", fast_mag);
+        assert!(slow[0] > 0.0, "slow should retain some signal after 10 steps");
+    }
+
+    #[test]
+    fn test_spike_rate_after_pulse() {
+        let mut wm = WorkingMemory::new(4, 0.9, 0.5);
+
+        let (sr, fr) = wm.spike_rate();
+        assert!(approx_eq(sr, 0.0, 1e-10));
+        assert!(approx_eq(fr, 0.0, 1e-10));
+
+        let pulse = Array1::from_vec(vec![2.0, 2.0, 2.0, 2.0]);
+        wm.observe(&[pulse]);
+
+        let (sr, fr) = wm.spike_rate();
+        assert!(sr > 0.0, "slow spike rate should be positive");
+        assert!(fr > 0.0, "fast spike rate should be positive");
+        assert!(fr > sr, "fast spike rate should exceed slow for a fresh pulse");
+    }
+
+    #[test]
+    fn test_observe_and_recall() {
+        let mut wm = WorkingMemory::new(4, 0.9, 0.5);
+
+        let v1 = Array1::from_vec(vec![1.0, 0.0, 0.0, 0.0]);
+        let v2 = Array1::from_vec(vec![0.0, 1.0, 0.0, 0.0]);
+
+        wm.store(&v1, 42);
+        wm.store(&v2, 99);
+
+        let r1 = wm.recall(&v1);
+        assert_eq!(r1, Some((42, 1.0)));
+
+        let partial = Array1::from_vec(vec![0.0, 0.8, 0.0, 0.0]);
+        let r2 = wm.recall(&partial);
+        assert_eq!(r2.map(|r| r.0), Some(99));
+    }
+
+    #[test]
+    fn test_reset_clears_state() {
+        let mut wm = WorkingMemory::new(4, 0.9, 0.5);
+
+        let pulse = Array1::from_vec(vec![1.0, 1.0, 1.0, 1.0]);
+        wm.observe(&[pulse]);
+        wm.reset();
+
+        let (slow, fast) = wm.membrane_potential();
+        assert!(slow.iter().all(|x| *x == 0.0));
+        assert!(fast.iter().all(|x| *x == 0.0));
+        assert_eq!(wm.assoc.size(), 0);
+    }
 }

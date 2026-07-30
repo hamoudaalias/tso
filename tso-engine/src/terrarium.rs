@@ -1,26 +1,37 @@
 use ndarray::Array1;
 use serde::{Serialize, Deserialize};
 
-/// Terrarium — environnement de survie avec récompenses rares.
-/// L'agent doit trouver de la nourriture et de l'eau pour maintenir
-/// son énergie. Les récompenses sont rares (uniquement sur les ressources).
-///
-/// Perception : [N, S, O, E, food_sensed, water_sensed, cell_id?]
-/// Actions : 0=N, 1=S, 2=O, 3=E.
+#[derive(Clone, Serialize, Deserialize)]
+struct FoodSource {
+    x: usize,
+    y: usize,
+    alive: bool,
+    timer: usize,
+}
+
+#[derive(Clone, Serialize, Deserialize)]
+struct WaterSource {
+    x: usize,
+    y: usize,
+    alive: bool,
+    timer: usize,
+}
+
 #[derive(Clone, Serialize, Deserialize)]
 pub struct Terrarium {
     pub width: usize,
     pub height: usize,
     walls: Vec<Vec<bool>>,
     pub agent: (usize, usize),
-    food: Vec<(usize, usize)>,
-    water: Vec<(usize, usize)>,
+    food: Vec<FoodSource>,
+    water: Vec<WaterSource>,
     pub energy: f64,
     pub done: bool,
     pub steps: usize,
     pub max_steps: usize,
-    /// Récompense accumulée (pour monitoring)
     pub total_reward: f64,
+    pub perishable: bool,
+    pub respawn_delay: usize,
 }
 
 impl Terrarium {
@@ -32,25 +43,26 @@ impl Terrarium {
         for i in 0..w { walls[i][0] = true; walls[i][h-1] = true; }
         for j in 0..h { walls[0][j] = true; walls[w-1][j] = true; }
 
-        // Passages internes pour former un labyrinthe
         for x in 2..w-1 { walls[x][3] = true; }
         for y in 1..h-1 { walls[3][y] = true; }
         walls[2][3] = false;
         walls[3][2] = false;
         walls[4][3] = false;
 
-        // Placer nourriture (3 sources)
-        let food = vec![(2, 1), (5, 4), (1, 5)];
-        // Placer eau (3 sources)
-        let water = vec![(5, 1), (2, 5), (4, 2)];
+        let food_pos = [(2, 1), (5, 4), (1, 5)];
+        let water_pos = [(5, 1), (2, 5), (4, 2)];
 
-        let agent = (1, 1);
+        let food: Vec<FoodSource> = food_pos.iter().map(|&(x, y)| FoodSource { x, y, alive: true, timer: 0 }).collect();
+        let water: Vec<WaterSource> = water_pos.iter().map(|&(x, y)| WaterSource { x, y, alive: true, timer: 0 }).collect();
 
         Terrarium {
-            width: w, height: h, walls, agent,
+            width: w, height: h, walls,
+            agent: (1, 1),
             food, water,
             energy: 1.0, done: false, steps: 0,
             max_steps: 200, total_reward: 0.0,
+            perishable: true,
+            respawn_delay: 15,
         }
     }
 
@@ -60,6 +72,14 @@ impl Terrarium {
         self.done = false;
         self.steps = 0;
         self.total_reward = 0.0;
+        for f in &mut self.food {
+            f.alive = true;
+            f.timer = 0;
+        }
+        for w in &mut self.water {
+            w.alive = true;
+            w.timer = 0;
+        }
     }
 
     pub fn is_walkable(&self, x: isize, y: isize) -> bool {
@@ -69,15 +89,29 @@ impl Terrarium {
         !self.walls[x as usize][y as usize]
     }
 
+    fn random_walkable(&self) -> (usize, usize) {
+        use rand::Rng;
+        loop {
+            let x = rand::thread_rng().gen_range(1..self.width - 1);
+            let y = rand::thread_rng().gen_range(1..self.height - 1);
+            if !self.walls[x][y] && (x, y) != self.agent {
+                let occupied_by_food = self.food.iter().any(|f| f.alive && f.x == x && f.y == y);
+                let occupied_by_water = self.water.iter().any(|w| w.alive && w.x == x && w.y == y);
+                if !occupied_by_food && !occupied_by_water {
+                    return (x, y);
+                }
+            }
+        }
+    }
+
     fn has_food(&self, x: usize, y: usize) -> bool {
-        self.food.contains(&(x, y))
+        self.food.iter().any(|f| f.alive && f.x == x && f.y == y)
     }
 
     fn has_water(&self, x: usize, y: usize) -> bool {
-        self.water.contains(&(x, y))
+        self.water.iter().any(|w| w.alive && w.x == x && w.y == y)
     }
 
-    /// Perception : [N, S, O, E, food_sensed, water_sensed, cell_id?]
     pub fn perception(&self, cell_id: Option<f64>) -> Array1<f64> {
         let md = self.width.max(self.height) as f64;
         let x = self.agent.0 as isize;
@@ -90,21 +124,21 @@ impl Terrarium {
             self.ray(x, y, 1, 0) as f64 / md,
         ];
 
-        // Détection de nourriture à proximité (dans les 2 cases)
         let mut food_near = 0.0;
-        for &(fx, fy) in &self.food {
-            let dx = (x - fx as isize).abs() as f64;
-            let dy = (y - fy as isize).abs() as f64;
+        for f in &self.food {
+            if !f.alive { continue; }
+            let dx = (x - f.x as isize).abs() as f64;
+            let dy = (y - f.y as isize).abs() as f64;
             let d = (dx * dx + dy * dy).sqrt();
             if d <= 2.0 { food_near = (1.0 - d / 3.0).max(0.0); break; }
         }
         p.push(food_near);
 
-        // Détection d'eau à proximité
         let mut water_near = 0.0;
-        for &(wx, wy) in &self.water {
-            let dx = (x - wx as isize).abs() as f64;
-            let dy = (y - wy as isize).abs() as f64;
+        for w in &self.water {
+            if !w.alive { continue; }
+            let dx = (x - w.x as isize).abs() as f64;
+            let dy = (y - w.y as isize).abs() as f64;
             let d = (dx * dx + dy * dy).sqrt();
             if d <= 2.0 { water_near = (1.0 - d / 3.0).max(0.0); break; }
         }
@@ -130,12 +164,66 @@ impl Terrarium {
         }
     }
 
+    fn collect_resource_reward(&mut self, reward: f64) -> f64 {
+        self.energy = (self.energy + if reward >= 10.0 { 0.3 } else { 0.2 }).min(1.0);
+        self.total_reward += reward;
+        if self.steps >= self.max_steps { self.done = true; }
+        reward
+    }
+
+    fn consume_food(&mut self, idx: usize) -> f64 {
+        self.food[idx].alive = false;
+        self.food[idx].timer = self.respawn_delay;
+        self.collect_resource_reward(10.0)
+    }
+
+    fn consume_water(&mut self, idx: usize) -> f64 {
+        self.water[idx].alive = false;
+        self.water[idx].timer = self.respawn_delay;
+        self.collect_resource_reward(8.0)
+    }
+
+    fn tick_respawn(&mut self) {
+        if !self.perishable { return; }
+
+        let mut respawn_food: Vec<usize> = Vec::new();
+        for (idx, f) in self.food.iter_mut().enumerate() {
+            if !f.alive && f.timer > 0 {
+                f.timer -= 1;
+                if f.timer == 0 {
+                    respawn_food.push(idx);
+                }
+            }
+        }
+        for idx in respawn_food {
+            let (nx, ny) = self.random_walkable();
+            self.food[idx].x = nx;
+            self.food[idx].y = ny;
+            self.food[idx].alive = true;
+        }
+
+        let mut respawn_water: Vec<usize> = Vec::new();
+        for (idx, w) in self.water.iter_mut().enumerate() {
+            if !w.alive && w.timer > 0 {
+                w.timer -= 1;
+                if w.timer == 0 {
+                    respawn_water.push(idx);
+                }
+            }
+        }
+        for idx in respawn_water {
+            let (nx, ny) = self.random_walkable();
+            self.water[idx].x = nx;
+            self.water[idx].y = ny;
+            self.water[idx].alive = true;
+        }
+    }
+
     pub fn step(&mut self, action: usize) -> f64 {
         if self.done { return 0.0; }
         self.steps += 1;
 
-        // Énergie diminue chaque pas
-        self.energy -= 0.01;
+        self.energy -= if self.perishable { 0.02 } else { 0.01 };
         if self.energy <= 0.0 {
             self.done = true;
             self.total_reward -= 10.0;
@@ -151,26 +239,33 @@ impl Terrarium {
 
         if !self.is_walkable(nx, ny) {
             if self.steps >= self.max_steps { self.done = true; }
+            self.tick_respawn();
             return -0.5;
         }
 
         self.agent = (nx as usize, ny as usize);
 
-        // Récompense si nourriture
-        if self.has_food(self.agent.0, self.agent.1) {
-            self.energy = (self.energy + 0.3).min(1.0);
-            self.total_reward += 10.0;
-            if self.steps >= self.max_steps { self.done = true; }
-            return 10.0;
+        if self.perishable {
+            if let Some(idx) = self.food.iter().position(|f| f.alive && f.x == self.agent.0 && f.y == self.agent.1) {
+                self.tick_respawn();
+                return self.consume_food(idx);
+            }
+            if let Some(idx) = self.water.iter().position(|w| w.alive && w.x == self.agent.0 && w.y == self.agent.1) {
+                self.tick_respawn();
+                return self.consume_water(idx);
+            }
+        } else {
+            if self.has_food(self.agent.0, self.agent.1) {
+                self.tick_respawn();
+                return self.collect_resource_reward(10.0);
+            }
+            if self.has_water(self.agent.0, self.agent.1) {
+                self.tick_respawn();
+                return self.collect_resource_reward(8.0);
+            }
         }
 
-        // Récompense si eau
-        if self.has_water(self.agent.0, self.agent.1) {
-            self.energy = (self.energy + 0.2).min(1.0);
-            self.total_reward += 8.0;
-            if self.steps >= self.max_steps { self.done = true; }
-            return 8.0;
-        }
+        self.tick_respawn();
 
         if self.steps >= self.max_steps {
             self.done = true;

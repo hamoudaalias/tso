@@ -8,6 +8,15 @@ pub struct AttractorField {
 }
 
 impl AttractorField {
+    /// Crée un champ d'attracteurs.
+    ///
+    /// - `dim` : dimension de l'espace d'entrée (ex: 147 pour MiniGrid 7×7 RGB)
+    /// - `n_classes` : nombre de classes initiales (ex: 8)
+    /// - `k` : nombre de prototypes par classe (ex: 3). La classification compare
+    ///   l'entrée à tous les prototypes et retourne la classe du plus proche.
+    ///   Plus de prototypes par classe → meilleure couverture mais O(n_classes × k) en prédiction.
+    /// - `lr` : learning rate (ex: 0.01). Met à jour le prototype le plus proche :
+    ///   rapproche si même classe, éloigne si classe différente.
     pub fn new(dim: usize, n_classes: usize, k: usize, lr: f64) -> Self {
         let mut prototypes = Vec::new();
         for _ in 0..n_classes {

@@ -120,7 +120,7 @@ pub fn update_state_transition_dirichlet_f(
     let outer_d = multidimensional_outer(&[qs_t, qs_tm1, &action_onehot]);
     // Reshape en 3D pour etre compatible avec pB_f
     let (ns0, ns1, na) = (pB_f.shape()[0], pB_f.shape()[1], pB_f.shape()[2]);
-    let outer_3d = outer_d.into_shape((ns0, ns1, na)).unwrap_or_else(|_| pB_f.clone());
+    let outer_3d = outer_d.into_shape_with_order((ns0, ns1, na)).unwrap_or_else(|_| pB_f.clone());
 
     // pB_f += lr * outer
     let pB_new = pB_f + outer_3d.mapv(|v| v * lr);
@@ -158,7 +158,7 @@ pub fn update_state_transition_dirichlet(
 
 #[cfg(test)]
 mod tests {
-    use ndarray::{arr1, arr2, arr3, Array3};
+    use ndarray::{arr1, arr2, Array3};
     use super::*;
 
     #[test]

@@ -3,7 +3,7 @@
 // Voir specs/tech-architecture/neurogenesis-interface-design.md
 
 use ndarray::Array1;
-use rand::Rng;
+
 use crate::attractor::AttractorField;
 use crate::core::Graph;
 
@@ -72,13 +72,14 @@ impl Neurogenesis {
         graph: &mut Graph,
         last_active_step: &[usize],
         noise_std: f64,
+        phi_stress: f64,
     ) -> NeurogenesisOutcome {
         // Synchroniser maturation avec le nombre actuel de concepts
         while self.maturation.len() < attractor.n_classes() {
             self.maturation.push(0);
         }
 
-        let births = self.birth_phase(attractor, graph, last_active_step, noise_std);
+        let births = self.birth_phase(attractor, graph, last_active_step, noise_std, phi_stress);
         self.homeostasis(attractor, graph, last_active_step);
         if self.config.synaptic_scaling {
             self.scale_synapses(graph);
@@ -95,10 +96,18 @@ impl Neurogenesis {
         graph: &mut Graph,
         _last_active_step: &[usize],
         noise_std: f64,
+        phi_stress: f64,
     ) -> usize {
         if self.config.rate <= 0.0 || self.config.max_concepts == 0 {
             return 0;
         }
+
+        // Φ stress amplifies birth rate: high sustained tension → more neurogenesis.
+        // A normalised stress of 1.0 (Φ at threshold) doubles the effective rate.
+        // This creates an adaptive response: when the graph can't resolve tension,
+        // new concepts are born to better partition the problem space.
+        let stress_multiplier = 1.0 + phi_stress;
+        let effective_rate = (self.config.rate * stress_multiplier).min(1.0);
 
         let mut new_concepts = 0usize;
         let n_classes = attractor.n_classes();
@@ -107,7 +116,7 @@ impl Neurogenesis {
             if attractor.n_classes() >= self.config.max_concepts {
                 break;
             }
-            if rand::random::<f64>() >= self.config.rate {
+            if rand::random::<f64>() >= effective_rate {
                 continue;
             }
             if let Some(proto) = attractor.get_prototype(i) {

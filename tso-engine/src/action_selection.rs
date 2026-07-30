@@ -1,6 +1,7 @@
 /// Action selection helpers — eliminates inline efe-vs-cerebellum branches.
 use ndarray::Array1;
 use crate::cerebellum::Cerebellum;
+#[cfg(feature = "active-inference")]
 use crate::efe;
 use crate::model::GenerativeModel;
 

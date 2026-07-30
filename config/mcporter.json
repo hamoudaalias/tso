@@ -1,0 +1,29 @@
+{
+  "mcpServers": {
+    "arxiv": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@cyanheads/arxiv-mcp-server"
+      ]
+    },
+    "filesystem": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@modelcontextprotocol/server-filesystem",
+        "/Users/hamoudaalias/Desktop/project/tso"
+      ]
+    },
+    "github": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@modelcontextprotocol/server-github"
+      ],
+      "env": {
+        "GITHUB_TOKEN": ""
+      }
+    }
+  }
+}

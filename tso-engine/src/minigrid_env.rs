@@ -48,6 +48,11 @@ impl MiniGridEnv {
         self.render_obs()
     }
 
+    pub fn reset_with_goal(&mut self, goal: (usize, usize)) -> Array1<f64> {
+        self.goal = goal;
+        self.reset()
+    }
+
     pub fn step(&mut self, action: usize) -> (f64, Array1<f64>, bool) {
         if self.done { return (0.0, self.render_obs(), true); }
         self.steps += 1;

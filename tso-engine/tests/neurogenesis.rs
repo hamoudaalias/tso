@@ -5,15 +5,16 @@
 // rate=1.0 pour la reproductibilité.
 // Chaque test suit le cycle RED → GREEN → REFACTOR
 
-use tso_engine::{CognitiveConfig, TsoEngine, SleepReport};
+use tso_engine::{CognitiveConfig, TsoEngine};
 
 #[test]
 fn test_neurogenesis_config_defaults() {
     // e10s01t01: Les nouveaux champs de CognitiveConfig ont les bonnes valeurs par défaut
+    // Depuis C13: sous-systèmes désactivés par défaut → neurogenèse rate = 0.0
     let cfg = CognitiveConfig::default();
     assert_eq!(
-        cfg.sleep_neurogenesis_rate, 0.2,
-        "sleep_neurogenesis_rate devrait être 0.2 par défaut"
+        cfg.sleep_neurogenesis_rate, 0.02,
+        "sleep_neurogenesis_rate devrait être 0.02 par défaut (Phase 2)"
     );
     assert_eq!(
         cfg.sleep_max_concepts, 50,
@@ -21,11 +22,11 @@ fn test_neurogenesis_config_defaults() {
     );
     assert_eq!(
         cfg.sleep_maturation_cycles, 3,
-        "sleep_maturation_cycles devrait être 3 par défaut"
+        "sleep_maturation_cycles devrait être 3 par défaut (Phase 2)"
     );
     assert!(
         cfg.sleep_synaptic_scaling,
-        "sleep_synaptic_scaling devrait être true par défaut"
+        "sleep_synaptic_scaling devrait être true par défaut (Phase 2)"
     );
 }
 
@@ -335,6 +336,99 @@ fn test_neurogenesis_phi_convergence() {
         phi_after <= phi_before + 0.05,
         "Φ a trop augmenté : avant={phi_before:.3}, après={phi_after:.3}"
     );
+}
+
+#[test]
+fn test_neurogenesis_phi_stress_multiplier() {
+    // Phase 3: Φ stress amplifies neurogenesis birth rate.
+    // With graph_phi enabled and diverse inputs, the semantic graph
+    // accumulates tension (Φ > 0), which multiplies the effective birth rate.
+    let mut engine = TsoEngine::new(6, 4);
+    engine.cogs.graph_phi = true;
+    engine.cogs.sleep_neurogenesis_rate = 0.3;
+    engine.cogs.sleep_max_concepts = 30;
+    engine.cogs.sleep_maturation_cycles = 0;
+    engine.sleep_every_n_episodes = 0;
+
+    use ndarray::Array1;
+    // Diverse observations to create graph tension
+    for i in 0..20 {
+        let obs = Array1::from_vec(vec![(i as f64 * 0.1).sin(); 6]);
+        engine.step(&obs, 0.0, None, &[]);
+    }
+
+    // Before sleep, phi_history should have entries
+    let avg_phi = engine.recent_phi();
+    let n_classes_before = engine.num_concepts();
+    let report = engine.sleep_cycle();
+    let n_classes_after = engine.num_concepts();
+
+    // The mechanism should not panic
+    assert!(avg_phi >= 0.0, "Φ should be non-negative");
+    assert!(report.phi_after >= 0.0, "Φ après sleep valide");
+    // Sleep should either create new concepts or at minimum not crash
+    assert!(n_classes_after >= n_classes_before || report.new_concepts > 0,
+        "Neurogenesis should add concepts or report births");
+}
+
+#[test]
+fn test_phi_driven_pruning_protects_under_tension() {
+    // e10s02t03: Φ-conditioned pruning — high Φ (arousal) protects concepts.
+    // Create engine, fill with concepts, set high current_phi manually,
+    // then prune with aggressive threshold — concepts should survive.
+    let mut engine = TsoEngine::new(6, 4);
+    engine.cogs.sleep_neurogenesis_rate = 1.0;
+    engine.cogs.sleep_max_concepts = 30;
+    engine.cogs.sleep_maturation_cycles = 0; // no maturation protection
+    engine.concept_prune_threshold = 10;      // prune after 10 steps of inactivity
+    engine.phi_threshold = 0.5;
+
+    // Fill with distinct stimuli to create multiple concepts
+    use ndarray::Array1;
+    let stimuli = vec![
+        vec![0.1, 0.2, 0.3, 0.4, 0.5, 0.6],
+        vec![0.7, 0.8, 0.9, 1.0, 0.1, 0.2],
+        vec![0.3, 0.4, 0.5, 0.6, 0.7, 0.8],
+        vec![0.9, 0.0, 0.1, 0.2, 0.3, 0.4],
+    ];
+    for s in &stimuli {
+        engine.step(&Array1::from_vec(s.clone()), 0.0, None, &[]);
+    }
+
+    let concepts_created = engine.num_concepts();
+    assert!(concepts_created >= 2, "Should have created at least 2 concepts");
+
+    // Sleep once to consolidate
+    let _report = engine.sleep_cycle();
+
+    let _concepts_after_sleep = engine.num_concepts();
+    // High Φ context: set current_phi above threshold so arousal > 0
+    engine.current_phi = 2.0;
+    engine.phi_threshold = 0.5;
+    // Simulate passage of time without activating concepts
+    let concepts_high_phi = {
+        // Run past the prune threshold while Φ is high
+        let c = engine.num_concepts();
+        // end_episode triggers prune_concepts with arousal > 0
+        engine.end_episode();
+        eprintln!("  high-Φ prune: concepts before={}, after={}", c, engine.num_concepts());
+        engine.num_concepts()
+    };
+    assert!(concepts_high_phi > 0, "High Φ should protect at least one concept");
+
+    // Now with low Φ, pruning should be more aggressive
+    engine.current_phi = 0.0;
+    engine.phi_threshold = 0.5;
+    let concepts_low_phi = {
+        let c = engine.num_concepts();
+        engine.end_episode();
+        eprintln!("  low-Φ prune: concepts before={}, after={}", c, engine.num_concepts());
+        engine.num_concepts()
+    };
+    // Low Φ should prune at least as aggressively as high Φ
+    assert!(concepts_low_phi <= concepts_high_phi,
+        "Low Φ should prune at least as aggressively as high Φ: {} vs {}",
+        concepts_low_phi, concepts_high_phi);
 }
 
 

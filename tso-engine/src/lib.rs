@@ -10,6 +10,7 @@ pub mod replay_buffer;
 pub mod cerebellum;
 pub mod hypothalamus;
 pub mod attention;
+#[cfg(feature = "rstdp")]
 pub mod plasticity;
 pub mod tso_engine;
 pub use tso_engine::CognitiveConfig;
@@ -23,14 +24,17 @@ pub mod sokoban;
 pub mod terrarium;
 pub mod encoder;
 pub mod environment;
-pub mod vae;
+// pub mod vae; — removed: d=0.02 vs attractor seul (paper.md §6.1)
 
 pub mod rotating_t;
 pub mod minigrid_env;
 pub mod zigzag_grid;
+#[cfg(feature = "active-inference")]
 pub mod efe;
+#[cfg(feature = "active-inference")]
 pub mod fpi;
 pub mod model;
+#[cfg(feature = "active-inference")]
 pub mod inference;
 pub mod learning;
 pub mod neurogenesis;

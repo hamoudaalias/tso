@@ -20,6 +20,7 @@ use crate::attractor::AttractorField;
 use crate::attention::Attention;
 use crate::grid_cells::GridCells;
 use crate::encoder::Encoder;
+#[cfg(feature = "active-inference")]
 use crate::inference;
 
 #[derive(Serialize, Deserialize)]
@@ -97,7 +98,7 @@ impl PerceptualBelt {
         &mut self,
         perception: &Array1<f64>,
         bfs_value: Option<f64>,
-        bfs_bias: &[f64],
+        _bfs_bias: &[f64],
         use_fpi: bool,
         use_attractor: bool,
         use_curiosity: bool,
@@ -174,7 +175,15 @@ impl PerceptualBelt {
 
 
 
-    fn categorize_fpi(&mut self, gated: &Array1<f64>, _bfs_value: Option<f64>) -> (usize, bool, f64, f64) {
+    fn categorize_fpi(&mut self, gated: &Array1<f64>, bfs_value: Option<f64>) -> (usize, bool, f64, f64) {
+        let perception = gated; // FPI uses gated directly
+        #[cfg(feature = "active-inference")]
+        return self.categorize_fpi_impl(gated);
+        self.categorize_attractor(gated, perception, false, bfs_value, true)
+    }
+
+    #[cfg(feature = "active-inference")]
+    fn categorize_fpi_impl(&mut self, gated: &Array1<f64>) -> (usize, bool, f64, f64) {
         if self.model.is_none() {
             let n_states = self.attractor.n_classes().max(4);
             self.model = Some(crate::model::GenerativeModel {
@@ -213,7 +222,7 @@ impl PerceptualBelt {
         gated: &Array1<f64>,
         perception: &Array1<f64>,
         used_raw: bool,
-        bfs_value: Option<f64>,
+        _bfs_value: Option<f64>,
         use_curiosity: bool,
         enc: &mut Box<dyn Encoder>,
     ) -> (usize, bool, f64, f64) {
@@ -233,7 +242,7 @@ impl PerceptualBelt {
         gated: &Array1<f64>,
         perception: &Array1<f64>,
         used_raw: bool,
-        bfs_value: Option<f64>,
+        _bfs_value: Option<f64>,
         use_curiosity: bool,
     ) -> (usize, bool, f64, f64) {
         // Pre-fetch threshold before mutable borrow of self

@@ -104,3 +104,84 @@ impl GridCells {
         base_dim + self.extra_dim()
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_cell_id_within_bounds() {
+        let gc = GridCells::new(5, 5);
+        let id = gc.cell_id(2, 3);
+        assert!(id >= 0.0 && id <= 1.0, "cell_id={id} should be in [0,1]");
+    }
+
+    #[test]
+    fn test_cell_id_out_of_bounds() {
+        let gc = GridCells::new(5, 5);
+        assert_eq!(gc.cell_id(10, 10), 0.0);
+    }
+
+    #[test]
+    fn test_cell_ids_are_unique() {
+        let gc = GridCells::new(5, 5);
+        let mut ids: Vec<f64> = Vec::new();
+        for x in 0..5 {
+            for y in 0..5 {
+                ids.push(gc.cell_id(x, y));
+            }
+        }
+        ids.sort_by(|a, b| a.partial_cmp(b).unwrap());
+        ids.dedup();
+        assert_eq!(ids.len(), 25, "should have 25 unique cell_ids");
+    }
+
+    #[test]
+    fn test_extra_dim_auto_configure() {
+        let mut gc = GridCells::new(5, 5);
+        assert_eq!(gc.extra_dim(), 0, "5×5=25 ≤ 36, no cells needed");
+        gc.auto_configure(7, 7);
+        assert_eq!(gc.extra_dim(), 1, "7×7=49 > 36, cells needed");
+    }
+
+    #[test]
+    fn test_force_on_off() {
+        let mut gc = GridCells::new(5, 5);
+        assert_eq!(gc.extra_dim(), 0);
+        gc.force_on(5, 5);
+        assert_eq!(gc.extra_dim(), 1);
+        gc.force_off();
+        assert_eq!(gc.extra_dim(), 0);
+    }
+
+    #[test]
+    fn test_augment_appends_cell_id() {
+        let mut gc = GridCells::new(7, 7);
+        gc.force_on(7, 7);
+        let p = Array1::from_vec(vec![0.1, 0.2, 0.3, 0.4]);
+        let augmented = gc.augment(&p, 3, 4);
+        assert_eq!(augmented.len(), 5);
+        let expected = (3.0 * 7.0 + 4.0) / 49.0;
+        assert!((augmented[4] - expected).abs() < 0.001, "cell_id at (3,4) should be ~{expected:.3} (got {})", augmented[4]);
+    }
+
+    #[test]
+    fn test_augment_no_cells_passthrough() {
+        let gc = GridCells::new(5, 5);
+        let p = Array1::from_vec(vec![0.1, 0.2, 0.3, 0.4]);
+        let augmented = gc.augment(&p, 3, 4);
+        assert_eq!(augmented.len(), 4);
+        assert_eq!(augmented, p);
+    }
+
+    #[test]
+    fn test_auto_configure_recalculates() {
+        let mut gc = GridCells::new(7, 7);
+        assert_eq!(gc.extra_dim(), 1);
+        gc.auto_configure(3, 3);
+        assert_eq!(gc.extra_dim(), 0, "3×3=9 ≤ 36");
+        let id = gc.cell_id(1, 1);
+        let expected = (1.0 * 3.0 + 1.0) / 9.0;
+        assert!((id - expected).abs() < 0.001, "cell_id at (1,1) in 3×3 should be ~{expected:.3} (got {id})");
+    }
+}

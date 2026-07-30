@@ -1,5 +1,3 @@
-use ndarray::Array1;
-
 /// Résultats d'un run multi-seed.
 #[derive(Clone, Debug)]
 pub struct SeedResults {

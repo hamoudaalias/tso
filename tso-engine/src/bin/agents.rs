@@ -14,6 +14,10 @@ macro_rules! make_bench {
     };
 }
 
+fn main() {
+    eprintln!("agents: bench functions library — run a specific benchmark from another binary");
+}
+
 make_bench!(run_linear_rotatingt, {
     let mut cb = Cerebellum::new(4, 4, 0.01, 0.3, 0.1, 0);
     let mut rt = RotatingT::new(50);

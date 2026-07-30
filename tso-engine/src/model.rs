@@ -40,7 +40,7 @@ pub struct GenerativeModel {
 
 #[cfg(test)]
 mod tests {
-    use ndarray::{arr1, arr2, arr3, ArrayD};
+    use ndarray::{arr1, arr2, arr3};
     use super::GenerativeModel;
 
     fn simple_model() -> GenerativeModel {

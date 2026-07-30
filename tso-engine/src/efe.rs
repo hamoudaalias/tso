@@ -2,6 +2,7 @@
 // cf. specs/epics/e11-pymdp/e11s02-efe.md
 
 use ndarray::{Array1, ArrayD, Array3};
+#[cfg(feature = "active-inference")]
 use crate::fpi;
 
 /// A = identité : constante pour helper de test

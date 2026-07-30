@@ -2,6 +2,7 @@
 // update_posterior_states = point d'entree standard
 
 use ndarray::{Array1, ArrayD};
+#[cfg(feature = "active-inference")]
 use crate::fpi::{self, run_vanilla_fpi};
 
 /// Resultat de l'inference

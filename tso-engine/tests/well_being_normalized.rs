@@ -102,7 +102,8 @@ mod rand {
     pub fn random<T: Default + From<u8>>() -> T {
         SEED.with(|seed| {
             let mut s = seed.borrow_mut();
-            *s = s.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407);
+            let val = *s;
+            *s = val.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407);
             let h = *s as u8;
             T::from(h)
         })
